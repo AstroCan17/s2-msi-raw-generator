@@ -19,7 +19,7 @@
 ## General
 The design realizes the reverse radiometric chain as a set of small, pure-NumPy functions (one per ATBD
 §5 step) composed into the `reverse_mvp` / `reverse_full` pipelines, parameterized by per-band ADFs and
-driven by real ESA calibration data. The package is layered: a constants/sensor leaf, an ADF/GIPP layer,
+driven byS2 calibration data. The package is layered: a constants/sensor leaf, an ADF/GIPP layer,
 the chain, and a product-assembly integrator. Every algorithm is implemented from the public L1 ATBD and
 the GIPP data format.
 
@@ -29,8 +29,8 @@ the GIPP data format.
 - **Official ATBD raw model `X = A·G·L + D`.** S1 applies the absolute-calibration multiply `DN = A·L`;
   S7 the relative response `G`; S11 the dark `D`. This matches the public L1 ATBD §4.1.1 forward model so
   the reverse is its exact conjugate.
-- **`cal_gain` anchored on the real noise model + SNR.** The absolute coefficient `A` (`Band.cal_gain`)
-  is derived from the real per-band noise α,β and the spec SNR@Lref, so the chain reproduces SNR@Lref
+- **`cal_gain` anchored on the noise model + SNR.** The absolute coefficient `A` (`Band.cal_gain`)
+  is derived from the per-band noise α,β and the spec SNR@Lref, so the chain reproduces SNR@Lref
   exactly on the true 12-bit DN scale (the product `physical_gain` is retained as metadata).
 - **Real per-pixel dark + relative response from the operational GIPP** (R2EQOG `COEFF_D` / cubic
   (A,B,C) / bilinear (A1,A2,Zs)); no fitted or seeded values in the realized path.
@@ -56,7 +56,7 @@ Original `xml.etree` parser → per-pixel arrays. API: `DetectorEq` (`.rel_gain`
 `read_r2crco()`, `load_gipp_set()`.
 
 ### adf.py — ADF assembly (REQ-FUNC-014, -044, -046; REQ-IF-003)
-`BandADF` frozen dataclass with `from_gipp()` (real per-pixel dark + PRNU, blind-column width alignment),
+`BandADF` frozen dataclass with `from_gipp()` (per-pixel dark + PRNU, blind-column width alignment),
 `from_product()` (L1B-derived), `synthesize()` (fallback); `real_psf_kernel()`, `load_oversampled_psf()`,
 `noise_coeffs()`, `fit_noise_coeffs()`.
 

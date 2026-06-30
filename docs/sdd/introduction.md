@@ -24,7 +24,7 @@ MSI Reverse E2ES** (`s2_e2es`). It is the design counterpart of the Software Req
 
 ## Objective
 Define how the software realizes the reverse radiometric chain (ATBD §5, steps S1–S15) that degrades a
-real Sentinel-2 **L1A/L1B** product back to a synthetic **L0 RAW** product, so that the requirements in
+ Sentinel-2 **L1A/L1B** product back to a synthetic **L0 RAW** product, so that the requirements in
 the SRS are met and verifiable. The design also supports the radiometric **round-trip V&V** (forward
 correct ∘ reverse impress) and the in-flight **calibration sub-set** (inverse-crime cure).
 

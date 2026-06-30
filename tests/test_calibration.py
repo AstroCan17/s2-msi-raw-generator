@@ -1,7 +1,7 @@
 """Tests for the S2 calibration sub-set (synthetic CSM diffuser + dark → derived coefficients).
 
 The loop impresses the true ADF, then derives the dark + relative response back. The estimates must
-recover the truth (the inverse-crime cure: residuals are small real calibration uncertainty, not 0).
+recover the truth (the inverse-crime cure: residuals are small calibration uncertainty, not 0).
 """
 
 from __future__ import annotations
@@ -42,7 +42,7 @@ def test_estimated_adf_uses_derived_not_truth():
     assert est.source.startswith("derived")
     assert np.array_equal(est.dark_dn, c.dark)
     assert np.array_equal(est.prnu_gain, c.relative_response)
-    # estimate differs from the truth ADF (real calibration residual, not a tautology)
+    # estimate differs from the truth ADF (calibration residual, not a tautology)
     assert not np.array_equal(est.dark_dn, a.dark_dn)
     assert est.psf is a.psf and est.noise_a == a.noise_a   # PSF + noise unchanged
 

@@ -6,7 +6,7 @@ Impresses the true ADF to synthesise a dark + a sun-diffuser L0 acquisition, the
 §4.1.1.2.2) — the *estimated* calibration a processor would apply, vs. the truth. The small residual
 is the inverse-crime cure.
 
-    python scripts/demo_calibration.py [GIPP_dir]      # real GIPP ADF if given, else synthetic
+    python scripts/demo_calibration.py [GIPP_dir] # GIPP ADF if given, else synthetic
 """
 
 from __future__ import annotations
@@ -24,9 +24,9 @@ def main() -> int:
     if gipp_dir:
         from s2_e2es import gipp
         gs = gipp.load_gipp_set(gipp_dir)
-        print(f"ADF source: real operational GIPP ({gipp_dir.split('/')[-1]})")
+        print(f"ADF source: operational GIPP ({gipp_dir.split('/')[-1]})")
     else:
-        print("ADF source: synthetic (pass a GIPP dir for real per-pixel coefficients)")
+        print("ADF source: synthetic (pass a GIPP dir for per-pixel coefficients)")
 
     print(f"{'band':5}{'Ldiff':>7}{'dark truth':>11}{'dark est':>10}{'dark err':>9}"
           f"{'g corr':>8}{'A (≈cal_gain)':>15}")

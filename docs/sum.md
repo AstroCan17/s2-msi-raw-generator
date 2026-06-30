@@ -17,7 +17,7 @@
 # Software user manual
 
 **Project:** Sentinel-2 MSI Reverse E2ES (`s2_e2es`) · **DRD:** ECSS-E-ST-40C Rev.1 (SUM). The E2ES
-degrades a real Sentinel-2 L1A/L1B product back to a synthetic L0 RAW product and provides real-data
+degrades a Sentinel-2 L1A/L1B product back to a synthetic L0 RAW product and provides real-data
 verification & calibration tooling.
 
 ## 1. Installation
@@ -39,22 +39,22 @@ Optional, only to render preview PNGs with `save_images.py`: `pip install pillow
 pytest                        # 104 tests (2 real-data tests skip without env vars)
 ```
 
-The packaged real ESA PSF matrices live under `s2_e2es/data/psf/`; no external data is needed for the unit
+The packagedS2 PSF matrices live under `s2_e2es/data/psf/`; no external data is needed for the unit
 tests. Real-data runs need an EOPF L1A/L1B `.zarr` and the operational GIPP folder (see §4).
 
 ## 3. Reverse chain → L0 RAW
 
 ```bash
-# reverse one band of a real L1B granule (radiance → L0 DN), prints a self-consistency check
+# reverse one band of a  L1B granule (radiance → L0 DN), prints a self-consistency check
 python scripts/demo_reverse_real.py <L1B.zarr.zip> [detector] [band]
 
-# real L1B → assemble a full synthetic L0 RAW product (156-array Zarr + STAC/sensor-config)
+#  L1B → assemble a full synthetic L0 RAW product (156-array Zarr + STAC/sensor-config)
 python scripts/demo_build_l0.py [out_dir]
 ```
 
 ## 4. Real-data V&V and calibration
 
-Point the scripts at a real L1A `.zarr` and the operational GIPP directory. A convenient layout (the
+Point the scripts at a L1A `.zarr` and the operational GIPP directory. A convenient layout (the
 `data/` folder is gitignored):
 
 ```bash
@@ -64,7 +64,7 @@ ln -s /path/to/PDI_MSI_S2_L1A.zarr        data/PDI_MSI_S2_L1A.zarr
 ```
 
 ```bash
-# round-trip V&V: forward correct → reverse impress == identity on real DN (~1e-14 RMSE)
+# round-trip V&V: forward correct → reverse impress == identity on  DN (~1e-14 RMSE)
 python scripts/roundtrip_real_l1a.py data/PDI_MSI_S2_L1A.zarr data/gipp B02 B03 B11 B12
 
 # calibration sub-set: synthetic CSM diffuser + dark → derived dark/gain (inverse-crime cure)
@@ -74,7 +74,7 @@ python scripts/demo_calibration.py data/gipp
 python scripts/save_images.py data/PDI_MSI_S2_L1A.zarr data/gipp B03 --out images
 ```
 
-Run the gated tests on real data:
+Run the gated tests on data:
 
 ```bash
 S2_E2ES_GIPP_DIR=data/gipp S2_E2ES_L1A=data/PDI_MSI_S2_L1A.zarr pytest tests/ -q
@@ -87,7 +87,7 @@ S2_E2ES_GIPP_DIR=data/gipp S2_E2ES_L1A=data/PDI_MSI_S2_L1A.zarr pytest tests/ -q
 | `demo_reverse_real.py` | `[L1B.zarr.zip] [detector=4] [band=B03]` |
 | `demo_build_l0.py` | `[out_dir]` |
 | `roundtrip_real_l1a.py` | `<L1A.zarr> <GIPP_dir> [bands…] [--detector N] [--lines 2048]` |
-| `demo_calibration.py` | `[GIPP_dir]` (real GIPP if given, else synthetic ADFs) |
+| `demo_calibration.py` | `[GIPP_dir]` (GIPP if given, else synthetic ADFs) |
 | `save_images.py` | `<L1A.zarr> <GIPP_dir> [band=B03] [--detector 1] [--lines 1024] [--out images]` |
 | `derive_prnu_dark.py` | `--l1a <L1A/L1B.zarr> [--dark <dark.zarr>] [--bands …] [--detectors 1-12] [--out *.npz]` |
 

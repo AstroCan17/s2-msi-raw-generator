@@ -23,21 +23,21 @@ report / validation report, SVR). Plan: `plan.md`. Requirements: `../srs.md`.
 
 The automated test suite — **52 test functions across 9 files, expanding to 104 parametrized cases —
 passes in full (104 passed, 2 skipped), green in GitLab CI**. The 2 skips are the real-data tests, which
-pass when `S2_E2ES_GIPP_DIR` / `S2_E2ES_L1A` are supplied (verified on the real operational GIPP and a real
+pass when `S2_E2ES_GIPP_DIR` / `S2_E2ES_L1A` are supplied (verified on the operational GIPP and a real
 L1A). All *realized* requirements in the SRS are verified.
 
 ## 2. Test inventory
 
 | Test file | #funcs | Verifies |
 |---|---|---|
-| `test_reverse.py` | 11 | Sensor model (13 bands, no PAN; real gains; TDI = B03/B04/B11/B12); S1 radiance↔DN exact; radiometric chain (S1,S7,S11,S12) exactly invertible (rtol 1e-9); PSF radiometry-preserving (Σ=1); discrete Nyquist MTF; **noise σ=√(α²+β·DN) within ±5 % over 40 000 px (REQ-FUNC-021 / REQ-PERF-001)**; SNR@Lref reproduction; quantize bounds; MVP output contract |
-| `test_real_data.py` | 11 | Real ESA PSF load/normalisation (33×33, Σ=1, peak-centred); B10 → identity; per-unit PSF differences; real per-unit SRF centre/bandwidth/equiv-λ; `unit_from_platform`; real noise α,β = product values; **`cal_gain`/`dn_ref` reproduce spec SNR; end-to-end SNR ±5 %**; real spectral metadata |
+| `test_reverse.py` | 11 | Sensor model (13 bands, no PAN; gains; TDI = B03/B04/B11/B12); S1 radiance↔DN exact; radiometric chain (S1,S7,S11,S12) exactly invertible (rtol 1e-9); PSF radiometry-preserving (Σ=1); discrete Nyquist MTF; **noise σ=√(α²+β·DN) within ±5 % over 40 000 px (REQ-FUNC-021 / REQ-PERF-001)**; SNR@Lref reproduction; quantize bounds; MVP output contract |
+| `test_real_data.py` | 11 |S2 PSF load/normalisation (33×33, Σ=1, peak-centred); B10 → identity; per-unit PSF differences;  per-unit SRF centre/bandwidth/equiv-λ; `unit_from_platform`;  noise α,β = product values; **`cal_gain`/`dn_ref` reproduce spec SNR; end-to-end SNR ±5 %**;  spectral metadata |
 | `test_calibration.py` | 4 | Calibration sub-set recovery — derived **dark within bound of truth**, **relative-response correlation > 0.9**, ⟨g⟩ = 1 (±1e-6), **A ≈ cal_gain (±5 %)**; `estimated_adf` uses derived not truth; dark acquisition carries no scene signal |
 | `test_roundtrip_atbd.py` | 3 | **forward_correct ∘ reverse_impress = exact inverse (RMSE < 1e-9 synthetic)**; relative response **flattens FPN (< 0.3× raw)** + recovers flat scene (atol 1e-6); optional real-L1A round-trip (RMSE < 1e-6) |
 | `test_l0product.py` | 3 | `reverse_to_l0_frames` uint16 in range; L0 write+reopen structure (band/mask, B8A→b8a, STAC `eopf:type=S2MSIL0_`, TDI list, `physical_gains`, `line_period`, provenance); **full 156-array contract (12×13)** |
-| `test_gipp.py` | 5 | R2EQOG cubic + bilinear parse (dark, gains); R2DEPI/BLINDP/R2PARA (−100/−1000)/R2CRCO (≈0); `from_gipp` builds real ADF + blind-column width alignment; optional real-GIPP dark in DQR range |
+| `test_gipp.py` | 5 | R2EQOG cubic + bilinear parse (dark, gains); R2DEPI/BLINDP/R2PARA (−100/−1000)/R2CRCO (≈0); `from_gipp` builds ADF + blind-column width alignment; optional real-GIPP dark in DQR range |
 | `test_isp.py` | 8 | CCSDS primary-header round-trip; APID > 2047 rejected; CUC time coarse/fine; frame ISP header shape/seq/length; timestamps step by `line_period`; SAD packets; deterministic 11-bit APID; L0 `with_isp` writes ISP + telemetry |
-| `test_integration.py` | 1 | **End-to-end: synthetic L1B → `reverse_full` (S1,S6,S7,S8,S10,S11–S14) + S15 ISP → full L0**, 2 det × 6 bands incl. SWIR re-stagger + injected defects; validates arrays, ISP, masks reflect defects, telemetry, real sensor config |
+| `test_integration.py` | 1 | **End-to-end: synthetic L1B → `reverse_full` (S1,S6,S7,S8,S10,S11–S14) + S15 ISP → full L0**, 2 det × 6 bands incl. SWIR re-stagger + injected defects; validates arrays, ISP, masks reflect defects, telemetry,  sensor config |
 | `test_inc3_steps.py` | 6 | S4 offset; S5 un-bin (shape+mean); S8 SWIR re-stagger invertible; S9 crosstalk (coeff 0 = identity); S10 defects (dead→0/bit0, hot→4095/bit1); `reverse_full` SWIR+defects contract |
 
 ## 3. Quantitative results
@@ -45,7 +45,7 @@ L1A). All *realized* requirements in the SRS are verified.
 | Quantity | Verified bound (test) | Typical observed | Source |
 |---|---|---|---|
 | Radiometric round-trip RMSE (synthetic) | < 1e-9 | ~1e-14 | `test_roundtrip_atbd::test_forward_inverse_exact` |
-| Radiometric round-trip RMSE (real L1A DN) | < 1e-6 | ~1e-14 | `roundtrip_real_l1a.py`, `test_real_l1a_roundtrip_exact` |
+| Radiometric round-trip RMSE (L1A DN) | < 1e-6 | ~1e-14 | `roundtrip_real_l1a.py`, `test_real_l1a_roundtrip_exact` |
 | Calibration dark recovery | ≤ 0.5 DN | ~0.05 DN | `test_calibration` (bound); ATBD §4 (typical) |
 | Calibration relative-response correlation | > 0.9 | > 0.99 | `test_calibration` (bound); ATBD §4 (typical) |
 | Calibration absolute coefficient `A` | ±5 % of `cal_gain` | ≈ `cal_gain` | `test_calibration` |
@@ -53,7 +53,7 @@ L1A). All *realized* requirements in the SRS are verified.
 | SNR@Lref reproduction | ±5 % end-to-end | < 1 % | `test_real_data` (REQ-PERF-002) |
 | FPN flattening by equalization | corrected < 0.3× raw | ~0 (flat recovered) | `test_roundtrip_atbd` |
 
-The round-trip and FPN results were also confirmed visually on the real L1A (real B03 cloud imagery; the
+The round-trip and FPN results were also confirmed visually on the L1A (B03 cloud imagery; the
 residual image is featureless ⇒ exact inverse) via `scripts/save_images.py`.
 
 ## 4. Requirements verification status

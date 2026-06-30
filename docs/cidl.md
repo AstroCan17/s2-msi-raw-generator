@@ -81,7 +81,7 @@ authoritative baseline is the `main` branch tip.
 | ISP / telemetry | `s2_e2es/isp.py` |
 | EOPF product reader | `s2_e2es/io.py` |
 | L0 RAW product assembly | `s2_e2es/l0product.py` |
-| Real ESA PSF matrices | `s2_e2es/data/psf/{S2A,S2B,S2C}/*.csv` |
+|S2 PSF matrices | `s2_e2es/data/psf/{S2A,S2B,S2C}/*.csv` |
 | Demonstration & V&V scripts | `scripts/*.py` |
 | Test suite | `tests/test_*.py` |
 | Build / packaging | `pyproject.toml` |

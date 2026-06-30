@@ -72,7 +72,7 @@ def reverse_mvp(radiance: np.ndarray, adf: BandADF, rng: np.random.Generator) ->
     """Full MVP reverse chain for one band/detector: radiance → uint16 L0 DN.
 
     S1 → S6 → S7 → S13 → S11 → S12 → S14. Noise (S13) is impressed on the *signal* DN (before the
-    dark pedestal is added in S11), so σ=√(α²+β·DN_signal) reproduces the real SNR@Lref exactly —
+    dark pedestal is added in S11), so σ=√(α²+β·DN_signal) reproduces the SNR@Lref exactly —
     the α,β model already captures the total noise at a given signal level.
     """
     dn = s1_radiance_to_dn(radiance, adf.band.cal_gain)

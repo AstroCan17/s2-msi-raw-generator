@@ -1,7 +1,7 @@
 """Tests for the original GIPP parser (``s2_e2es.gipp``) and ``BandADF.from_gipp``.
 
 Structurally-faithful but tiny GIPP XML fixtures are generated inline (no large vendored files). An
-optional test runs against the real operational GIPP when ``S2_E2ES_GIPP_DIR`` points at it.
+optional test runs against the operational GIPP when ``S2_E2ES_GIPP_DIR`` points at it.
 """
 
 from __future__ import annotations
@@ -147,14 +147,14 @@ def test_from_gipp_builds_real_adf(tiny_gipp):
     assert a2.dark_dn.shape == (4,)
 
 
-# --- optional: real operational GIPP -----------------------------------------
+# --- optional: operational GIPP -----------------------------------------
 
 def test_real_gipp_dark_matches_dqr_range():
     gipp_dir = os.environ.get("S2_E2ES_GIPP_DIR")
     if not gipp_dir or not os.path.isdir(gipp_dir):
-        pytest.skip("set S2_E2ES_GIPP_DIR to the real GIPP folder to run")
+        pytest.skip("set S2_E2ES_GIPP_DIR to the GIPP folder to run")
     gs = gipp.load_gipp_set(gipp_dir)
     assert len(gs.equalization) == 13
     for b in sensor.BANDS:
         dark = gs.band(b).detectors[1].dark
-        assert 400 <= dark.mean() <= 560        # DQR pedestal range (real per-pixel)
+        assert 400 <= dark.mean() <= 560 # DQR pedestal range (per-pixel)

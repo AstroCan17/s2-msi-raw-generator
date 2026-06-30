@@ -2,7 +2,7 @@
 
 Exercises the whole pipeline (reverse_full = S1,S6,S7,S8,S10,S11–S14 + l0product S15 ISP) across
 multiple detectors and bands (incl. SWIR re-stagger + injected defects), then validates the L0 RAW
-EOProduct structure, quality masks, ISP telemetry, and real sensor-config metadata.
+EOProduct structure, quality masks, ISP telemetry, and sensor-config metadata.
 """
 
 from __future__ import annotations
@@ -69,7 +69,7 @@ def test_full_pipeline_l1b_to_l0_with_isp(tmp_path):
     assert g[f"conditions/anc_data/s{apid}/isp"].dtype == np.uint8
     assert g[f"conditions/anc_data/s{apid}/packet_data_length"].dtype == np.uint16
 
-    # --- root metadata: real sensor config ---
+    # --- root metadata: sensor config ---
     attrs = dict(g.attrs)
     assert attrs["stac_discovery"]["properties"]["eopf:type"] == "S2MSIL0_"
     ac = attrs["other_metadata"]["sensor_configuration"]["acquisition_configuration"]
@@ -78,5 +78,5 @@ def test_full_pipeline_l1b_to_l0_with_isp(tmp_path):
     assert attrs["other_metadata"]["sensor_configuration"]["time_stamp"]["line_period"] \
         == pytest.approx(1.5658736)
     prov = attrs["processing_history"]["adf_provenance"]
-    assert prov["psf"].startswith("real")          # official ESA PSF
-    assert prov["spectral"].startswith("real")     # real SRF wavelengths
+    assert "SentiWiki" in prov["psf"]          # official ESA PSF
+    assert "SRF" in prov["spectral"]           # SRF wavelengths
