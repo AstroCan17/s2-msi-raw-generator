@@ -155,6 +155,49 @@ class BandADF:
     eq_gain: np.ndarray     # (n_det,) onboard equalization gain, ~1.0
     eq_offset: np.ndarray   # (n_det,) onboard equalization offset in DN
     prnu_is_real: bool = False  # True when prnu/dark were derived from real products
+    source: str = "synthetic"   # provenance of the per-detector prnu/dark arrays
+
+    @classmethod
+    def from_gipp(
+        cls,
+        b: sensor.Band,
+        detector: int,
+        gippset,
+        *,
+        active_width: int | None = None,
+    ) -> "BandADF":
+        """Build a :class:`BandADF` for one detector from the REAL operational GIPP (R2EQOG):
+        per-pixel dark signal ``D`` and relative-response (PRNU) gain (C cubic / A1 bilinear).
+
+        ``gippset`` is a :class:`s2_e2es.gipp.GippSet`. When ``active_width`` is given and differs from
+        the GIPP across-track size, the blind columns (from BLINDP) are stripped so the arrays align to
+        the active product width. PSF and noise stay real (SentiWiki PSF, product noise model).
+        """
+        deteq = gippset.band(b.name).detectors[detector]
+        dark = np.asarray(deteq.dark, dtype=float)
+        gain = np.asarray(deteq.rel_gain, dtype=float)
+        if active_width is not None and active_width != dark.size:
+            blind = gippset.blind.get(b.name, {}).get(detector)
+            keep = np.setdiff1d(np.arange(dark.size), blind) if blind is not None \
+                else np.arange(dark.size)
+            if keep.size != active_width:  # fall back to a centred active window
+                start = (dark.size - active_width) // 2
+                keep = np.arange(start, start + active_width)
+            dark, gain = dark[keep], gain[keep]
+        n = dark.size
+        a, bb = noise_coeffs(b)
+        return cls(
+            band=b,
+            noise_a=a,
+            noise_b=bb,
+            psf=real_psf_kernel(b.name, b.unit),
+            prnu_gain=gain,
+            dark_dn=dark,
+            eq_gain=np.ones(n),
+            eq_offset=np.zeros(n),
+            prnu_is_real=True,
+            source="GIPP R2EQOG",
+        )
 
     @classmethod
     def from_product(
@@ -180,6 +223,7 @@ class BandADF:
             eq_gain=np.ones(n_det) if eq_gain is None else np.asarray(eq_gain, dtype=float),
             eq_offset=np.zeros(n_det) if eq_offset is None else np.asarray(eq_offset, dtype=float),
             prnu_is_real=True,
+            source="real product (L1B-derived)",
         )
 
 
