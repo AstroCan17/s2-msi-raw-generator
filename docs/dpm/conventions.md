@@ -24,14 +24,14 @@
 | rounded box | A processing step (a function in `s2_e2es.reverse` / `forward_radiometric_atbd`). |
 | cylinder | A data store — input product, ADF, or output product. |
 | solid arrow | Data flow between steps (a 2-D `(lines, detector_columns)` array). |
-| `X` | raw focal-plane digital number (L0 domain). |
-| `L` | at-sensor band radiance (L1B input), W·m⁻²·sr⁻¹·µm⁻¹. |
-| `A` | per-band absolute-calibration gain (`Band.cal_gain`). |
-| `G` | per-pixel relative response (PRNU), GIPP R2EQOG. |
-| `D` | per-pixel dark signal, GIPP R2EQOG `COEFF_D`. |
-| `α, β` | per-band noise-model coefficients, `σ = √(α² + β·DN)`. |
+| $X$ | raw focal-plane digital number (L0 domain). |
+| $L$ | at-sensor band radiance (L1B input), $\mathrm{W \cdot m^{-2} \cdot sr^{-1} \cdot \mu m^{-1}}$. |
+| $A$ | per-band absolute-calibration gain (`Band.cal_gain`). |
+| $G$ | per-pixel relative response (PRNU), GIPP R2EQOG. |
+| $D$ | per-pixel dark signal, GIPP R2EQOG `COEFF_D`. |
+| $\alpha, \beta$ | per-band noise-model coefficients, $\sigma = \sqrt{\alpha^2 + \beta \cdot \mathrm{DN}}$. |
 
-**Units & types.** Radiance in W·m⁻²·sr⁻¹·µm⁻¹; DN dimensionless `uint16` in `[0, 4095]`; wavelengths in
+**Units & types.** Radiance in $\mathrm{W \cdot m^{-2} \cdot sr^{-1} \cdot \mu m^{-1}}$; DN dimensionless `uint16` in $[0, 4095]$; wavelengths in
 nm; line period in ms. Arrays are `(along-track lines, across-track detector columns)`. Detector index
 `01`–`12`; bands `B01…B12, B8A` (no panchromatic). Per-unit data keyed `S2A/S2B/S2C`.
 

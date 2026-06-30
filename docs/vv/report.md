@@ -30,9 +30,9 @@ L1A). All *realized* requirements in the SRS are verified.
 
 | Test file | #funcs | Verifies |
 |---|---|---|
-| `test_reverse.py` | 11 | Sensor model (13 bands, no PAN; gains; TDI = B03/B04/B11/B12); S1 radiance↔DN exact; radiometric chain (S1,S7,S11,S12) exactly invertible (rtol 1e-9); PSF radiometry-preserving (Σ=1); discrete Nyquist MTF; **noise σ=√(α²+β·DN) within ±5 % over 40 000 px (REQ-FUNC-021 / REQ-PERF-001)**; SNR@Lref reproduction; quantize bounds; MVP output contract |
-| `test_real_data.py` | 11 |S2 PSF load/normalisation (33×33, Σ=1, peak-centred); B10 → identity; per-unit PSF differences;  per-unit SRF centre/bandwidth/equiv-λ; `unit_from_platform`;  noise α,β = product values; **`cal_gain`/`dn_ref` reproduce spec SNR; end-to-end SNR ±5 %**;  spectral metadata |
-| `test_calibration.py` | 4 | Calibration sub-set recovery — derived **dark within bound of truth**, **relative-response correlation > 0.9**, ⟨g⟩ = 1 (±1e-6), **A ≈ cal_gain (±5 %)**; `estimated_adf` uses derived not truth; dark acquisition carries no scene signal |
+| `test_reverse.py` | 11 | Sensor model (13 bands, no PAN; gains; TDI = B03/B04/B11/B12); S1 radiance↔DN exact; radiometric chain (S1,S7,S11,S12) exactly invertible (rtol 1e-9); PSF radiometry-preserving ($\Sigma=1$); discrete Nyquist MTF; **noise $\sigma=\sqrt{\alpha^2+\beta\cdot\mathrm{DN}}$ within ±5 % over 40 000 px (REQ-FUNC-021 / REQ-PERF-001)**; SNR@Lref reproduction; quantize bounds; MVP output contract |
+| `test_real_data.py` | 11 |S2 PSF load/normalisation (33×33, $\Sigma=1$, peak-centred); B10 → identity; per-unit PSF differences;  per-unit SRF centre/bandwidth/equiv-λ; `unit_from_platform`;  noise α,β = product values; **`cal_gain`/`dn_ref` reproduce spec SNR; end-to-end SNR ±5 %**;  spectral metadata |
+| `test_calibration.py` | 4 | Calibration sub-set recovery — derived **dark within bound of truth**, **relative-response correlation > 0.9**, $\langle g \rangle = 1$ (±1e-6), **$A \approx$ `cal_gain` (±5 %)**; `estimated_adf` uses derived not truth; dark acquisition carries no scene signal |
 | `test_roundtrip_atbd.py` | 3 | **forward_correct ∘ reverse_impress = exact inverse (RMSE < 1e-9 synthetic)**; relative response **flattens FPN (< 0.3× raw)** + recovers flat scene (atol 1e-6); optional real-L1A round-trip (RMSE < 1e-6) |
 | `test_l0product.py` | 3 | `reverse_to_l0_frames` uint16 in range; L0 write+reopen structure (band/mask, B8A→b8a, STAC `eopf:type=S2MSIL0_`, TDI list, `physical_gains`, `line_period`, provenance); **full 156-array contract (12×13)** |
 | `test_gipp.py` | 5 | R2EQOG cubic + bilinear parse (dark, gains); R2DEPI/BLINDP/R2PARA (−100/−1000)/R2CRCO (≈0); `from_gipp` builds ADF + blind-column width alignment; optional real-GIPP dark in DQR range |
@@ -49,7 +49,7 @@ L1A). All *realized* requirements in the SRS are verified.
 | Calibration dark recovery | ≤ 0.5 DN | ~0.05 DN | `test_calibration` (bound); ATBD §4 (typical) |
 | Calibration relative-response correlation | > 0.9 | > 0.99 | `test_calibration` (bound); ATBD §4 (typical) |
 | Calibration absolute coefficient `A` | ±5 % of `cal_gain` | ≈ `cal_gain` | `test_calibration` |
-| Noise σ accuracy | ±5 % over ≥ 10⁴ px | within ±5 % | `test_reverse` (REQ-PERF-001) |
+| Noise $\sigma$ accuracy | ±5 % over ≥ $10^4$ px | within ±5 % | `test_reverse` (REQ-PERF-001) |
 | SNR@Lref reproduction | ±5 % end-to-end | < 1 % | `test_real_data` (REQ-PERF-002) |
 | FPN flattening by equalization | corrected < 0.3× raw | ~0 (flat recovered) | `test_roundtrip_atbd` |
 

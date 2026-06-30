@@ -41,8 +41,8 @@ document, SRelD). Full history: `../CHANGELOG.md`.
 
 - **Real operational GIPP** → per-pixel dark + relative response (replaces the DQR-summary dark / seeded
   PRNU).
-- **Official L1 ATBD raw model** `X = A·G·L + D` in true 12-bit DN; `cal_gain` anchored on the noise
-  α,β + SNR@Lref; noise impressed on the signal DN.
+- **Official L1 ATBD raw model** $X = A\cdot G\cdot L + D$ in true 12-bit DN; `cal_gain` anchored on the noise
+  $\alpha,\beta$ + SNR@Lref; noise impressed on the signal DN.
 - **Original ATBD forward + round-trip V&V** on a L1A (RMSE ~1e-14).
 - **Calibration sub-set** — synthetic CSM diffuser + dark → derived coefficients (inverse-crime cure).
 - **Documentation:** ATBD issued v1.0; added the full ECSS-E-ST-40C DRD set, LICENSE (Apache-2.0), CHANGELOG.

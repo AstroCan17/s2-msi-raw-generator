@@ -33,7 +33,7 @@ flowchart LR
 
 **Inputs.** A Sentinel-2 **L1A** (raw DN) or **L1B** (radiance) EOPF Zarr granule; the operational
 S2A **GIPP** (per-pixel dark + relative response, defects, offsets, crosstalk); packaged ADFs (ESA
-**PSF** matrices, **SRF** spectral characterisation, per-band **noise** model α,β).
+**PSF** matrices, **SRF** spectral characterisation, per-band **noise** model $\alpha,\beta$).
 
 **Processing.** The reverse chain (S1–S15) impresses the instrument effects to reconstruct
 focal-plane counts. A separate **calibration sub-set** synthesises sun-diffuser + dark acquisitions and
@@ -44,4 +44,4 @@ focal-plane counts. A separate **calibration sub-set** synthesises sun-diffuser 
 optional CCSDS ISP telemetry, STAC + sensor-configuration metadata).
 
 **Verification context.** The radiometric round-trip (`raw → forward correct → reverse impress → raw′`)
-on a L1A with the GIPP confirms the forward and reverse are exact inverses (residual ≈ 0).
+on a L1A with the GIPP confirms the forward and reverse are exact inverses (residual $\approx 0$).

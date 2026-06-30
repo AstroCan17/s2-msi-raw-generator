@@ -49,7 +49,7 @@ flowchart TD
 ```
 
 **Realized execution order.** `reverse.reverse_mvp` runs `S1 → S6 → S7 → S13 → S11 → S12 → S14`: the
-sensor noise (S13) is impressed on the *signal* DN **before** the S11 dark pedestal, so `σ = √(α²+β·DN)`
-reproduces the spec SNR@Lref exactly. `reverse.reverse_full` additionally inserts S8 (SWIR re-stagger)
+sensor noise (S13) is impressed on the *signal* DN **before** the S11 dark pedestal, so $\sigma = \sqrt{\alpha^2 + \beta \cdot \mathrm{DN}}$
+reproduces the spec $\mathrm{SNR}@L_\mathrm{ref}$ exactly. `reverse.reverse_full` additionally inserts S8 (SWIR re-stagger)
 and S10 (defects). The exactly-invertible bridge `reverse_radiometric`/`forward_radiometric` uses only
 S1, S7, S11, S12 (no PSF, noise, or quantization) for the round-trip V&V.
