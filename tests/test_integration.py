@@ -77,4 +77,6 @@ def test_full_pipeline_l1b_to_l0_with_isp(tmp_path):
                                             "11": "APPLIED", "12": "APPLIED"}
     assert attrs["other_metadata"]["sensor_configuration"]["time_stamp"]["line_period"] \
         == pytest.approx(1.5658736)
-    assert attrs["processing_history"]["synthetic_adf"] is True
+    prov = attrs["processing_history"]["adf_provenance"]
+    assert prov["psf"].startswith("real")          # official ESA PSF
+    assert prov["spectral"].startswith("real")     # real SRF wavelengths

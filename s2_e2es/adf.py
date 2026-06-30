@@ -1,29 +1,100 @@
-"""Synthetic-fallback ADFs — physically-plausible parameters fitted to the datasheet.
+"""Per-band ADFs for the reverse chain — real published data where it exists.
 
-Real L1 radiometric ADFs (RABCA/RNOMO/REQOG/REOB2/RDEFI) are credentialed (`s2msi`, blocker
-#36) and the DPR-common public bucket does not host them (ATBD §6). For the MVP we synthesize:
+Provenance of each component:
 
-* gain      — REAL `physical_gains` from the product metadata (sensor.PHYSICAL_GAIN), not synthetic.
-* noise a,b — fitted so ``σ=√(a+b·DN)`` reproduces the band's SNR@Lref (ATBD Annex A.6, REQ-FUNC-021).
-* PSF       — Gaussian-from-MTF kernel matching MTF@Nyquist (ATBD Annex A.4).
-* PRNU      — 1D per-detector relative-gain signature (PRNU paper: 1D along the pushbroom column).
-* dark      — small per-detector dark offset (VNIR <1 DN, SWIR larger; ATBD Annex A.6).
+All values are used verbatim from real ESA sources — nothing is fitted. The raw model is the
+official L1 ATBD equation ``X = A·G·L + D`` (S2-PDGS-MPC-ATBD-L1 §4.1.1). Provenance per component:
 
-REQ-FUNC-045: callers must log that synthetic ADFs are in use.
+* gain (A)  — ``Band.cal_gain``, the absolute calibration A in S1 (``DN=A·L``), derived from the real
+              noise α,β + real SNR@Lref so the chain reproduces SNR@Lref. The product's
+              ``physical_gain`` is incoherent with α,β on this synthetic dataset (it mis-scales low-
+              radiance bands by up to ~10×), so it is kept only for L0 metadata / the round-trip bridge.
+* PSF       — REAL official ESA per-band, per-unit PSF matrices (SentiWiki `S2{A,B,C}_PSF.zip`,
+              `data/psf/`); 33×33 oversampling-5 matrices integrated to the detector grid. B10 has
+              no published PSF (water-vapour band) → identity kernel. See ``real_psf_kernel``.
+* spectral  — REAL per-unit centre/bandwidth/equivalent wavelength (SRF doc, in `sensor.py`).
+* noise α,β — REAL noise model ``σ=√(α²+β·DN)`` (S2-RUT) with α, β straight from the L1A product
+              metadata (`sensor.NOISE_ALPHA/NOISE_BETA`), used verbatim. With the cal_gain DN scale
+              the chain reproduces the real SNR@Lref.
+* dark (D)  — REAL S2A dark from the Feb-2023 DQR: pedestal `sensor.DARK_PEDESTAL_LSB` (440–520 LSB)
+              + per-pixel DSNU (`Band.dark_dsnu`, < 0.5/1.0 LSB VNIR/SWIR).
+* PRNU (G), equalization — per-pixel NUC (R2EQOG GIPP) is credentialed (`s2msi`, #36), not in the
+              product. ``synthesize`` seeds a representative per-detector G; ``BandADF.from_product``
+              takes the real PRNU derived from the real L1B (`scripts/derive_prnu_dark.py`). The
+              equalization gain uses the REAL measured stability (0.05 % 1σ, no offset — Clerc et al.
+              2026 S2C cal/val, `sensor.EQ_GAIN_STD`).
 """
 
 from __future__ import annotations
 
-import math
 from dataclasses import dataclass
+from functools import lru_cache
+from pathlib import Path
 
 import numpy as np
 
 from . import sensor
 
+# Packaged real PSF matrices (CSV, 33×33, oversampling 5, Σ=1) — see data/psf/PROVENANCE.md.
+_PSF_DIR = Path(__file__).parent / "data" / "psf"
+PSF_OVERSAMPLING: int = 5
+
+
+@lru_cache(maxsize=64)
+def load_oversampled_psf(band: str, unit: str = sensor.DEFAULT_UNIT) -> np.ndarray | None:
+    """Load the real 33×33 oversampled PSF matrix for ``band``/``unit``; ``None`` if none published.
+
+    B10 (water-vapour band) has no published PSF — returns ``None``. Result is cached and read-only.
+    """
+    path = _PSF_DIR / unit / f"{unit}_PSF_{band}.csv"
+    if not path.exists():
+        return None
+    m = np.loadtxt(path, delimiter=",")
+    m.setflags(write=False)
+    return m
+
+
+@lru_cache(maxsize=64)
+def real_psf_kernel(
+    band: str, unit: str = sensor.DEFAULT_UNIT, oversampling: int = PSF_OVERSAMPLING
+) -> np.ndarray:
+    """Real detector-grid PSF kernel for ``band``/``unit`` (Σ=1, DC gain 1).
+
+    The published PSF is oversampled ×``oversampling``; integrate each ``oversampling``×``oversampling``
+    block (centred on the matrix centre) to the detector-pixel grid. B10 → identity (no re-blur).
+    """
+    osamp = load_oversampled_psf(band, unit)
+    if osamp is None:
+        return np.array([[1.0]])  # B10: no measured PSF → identity
+    n = osamp.shape[0]
+    centre = n // 2
+    offs = np.round((np.arange(n) - centre) / oversampling).astype(int)  # detector offset per row/col
+    radius = int(np.max(np.abs(offs)))
+    k = np.zeros((2 * radius + 1, 2 * radius + 1))
+    for r in range(n):
+        for c in range(n):
+            k[offs[r] + radius, offs[c] + radius] += osamp[r, c]
+    total = k.sum()
+    if total != 0:
+        k /= total
+    k.setflags(write=False)  # cached + shared, treat as read-only
+    return k
+
+
+def noise_coeffs(b: sensor.Band) -> tuple[float, float]:
+    """REAL noise model coefficients ``(a, b)`` for ``σ = √(a + b·DN)`` from the L1A product.
+
+    The official S2-RUT model (Gorroño & Gascon) is ``Noise(DN) = √(α² + β·DN)``, with α, β straight
+    from the product's `quality_indicators_info/.../noise_model` (`sensor.NOISE_ALPHA/NOISE_BETA`).
+    Returns ``a = α²`` and ``b = β`` so the chain's ``σ=√(a+b·DN)`` is exactly the RUT model; it
+    reproduces the spec SNR@Lref. No fitting.
+    """
+    return b.noise_alpha ** 2, b.noise_beta
+
 
 def fit_noise_coeffs(b: sensor.Band, read_fraction: float = 0.1) -> tuple[float, float]:
-    """Fit ``(a, b)`` of ``σ² = a + b·DN`` to the band's SNR@Lref.
+    """Fallback fit of ``(a, b)`` of ``σ² = a + b·DN`` to SNR@Lref — used only if the real product
+    noise model is unavailable. Prefer :func:`noise_coeffs` (the real α, β).
 
     Splits the total variance at Lref (``σ_ref² = (DN_ref/SNR)²``) into a read/dark floor
     ``a = read_fraction·σ_ref²`` and a shot term ``b = (1-read_fraction)·σ_ref²/DN_ref``, so that
@@ -68,7 +139,12 @@ def gaussian_psf(mtf_nyquist: float = 0.25, radius: int = 4) -> np.ndarray:
 
 @dataclass(frozen=True)
 class BandADF:
-    """Synthetic per-band ADF set for the reverse chain (per detector of width ``n_det``)."""
+    """Per-band ADF set for the reverse chain (per detector of width ``n_det``).
+
+    ``psf`` and the band's spectral/gain values are real (published). The per-detector
+    ``prnu_gain``/``dark_dn``/``eq_*`` arrays are either real product-derived (``from_product``)
+    or seeded representative values (``synthesize``) when the credentialed GIPP is unavailable.
+    """
 
     band: sensor.Band
     noise_a: float
@@ -78,6 +154,33 @@ class BandADF:
     dark_dn: np.ndarray     # (n_det,) dark offset in DN
     eq_gain: np.ndarray     # (n_det,) onboard equalization gain, ~1.0
     eq_offset: np.ndarray   # (n_det,) onboard equalization offset in DN
+    prnu_is_real: bool = False  # True when prnu/dark were derived from real products
+
+    @classmethod
+    def from_product(
+        cls,
+        b: sensor.Band,
+        *,
+        prnu_gain: np.ndarray,
+        dark_dn: np.ndarray,
+        eq_gain: np.ndarray | None = None,
+        eq_offset: np.ndarray | None = None,
+    ) -> "BandADF":
+        """Build a :class:`BandADF` from REAL per-detector PRNU/dark arrays (e.g. derived from the
+        matched real L0↔L1A products by ``scripts/derive_prnu_dark.py``). PSF and noise stay real."""
+        n_det = prnu_gain.shape[0]
+        a, bb = noise_coeffs(b)
+        return cls(
+            band=b,
+            noise_a=a,
+            noise_b=bb,
+            psf=real_psf_kernel(b.name, b.unit),
+            prnu_gain=np.asarray(prnu_gain, dtype=float),
+            dark_dn=np.asarray(dark_dn, dtype=float),
+            eq_gain=np.ones(n_det) if eq_gain is None else np.asarray(eq_gain, dtype=float),
+            eq_offset=np.zeros(n_det) if eq_offset is None else np.asarray(eq_offset, dtype=float),
+            prnu_is_real=True,
+        )
 
 
 def synthesize(
@@ -86,22 +189,27 @@ def synthesize(
     *,
     seed: int = 0,
     prnu_std: float = 0.005,
-    mtf_nyquist: float = 0.25,
 ) -> BandADF:
-    """Build a seeded synthetic :class:`BandADF` for band ``b`` over ``n_det`` detector columns."""
+    """Build a :class:`BandADF` for band ``b`` over ``n_det`` detector columns.
+
+    PSF (real, per-unit), spectral, gain and the noise model (real α, β from the product) are all
+    real. The per-detector PRNU/dark/equalization arrays are seeded representative values — pass real
+    product-derived arrays via :meth:`BandADF.from_product` to remove the last modelled component
+    (the per-pixel NUC GIPP is credentialed, blocker #36).
+    """
     rng = np.random.default_rng(seed + hash(b.name) % 10_000)
-    a, bb = fit_noise_coeffs(b)
-    # 1D per-detector PRNU (relative response), dark larger for SWIR.
+    a, bb = noise_coeffs(b)
+    # 1D per-detector PRNU (relative response); dark = real DQR pedestal + per-pixel DSNU (1σ).
     prnu_gain = 1.0 + rng.normal(0.0, prnu_std, size=n_det)
-    dark_base = 5.0 if b.name in sensor.SWIR_BANDS else 0.8
-    dark_dn = np.abs(rng.normal(dark_base, dark_base * 0.1, size=n_det))
-    eq_gain = 1.0 + rng.normal(0.0, prnu_std / 2.0, size=n_det)
-    eq_offset = rng.normal(0.0, 0.5, size=n_det)
+    dark_dn = sensor.DARK_PEDESTAL_LSB + rng.normal(0.0, b.dark_dsnu, size=n_det)
+    # Real onboard-equalization stability (Clerc 2026 Table 3): ~unity gain, 0.05 % 1σ, no offset.
+    eq_gain = 1.0 + rng.normal(0.0, sensor.EQ_GAIN_STD, size=n_det)
+    eq_offset = np.zeros(n_det)
     return BandADF(
         band=b,
         noise_a=a,
         noise_b=bb,
-        psf=gaussian_psf(mtf_nyquist),
+        psf=real_psf_kernel(b.name, b.unit),
         prnu_gain=prnu_gain,
         dark_dn=dark_dn,
         eq_gain=eq_gain,

@@ -27,8 +27,9 @@ deconvolution, co-registration, orthorectification, atmospheric correction), the
 *impresses* them: it takes a real Sentinel-2 **L1A/L1B** product (at-sensor radiance, already in
 per-detector sensor geometry) and degrades it back to a synthetic **L0 RAW** product (focal-plane
 digital numbers, 12 staggered detectors × 13 bands). Because L1A/L1B are already sensor-geometry,
-the chain is **radiometric-only** — geometry inversion (orthorectification undo) is out of v1 scope
-(Issue #17); L1C entry is a future module.
+the chain is **radiometric-only** — there is no geometry inversion (orthorectification undo) to
+perform (Issue #17). An L1C entry + geometry-reverse module was considered and **cancelled**: with
+an L1A/L1B entry there is nothing to de-orthorectify.
 
 The E2ES serves two purposes:
 1. **RAW generation** — produce realistic L0 RAW when true Sentinel-2 L0 is
@@ -45,8 +46,8 @@ with explicit traceability to the `msi-processor` forward function each reverse 
 ## 1.3 Scope
 
 Increment-0 deliverable. Algorithm-theoretical basis only; software design, ICD, and V&V plan
-are separate DRDs. Reverse entry level is **L1A/L1B at-sensor radiance** (Issue #17); L1C +
-geometry reverse is a future module.
+are separate DRDs. Reverse entry level is **L1A/L1B at-sensor radiance** (Issue #17); the L1C-entry
++ geometry-reverse module is **cancelled** (not applicable to an L1A/L1B entry).
 
 ## 1.4 References
 
@@ -93,12 +94,12 @@ Reference System). `[extend as needed]`
 | g_phys | per-band physical gain (DN↔radiance, real value Annex A.11) | — |
 | g_nuc, o_nuc, k_dark | per-detector PRNU gain/offset, dark offset | — |
 | PSF_b | per-band point spread function kernel (DC=1) | none |
-| ρ_TOA | TOA reflectance (*future L1C module only*) | none, [0,1] |
-| ESUN_b, θ_s, d | solar irradiance (from SRF), solar zenith, Earth–Sun dist (*future L1C*) | mixed |
+| ρ_TOA | TOA reflectance (*cancelled L1C-entry module — unused*) | none, [0,1] |
+| ESUN_b, θ_s, d | solar irradiance (from SRF), solar zenith, Earth–Sun dist (*cancelled L1C-entry module — unused*) | mixed |
 
 ### 1.5.4 Note on coordinates
 Three coordinate sets: **detector** (focal-plane pixel, the L0 RAW frame),
-**image/granule** (native acquisition grid), **map** (UTM/WGS-84, MGRS-tiled — *future L1C only*).
+**image/granule** (native acquisition grid), **map** (UTM/WGS-84, MGRS-tiled — *cancelled L1C-entry module*).
 The v1 reverse operates entirely in **detector geometry** (input L1A/L1B is already there). Detector
 array: **2592 px across-track
 per module @ 10 m, 1296 px @ 20 m, ≈432 px @ 60 m**; 12 staggered modules per focal plane,
@@ -167,10 +168,15 @@ Entry = at-sensor **radiance** (L1B), per-detector geometry. Each step: forward 
 `[INDEP]` = author from true physics; `[INV]` = closed-form inverse guarded by parameter mismatch.
 
 ## 5.S1 Radiance → DN `[INV, Inc 1]`
-**Forward:** `DN = L / physical_gain` (the L1B metadata carries real per-band `physical_gains`,
-Annex A.11: B01 4.105 … B12 106.16); equivalently `DN = L·π·d²/(ESUN·cosθ_s·Ak)`. **ADF:** `ADF_RABCA`.
-**Conjugate:** `toa.dn_to_radiance`. **Note:** ESUN/SRF must match the product's
-satellite (S2A/B/C — up to ~15 % bias otherwise, Risk 2); reciprocal-gain convention (S2 multiplies).
+**Model:** the official L1 ATBD raw equation **`X_k = A_k·G_k(j,L)·L_k + D_k`** (S2-PDGS-MPC-ATBD-L1
+§4.1.1): S1 impresses the absolute-calibration term **`DN = A·L`** (A = `Band.cal_gain`), S7 the
+relative sensitivity `G`, S11 the dark `D`. **Choice of A:** the product's `physical_gains`
+(Annex A.11) are kept for metadata/the round-trip bridge, but they are incoherent with the real
+noise model on this synthetic dataset (they mis-scale low-radiance bands by up to ~10×). So `A` is
+derived from the **real noise α,β + real SNR@Lref** (`cal_gain = dn_ref/Lref`, where `dn_ref` is the
+12-bit DN at which `σ=√(α²+β·DN)` yields the spec SNR) — anchoring the chain to **reproduce the real
+SNR@Lref exactly** (verified end-to-end). **ADF:** `ADF_RABCA`. **Conjugate:** `toa.dn_to_radiance`
+(`L = DN/A`).
 
 ## 5.S3 Undo framing & round/clamp `[INDEP, Inc 3]`
 **Forward:** extend to continuous detector strip; restore sub-pixel precision. **ADF:** `ADF_PRDLO`,
@@ -185,9 +191,11 @@ satellite (S2A/B/C — up to ~15 % bias otherwise, Risk 2); reciprocal-gain conv
 **Conjugate:** `georeference.resample_to_grid`.
 
 ## 5.S6 PSF re-blur `[INDEP, Inc 1]`
-**Forward:** `I = I_sharp ★ PSF_true` (Gaussian-from-MTF; MTF@Nyquist 10/20 m >0.15 & <0.30, 60 m <0.45,
-Annex A.4). **ADF:** `ADF_RDEFI`. **Conjugate:** `enhancement.mtf_compensate`/`_correlate2d` (an
-*independent regularized* inverse — must NOT be the exact inverse). Far-field straylight has no S2 inverse (Risk 4). `[TBD: per-band PSF kernel from ADF_RDEFI or MTF fit]`
+**Forward:** `I = I_sharp ★ PSF_true`, using the **real official ESA per-band, per-unit PSF
+matrices** (SentiWiki `S2{A,B,C}_PSF`, Annex A.4) integrated from the published 33×33 oversampled
+matrix to the detector grid (B10 → identity). **ADF:** `ADF_RDEFI`. **Conjugate:**
+`enhancement.mtf_compensate`/`_correlate2d` (an *independent regularized* inverse — must NOT be the
+exact inverse). Far-field straylight has no S2 inverse (Risk 4).
 
 ## 5.S7 Undo relative response (impress PRNU) `[INDEP, Inc 1]`
 **Forward:** `DN /= gain[detector]` — impress **true per-detector PRNU**. **Model:** PRNU is **~1D
@@ -209,17 +217,24 @@ B03, B04, B11, B12** (real `tdi_configuration_list`). **ADF:** `ADF_RSWIR`. **Me
 **ADF:** `ADF_BLIND` (blind), `ADF_RDEPI` (defective). **Conjugate:** `radiometric.replace_bad_pixels`.
 
 ## 5.S11 Re-apply dark signal `[INDEP, Inc 1]`
-**Forward:** `DN += dark[pixel]` (S2 dark from nighttime-ocean, ≥10.8 s avg; VNIR <1 DN, SWIR ~5 DN).
-**ADF:** `ADF_REOB2`. **Conjugate:** `radiometric.remove_dark_fft`. S2 dark ≠ 0 (Risk 3).
+**Forward:** `DN += dark[pixel]`. **Real values** (S2A DQR OMPC.CS.DQR.01.02-2023, the Feb-2023
+period of the test product): mean dark **pedestal 440–520 LSB** (`DARK_PEDESTAL_LSB`) + per-pixel
+**DSNU < 0.5 LSB VNIR / < 1.0 LSB SWIR** (`Band.dark_dsnu`). Applied *after* S13 so the noise model
+sees the dark-subtracted signal. **ADF:** `ADF_REOB2`. **Conjugate:** `radiometric.remove_dark_fft`.
 
 ## 5.S12 Re-apply onboard equalization `[INDEP, Inc 1]`
-**Forward:** `DN_raw = DN_eq/gain_ob + off_ob` (DSNU + offset per band; `equalization_mode = true`,
-`nuc_table_id = 3`). **ADF:** `ADF_REOB2`. **Conjugate:** `radiometric.estimate_nuc`.
+**Forward:** invert the R2EQOG equalization — multiplicative (cubic VNIR `Z=ΣGₙ·Yⁿ` / bilinear SWIR)
+on the dark-subtracted signal (Clerc et al. 2026, S2C cal/val; `equalization_mode = true`,
+`nuc_table_id = 3`). Linearized here as `DN_raw = DN_eq/gain_ob`, with the **real per-detector gain
+stability 0.05 % 1σ** (paper Table 3, Ra factor; `sensor.EQ_GAIN_STD`) and **no offset** (the dark is
+the S11 pedestal). **ADF:** `ADF_REOB2`. **Conjugate:** `radiometric.estimate_nuc`.
 
 ## 5.S13 Add sensor noise `[INDEP, Inc 1]`
-**Forward:** `σ = √(a + b·DN)`; `DN += N(0,σ)`, seeded (FPN = PRNU + DSNU + shot + read). **Acceptance:**
-σ within ±5 % of spec over ≥10 000 px (REQ-FUNC-021). **ADF:** `ADF_RNOMO` (a,b per band/detector).
-**Conjugate:** processor *denoises*. `[TBD: a,b — fit to SNR@Lref or from ADF_RNOMO]`
+**Forward:** the **real S2-RUT noise model** `σ = √(α² + β·DN)`, with **α, β read verbatim from the
+L1A product** (`quality_indicators_info/.../noise_model`, `sensor.NOISE_ALPHA/NOISE_BETA`); `DN +=
+N(0,σ)`, seeded. Applied on the **signal DN** (before the S11 dark pedestal), so it reproduces the
+real SNR@Lref (verified end-to-end, <1 %). **Acceptance:** σ within ±5 % over ≥10 000 px
+(REQ-FUNC-021). **ADF:** `ADF_RNOMO`. **Conjugate:** processor *denoises*.
 
 ## 5.S14 Quantize `[INDEP, Inc 1]`
 **Forward:** `clip(round(DN), 0, 4095)` → uint16 (12-bit at sensor). **ADF:** `ADF_CONVE`.
@@ -232,9 +247,12 @@ B03, B04, B11, B12** (real `tdi_configuration_list`). **ADF:** `ADF_RSWIR`. **Me
 **Calibration sub-set (Inc 3, inverse-crime cure):** synthetic sun-diffuser flat + dark → `estimate_nuc`
 → *estimated* radiometric/NUC ADF handed to the processor (not the truth impressed in S7/S12).
 
-**Future L1C module (out of v1, Issue #17):** prepend de-orthorectification (ground→detector via the S2
-viewing model — **ASGARD**, `ADF_VDIRP/SPAMO/GPARA/RESAM/TILEP/DEM`) + reflectance→radiance. L1C
-orthorectification destroys the native detector alignment the radiometric reverse relies on (PRNU paper).
+**Cancelled L1C-entry module (Issue #17):** an L1C entry would have required prepending
+de-orthorectification (ground→detector via the S2 viewing model — **ASGARD**,
+`ADF_VDIRP/SPAMO/GPARA/RESAM/TILEP/DEM`) + reflectance→radiance. This module is **dropped**: the
+adopted L1A/L1B entry is already in native detector geometry, so there is nothing to de-orthorectify.
+(L1C orthorectification destroys the native detector alignment the radiometric reverse relies on —
+the very reason an L1C entry was rejected; PRNU paper.)
 
 ---
 
@@ -248,18 +266,23 @@ Jointly change-controlled with the processor (per AD 1). **Conjugate subset** (b
 - `nuc`/`dark`/`badpixel`: per-detector PRNU (**1D per-detector model**; real residuals from Zenodo
   `records/18433006`), DSNU + dark (`ADF_REOB2`, nighttime-ocean), defect/blind (`ADF_BLIND`/`ADF_RDEPI`,
   3×B11 + 1×B12), crosstalk `ADF_RCRCO` (<0.5 %). `nuc_table_id = 3`, equalization on.
-- `psf`: per-band kernel (DC=1) — same kernel `enhancement` uses; Gaussian-from-MTF (Annex A.4).
+- `psf`: per-band, per-unit kernel (DC=1) — the **real official ESA PSF matrices** (SentiWiki
+  `S2{A,B,C}_PSF`, Annex A.4), integrated from the 33×33 oversampled matrix to the detector grid.
 - `viewing_model`: focal length 600 mm / F4 (TMA, 150 mm pupil), pixel pitch 7.5/15 µm, 12-detector
-  stagger, per-band GSD (Annex A.2), `line_period` 1.5658736 ms. *(Only used by the future L1C module.)*
+  stagger, per-band GSD (Annex A.2), `line_period` 1.5658736 ms. *(Was only needed by the cancelled L1C-entry module.)*
 
 **E2ES-only block** (processor never reads): noise model (`a,b` for σ=√(a+b·DN), `ADF_RNOMO`),
 crosstalk kernel, temporal gain drift (VNIR 0.1–0.35 %/months, SWIR faster).
 
-**ADF access (corrected):** real gain/TDI/timing/offset/equalization are **in the products**; only the
-noise (a,b) and PSF kernel are fitted (SNR@Lref / MTF) or derived from the matched L1A↔L1B pair. The
-**DPR-common public bucket hosts only common/L2A ADFs** (DEM90, CAMS, MAOTC…), **not** the L1 radiometric
-ADFs (RABCA/RNOMO/REQOG/REOB2/RDEFI) — those need credentialed `s2msi` (blocker #36) and are **not
-required for MVP**.
+**ADF access (corrected):** real gain/TDI/timing/offset/equalization are **in the products**; the
+**PSF is the real official ESA matrix** (SentiWiki) and the spectral characterisation is the real
+**SRF** (COPE-GSEG-EOPG-TN-15-0007); the **noise model** is the **real per-band α, β** read from the
+L1A product (`quality_indicators_info/.../noise_model`), σ=√(α²+β·DN) (S2-RUT) — reproduces SNR@Lref
+exactly. Only the per-detector **PRNU/dark** coefficients remain modelled — the per-pixel NUC table is
+**not in the product** (only `nuc_table_id`), it lives in the credentialed L1 radiometric ADFs
+(RABCA/RNOMO/REQOG/REOB2/RDEFI; `s2msi`, blocker #36) and the **DPR-common public bucket hosts only
+common/L2A ADFs** (DEM90, CAMS, MAOTC…), not the L1 ones. PRNU is instead derived from the matched
+real L1B product (`scripts/derive_prnu_dark.py`); a true dark needs a real dark-calibration granule.
 
 ---
 
@@ -283,12 +306,16 @@ Per-stage error-budget table, **reflective-domain terms**. Populate numerically 
 
 # 8. OPEN POINTS
 
-- Reverse entry level — **RESOLVED: L1A/L1B** (Issue #17); L1C + geometry reverse is a future module.
+- Reverse entry level — **RESOLVED: L1A/L1B** (Issue #17); the L1C-entry + geometry-reverse module is **cancelled**.
 - **L1A vs L1B for MVP:** L1B (radiance) → clean S1 radiance→DN (recommended); L1A is rawer.
 - Straylight (S6 far-field): scope out of v0 or book as named residual.
 - L0 RAW ICD: adopt the real EOPF L0 Zarr structure (Annex A.9) as ICD-IF-L0.
-- SRF curves: user-provided; integrate ESUN per the product's satellite unit.
-- Noise (a,b) + PSF: fit to SNR@Lref / MTF, or derive from the matched L1A↔L1B pair.
+- SRF: **DONE** — real per-unit band centre/bandwidth/equivalent wavelength from the official SRF
+  doc (COPE-GSEG-EOPG-TN-15-0007) are in `sensor.py`.
+- PSF: **DONE** — real official ESA per-band, per-unit matrices (`data/psf/`).
+- Noise: **DONE** — real per-band α, β from the L1A product (S2-RUT σ=√(α²+β·DN)).
+- PRNU: derive from the real L1B product (`scripts/derive_prnu_dark.py`). Dark: needs a real
+  dark-calibration granule (none in this dataset); per-pixel NUC GIPP credentialed (#36).
 
 ---
 
@@ -349,9 +376,13 @@ unverified/derived flags. Values to be migrated into the sensor-model ADF v0 (§
 - **MTF at Nyquist** (combined system spec — telescope + detector + smear): 10 m & 20 m →
   **>0.15 and <0.30**; 60 m → **<0.45**. (Phrasing discrepancy: SentiWiki/eoPortal place the
   20 m bands in the <0.45 bracket; the 10/20 m → 0.15–0.30 framing matches Drusch 2012.)
-  **No official analytic PSF** is published — only Nyquist MTF; derive a Gaussian-from-MTF kernel
-  per GSD class (third-party fits are derived, not official). No public optical/detector/smear MTF
-  breakdown.
+- **Official PSF matrices ARE published** (SentiWiki `S2{A,B,C}_PSF.zip`, packaged in
+  `s2_e2es/data/psf/`): per-band, per-unit **33×33** matrices, **oversampling 5**, centre at
+  (17, 17), normalised (Σ = 1), for **L1B focal-plane geometry (after binning)**. Computed from
+  measured Nyquist MTF (along-track + across-track), Gaussian-modelled — S2A/S2C from 2024, S2B from
+  2023 — for all bands **except B10** (water-vapour, does not see the ground). The E2ES S6 step
+  integrates each matrix by 5×5 to the detector grid and convolves with it (B10 → identity). This
+  replaces the earlier synthetic Gaussian-from-MTF kernel.
 
 ## A.5 Detector / focal plane
 - Two focal planes (dichroic split): **VNIR = monolithic Si CMOS (0.35 µm)** @ ~293 K, 10 bands;
@@ -437,8 +468,9 @@ from sun-diffuser. Equivalent generic form `σ² = a·DN + b`. Components: dark 
   viewing zenith + azimuth **per band, per detector** on a **5 km grid (23×23 nodes, 5000 m)**;
   overlap nodes carry two values. In-orbit LOS calibration < **0.1 px**; main LOS geocentric;
   **yaw-steering** keeps ground velocity ⊥ detector arrays.
-- **De-orthorectify (future L1C module):** ortho pixel → ground (ITRF/WGS84) → inverse location (ASGARD) → detector
-  (col, line). Push-broom: **line index is linearly related to acquisition date**.
+- **De-orthorectify (cancelled L1C-entry module — for reference only):** ortho pixel → ground (ITRF/WGS84)
+  → inverse location (ASGARD) → detector (col, line). Push-broom: **line index is linearly related to
+  acquisition date**. Not implemented: the adopted L1A/L1B entry is already in detector geometry.
 - **Datation / line-time:** nadir ground velocity ≈ **6700 m/s**; line period (DERIVED = GSD/Vground)
   ≈ **1.49 ms** (10 m) / **2.99 ms** (20 m) / **8.96 ms** (60 m); relative dating < 0.15 ms; absolute
   line-date < 2 ms; ephemeris sampling 1 Hz; solar-array attitude perturbation sine at 0.032 Hz
@@ -455,7 +487,7 @@ from sun-diffuser. Equivalent generic form `σ² = a·DN + b`. Components: dark 
   keyed by (satellite S2A/S2B, registration_mode up/down-sampling, detector 1–12); each cell =
   **[along-track, across-track] pixel shift** for a band-pair vs a reference band. Along-track up to
   ~240 px (e.g. S2A det-1 B05↔ref = [239, −2]), across-track 0–34 px; **sign flips with detector
-  parity** (odd +, even −). Directly usable for **S8 SWIR de-arrangement** (and future L1C de-coregistration; no SIFT).
+  parity** (odd +, even −). Directly usable for **S8 SWIR de-arrangement** (the cancelled L1C de-coregistration would also have used it; no SIFT).
 - L1B = radiometrically corrected, per-detector geometry (retains parallax + overlap);
   L1C = orthorectified, band-co-registered, UTM tiles.
 

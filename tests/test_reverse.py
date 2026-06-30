@@ -35,8 +35,8 @@ def test_s1_radiance_to_dn_roundtrip_exact():
     b = sensor.band("B04")
     rng = np.random.default_rng(0)
     L = rng.uniform(0, 200, size=(64, 32))
-    dn = reverse.s1_radiance_to_dn(L, b.physical_gain)
-    L_back = dn * b.physical_gain  # forward: dn_to_radiance
+    dn = reverse.s1_radiance_to_dn(L, b.physical_gain)   # DN = A·L
+    L_back = dn / b.physical_gain                         # forward: L = DN/A
     np.testing.assert_allclose(L_back, L, rtol=1e-12)
 
 

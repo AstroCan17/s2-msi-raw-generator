@@ -32,13 +32,14 @@ def reverse_to_l0_frames(
     *,
     seed: int = 0,
     adfs: dict[str, BandADF] | None = None,
+    unit: str = sensor.DEFAULT_UNIT,
 ) -> dict[FrameKey, np.ndarray]:
     """Run the MVP reverse chain on each (detector, band) radiance frame → uint16 L0 DN."""
     out: dict[FrameKey, np.ndarray] = {}
     adfs = adfs or {}
     for (det, bname), radiance in l1b_frames.items():
         n_det = radiance.shape[1]
-        adf = adfs.get(bname) or synthesize(sensor.band(bname), n_det=n_det, seed=seed)
+        adf = adfs.get(bname) or synthesize(sensor.band(bname, unit), n_det=n_det, seed=seed)
         rng = np.random.default_rng(seed + det * 100 + hash(bname) % 97)
         out[(det, bname)] = reverse_mvp(radiance, adf, rng)
     return out
@@ -53,6 +54,7 @@ def build_root_metadata(
     """Root STAC + sensor-configuration metadata (real values; REQ-FUNC-033/034/054)."""
     tdi = {sensor.band_number(b): "APPLIED" for b in sensor.BANDS if b in sensor.TDI_BANDS}
     det_str = ",".join(f"{d:02d}" for d in sorted(active_detectors))
+    unit = sensor.unit_from_platform(platform)
     return {
         "stac_discovery": {
             "type": "Feature",
@@ -75,7 +77,7 @@ def build_root_metadata(
                     "compress_mode": True,
                     "equalization_mode": True,
                     "nuc_table_id": sensor.NUC_TABLE_ID,
-                    "spectral_band_info": sensor.spectral_band_info(),
+                    "spectral_band_info": sensor.spectral_band_info(unit),
                     "tdi_configuration_list": tdi,
                 },
                 "time_stamp": {"line_period": sensor.LINE_PERIOD_MS},
@@ -84,7 +86,17 @@ def build_root_metadata(
         "processing_history": {
             "processor": "s2_e2es",
             "processor_version": __version__,
-            "synthetic_adf": True,  # REQ-FUNC-045 — flag synthetic ADFs were used
+            # REQ-FUNC-045 — provenance of each ADF component.
+            "adf_provenance": {
+                "physical_gains": "real (product metadata; metadata/round-trip bridge)",
+                "cal_gain": "real-derived (noise α,β + SNR@Lref); reproduces SNR@Lref",
+                "psf": "real (ESA SentiWiki S2{A,B,C}_PSF)",
+                "spectral": "real (SRF doc COPE-GSEG-EOPG-TN-15-0007)",
+                "noise": "real verbatim (L1A product noise_model α,β; S2-RUT)",
+                "dark": "real (S2A DQR Feb-2023: 440-520 LSB pedestal + DSNU 0.5/1.0 LSB)",
+                "equalization": "real stability (Clerc 2026 Table 3: 0.05% 1σ gain, no offset)",
+                "prnu": "from real L1B (scripts/derive_prnu_dark.py) or seeded; per-pixel NUC GIPP #36",
+            },
         },
     }
 

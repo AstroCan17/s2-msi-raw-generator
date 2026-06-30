@@ -15,9 +15,11 @@ from .adf import BandADF
 
 # --- individual reverse steps -------------------------------------------------
 
-def s1_radiance_to_dn(radiance: np.ndarray, physical_gain: float) -> np.ndarray:
-    """S1 — radiance → calibrated DN: ``DN = L / physical_gain`` (inverse of dn_to_radiance)."""
-    return np.asarray(radiance, dtype=np.float64) / physical_gain
+def s1_radiance_to_dn(radiance: np.ndarray, gain: float) -> np.ndarray:
+    """S1 — radiance → equalized signal DN: ``DN = A · L``, the absolute-calibration term of the
+    official L1 ATBD raw model ``X = A·G·L + D``. ``A`` is ``Band.cal_gain`` (real-derived from the
+    noise model + SNR@Lref, so the chain reproduces SNR@Lref). Processor forward: ``L = DN/A``."""
+    return np.asarray(radiance, dtype=np.float64) * gain
 
 
 def s6_psf_reblur(img: np.ndarray, psf: np.ndarray) -> np.ndarray:
@@ -69,14 +71,16 @@ def s14_quantize(dn: np.ndarray, dn_max: int = 4095) -> np.ndarray:
 def reverse_mvp(radiance: np.ndarray, adf: BandADF, rng: np.random.Generator) -> np.ndarray:
     """Full MVP reverse chain for one band/detector: radiance → uint16 L0 DN.
 
-    S1 → S6 → S7 → S11 → S12 → S13 → S14.
+    S1 → S6 → S7 → S13 → S11 → S12 → S14. Noise (S13) is impressed on the *signal* DN (before the
+    dark pedestal is added in S11), so σ=√(α²+β·DN_signal) reproduces the real SNR@Lref exactly —
+    the α,β model already captures the total noise at a given signal level.
     """
-    dn = s1_radiance_to_dn(radiance, adf.band.physical_gain)
+    dn = s1_radiance_to_dn(radiance, adf.band.cal_gain)
     dn = s6_psf_reblur(dn, adf.psf)
     dn = s7_impress_relative_response(dn, adf.prnu_gain)
+    dn = s13_add_noise(dn, adf.noise_a, adf.noise_b, rng)
     dn = s11_reapply_dark(dn, adf.dark_dn)
     dn = s12_reapply_onboard_eq(dn, adf.eq_gain, adf.eq_offset)
-    dn = s13_add_noise(dn, adf.noise_a, adf.noise_b, rng)
     return s14_quantize(dn)
 
 
@@ -84,7 +88,7 @@ def reverse_mvp(radiance: np.ndarray, adf: BandADF, rng: np.random.Generator) ->
 
 def reverse_radiometric(radiance: np.ndarray, adf: BandADF) -> np.ndarray:
     """Reverse S1→S7→S11→S12 only (no PSF, no noise, no quantize) — exactly invertible."""
-    dn = s1_radiance_to_dn(radiance, adf.band.physical_gain)
+    dn = s1_radiance_to_dn(radiance, adf.band.cal_gain)
     dn = s7_impress_relative_response(dn, adf.prnu_gain)
     dn = s11_reapply_dark(dn, adf.dark_dn)
     return s12_reapply_onboard_eq(dn, adf.eq_gain, adf.eq_offset)
@@ -94,9 +98,9 @@ def forward_radiometric(dn: np.ndarray, adf: BandADF) -> np.ndarray:
     """Algebraic forward (processor) inverse of :func:`reverse_radiometric`: DN_raw → radiance."""
     dn = np.asarray(dn, dtype=np.float64)
     dn = (dn - adf.eq_offset[np.newaxis, :]) * adf.eq_gain[np.newaxis, :]   # undo S12
-    dn = dn - adf.dark_dn[np.newaxis, :]                                    # undo S11
-    dn = dn * adf.prnu_gain[np.newaxis, :]                                  # undo S7 (equalize)
-    return dn * adf.band.physical_gain                                      # undo S1
+    dn = dn - adf.dark_dn[np.newaxis, :]                                    # undo S11 (subtract dark D)
+    dn = dn * adf.prnu_gain[np.newaxis, :]                                  # undo S7 (equalize, ·G)
+    return dn / adf.band.cal_gain                                      # undo S1 (L = DN / A)
 
 
 # --- Increment 3: remaining chain steps (S3, S4, S5, S8, S9, S10) --------------
@@ -192,19 +196,20 @@ def reverse_full(
 ) -> tuple[np.ndarray, np.ndarray]:
     """Extended per-band reverse chain (Inc 3): adds S8 (SWIR re-stagger) and S10 (defects).
 
-    S1 → S6 → S7 → [S8 if ``swir_shifts``] → [S10 if defects] → S11 → S12 → S13 → S14.
-    (S5 un-bin changes width and S9 crosstalk needs multiple bands — applied separately.)
-    Returns ``(uint16 L0 DN, qa uint8)``.
+    S1 → S6 → S7 → [S8] → S13 → S11 → S12 → [S10] → S14. Noise (S13) is on the signal DN (before
+    the dark pedestal); defects (S10) are applied last so dead columns stay 0 and hot pixels stay
+    saturated in the output. (S5 un-bin changes width and S9 crosstalk needs multiple bands —
+    applied separately.) Returns ``(uint16 L0 DN, qa uint8)``.
     """
-    dn = s1_radiance_to_dn(radiance, adf.band.physical_gain)
+    dn = s1_radiance_to_dn(radiance, adf.band.cal_gain)
     dn = s6_psf_reblur(dn, adf.psf)
     dn = s7_impress_relative_response(dn, adf.prnu_gain)
     if swir_shifts is not None:
         dn = s8_restage_swir(dn, swir_shifts)
+    dn = s13_add_noise(dn, adf.noise_a, adf.noise_b, rng)
+    dn = s11_reapply_dark(dn, adf.dark_dn)
+    dn = s12_reapply_onboard_eq(dn, adf.eq_gain, adf.eq_offset)
     qa = np.zeros(dn.shape, dtype=np.uint8)
     if dead_cols or hot_pixels:
         dn, qa = s10_inject_defects(dn, dead_cols, hot_pixels)
-    dn = s11_reapply_dark(dn, adf.dark_dn)
-    dn = s12_reapply_onboard_eq(dn, adf.eq_gain, adf.eq_offset)
-    dn = s13_add_noise(dn, adf.noise_a, adf.noise_b, rng)
     return s14_quantize(dn), qa
