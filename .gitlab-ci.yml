@@ -5,6 +5,7 @@
 
 stages:
   - test
+  - docs
 
 unit-tests:
   stage: test
@@ -22,3 +23,23 @@ unit-tests:
     paths:
       - report.xml
     expire_in: 1 week
+
+# Build the Sphinx documentation site and publish it to GitLab Pages. Runs on the default
+# branch (publishes) and on merge requests (build-only validation; GitLab deploys Pages only
+# from the default branch). The DRD set is markdown (myst-parser) + autodoc of the package.
+pages:
+  stage: docs
+  image: python:3.12-slim
+  interruptible: true
+  before_script:
+    - python -m pip install --upgrade pip
+    - pip install -e ".[docs]"
+  script:
+    - SPHINX_RELEASE="$CI_COMMIT_SHORT_SHA" sphinx-build -b html -W --keep-going docs public
+  artifacts:
+    paths:
+      - public
+    expire_in: 1 week
+  rules:
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'

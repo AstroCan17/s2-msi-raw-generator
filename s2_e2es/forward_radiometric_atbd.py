@@ -2,7 +2,7 @@
 
 Given the real per-pixel GIPP coefficients (``s2_e2es.gipp.DetectorEq``), this provides the **forward**
 radiometric correction (raw L1A → corrected L1B) and its exact **inverse** (the reverse-E2ES impress
-step). The model is the published one:
+step). The model is the published one::
 
     Z = X − D                                   (dark-signal subtraction; D = COEFF_D)
     Y = G(Z)   with   G = A·Z³+B·Z²+C·Z         (VNIR cubic relative-response)

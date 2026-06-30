@@ -22,3 +22,8 @@ docs/_build/
 .DS_Store
 *.tmp
 scratchpad/
+
+# Sphinx docs build artifacts
+/public/
+docs/_build/
+docs/api/
