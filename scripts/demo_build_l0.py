@@ -53,7 +53,7 @@ def main() -> int:
     print(f"  tdi_config      = {ac['tdi_configuration_list']}")
     print(f"  line_period(ms) = {dict(g.attrs)['other_metadata']['sensor_configuration']['time_stamp']['line_period']}")
     print(f"  B03 phys_gain   = {ac['spectral_band_info']['03']['physical_gains']}")
-    print(f"  synthetic_adf   = {dict(g.attrs)['processing_history']['synthetic_adf']}")
+    print(f"  adf_provenance  = {dict(g.attrs)['processing_history']['adf_provenance']}")
     return 0
 
 

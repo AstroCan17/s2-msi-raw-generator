@@ -186,9 +186,11 @@ satellite (S2A/B/C — up to ~15 % bias otherwise, Risk 2); reciprocal-gain conv
 **Conjugate:** `georeference.resample_to_grid`.
 
 ## 5.S6 PSF re-blur `[INDEP, Inc 1]`
-**Forward:** `I = I_sharp ★ PSF_true` (Gaussian-from-MTF; MTF@Nyquist 10/20 m >0.15 & <0.30, 60 m <0.45,
-Annex A.4). **ADF:** `ADF_RDEFI`. **Conjugate:** `enhancement.mtf_compensate`/`_correlate2d` (an
-*independent regularized* inverse — must NOT be the exact inverse). Far-field straylight has no S2 inverse (Risk 4). `[TBD: per-band PSF kernel from ADF_RDEFI or MTF fit]`
+**Forward:** `I = I_sharp ★ PSF_true`, using the **real official ESA per-band, per-unit PSF
+matrices** (SentiWiki `S2{A,B,C}_PSF`, Annex A.4) integrated from the published 33×33 oversampled
+matrix to the detector grid (B10 → identity). **ADF:** `ADF_RDEFI`. **Conjugate:**
+`enhancement.mtf_compensate`/`_correlate2d` (an *independent regularized* inverse — must NOT be the
+exact inverse). Far-field straylight has no S2 inverse (Risk 4).
 
 ## 5.S7 Undo relative response (impress PRNU) `[INDEP, Inc 1]`
 **Forward:** `DN /= gain[detector]` — impress **true per-detector PRNU**. **Model:** PRNU is **~1D
@@ -252,18 +254,21 @@ Jointly change-controlled with the processor (per AD 1). **Conjugate subset** (b
 - `nuc`/`dark`/`badpixel`: per-detector PRNU (**1D per-detector model**; real residuals from Zenodo
   `records/18433006`), DSNU + dark (`ADF_REOB2`, nighttime-ocean), defect/blind (`ADF_BLIND`/`ADF_RDEPI`,
   3×B11 + 1×B12), crosstalk `ADF_RCRCO` (<0.5 %). `nuc_table_id = 3`, equalization on.
-- `psf`: per-band kernel (DC=1) — same kernel `enhancement` uses; Gaussian-from-MTF (Annex A.4).
+- `psf`: per-band, per-unit kernel (DC=1) — the **real official ESA PSF matrices** (SentiWiki
+  `S2{A,B,C}_PSF`, Annex A.4), integrated from the 33×33 oversampled matrix to the detector grid.
 - `viewing_model`: focal length 600 mm / F4 (TMA, 150 mm pupil), pixel pitch 7.5/15 µm, 12-detector
   stagger, per-band GSD (Annex A.2), `line_period` 1.5658736 ms. *(Was only needed by the cancelled L1C-entry module.)*
 
 **E2ES-only block** (processor never reads): noise model (`a,b` for σ=√(a+b·DN), `ADF_RNOMO`),
 crosstalk kernel, temporal gain drift (VNIR 0.1–0.35 %/months, SWIR faster).
 
-**ADF access (corrected):** real gain/TDI/timing/offset/equalization are **in the products**; only the
-noise (a,b) and PSF kernel are fitted (SNR@Lref / MTF) or derived from the matched L1A↔L1B pair. The
-**DPR-common public bucket hosts only common/L2A ADFs** (DEM90, CAMS, MAOTC…), **not** the L1 radiometric
-ADFs (RABCA/RNOMO/REQOG/REOB2/RDEFI) — those need credentialed `s2msi` (blocker #36) and are **not
-required for MVP**.
+**ADF access (corrected):** real gain/TDI/timing/offset/equalization are **in the products**; the
+**PSF is the real official ESA matrix** (SentiWiki) and the spectral characterisation is the real
+**SRF** (COPE-GSEG-EOPG-TN-15-0007); noise (a,b) is anchored to the real **SNR@Lref** (SentiWiki).
+Only the per-detector **PRNU/dark** coefficients remain modelled — those live in the credentialed L1
+radiometric ADFs (RABCA/RNOMO/REQOG/REOB2/RDEFI; `s2msi`, blocker #36) and the **DPR-common public
+bucket hosts only common/L2A ADFs** (DEM90, CAMS, MAOTC…), not the L1 ones. They are instead derived
+from the matched real L0↔L1A products via `scripts/derive_prnu_dark.py` (no synthetic stand-in).
 
 ---
 
@@ -291,8 +296,11 @@ Per-stage error-budget table, **reflective-domain terms**. Populate numerically 
 - **L1A vs L1B for MVP:** L1B (radiance) → clean S1 radiance→DN (recommended); L1A is rawer.
 - Straylight (S6 far-field): scope out of v0 or book as named residual.
 - L0 RAW ICD: adopt the real EOPF L0 Zarr structure (Annex A.9) as ICD-IF-L0.
-- SRF curves: user-provided; integrate ESUN per the product's satellite unit.
-- Noise (a,b) + PSF: fit to SNR@Lref / MTF, or derive from the matched L1A↔L1B pair.
+- SRF: **DONE** — real per-unit band centre/bandwidth/equivalent wavelength from the official SRF
+  doc (COPE-GSEG-EOPG-TN-15-0007) are in `sensor.py`.
+- PSF: **DONE** — real official ESA per-band, per-unit matrices (`data/psf/`).
+- Noise (a,b): anchored to the real SNR@Lref (SentiWiki). PRNU/dark: derive from matched real
+  L0↔L1A products (`scripts/derive_prnu_dark.py`); per-pixel GIPP credentialed (#36).
 
 ---
 
@@ -353,9 +361,13 @@ unverified/derived flags. Values to be migrated into the sensor-model ADF v0 (§
 - **MTF at Nyquist** (combined system spec — telescope + detector + smear): 10 m & 20 m →
   **>0.15 and <0.30**; 60 m → **<0.45**. (Phrasing discrepancy: SentiWiki/eoPortal place the
   20 m bands in the <0.45 bracket; the 10/20 m → 0.15–0.30 framing matches Drusch 2012.)
-  **No official analytic PSF** is published — only Nyquist MTF; derive a Gaussian-from-MTF kernel
-  per GSD class (third-party fits are derived, not official). No public optical/detector/smear MTF
-  breakdown.
+- **Official PSF matrices ARE published** (SentiWiki `S2{A,B,C}_PSF.zip`, packaged in
+  `s2_e2es/data/psf/`): per-band, per-unit **33×33** matrices, **oversampling 5**, centre at
+  (17, 17), normalised (Σ = 1), for **L1B focal-plane geometry (after binning)**. Computed from
+  measured Nyquist MTF (along-track + across-track), Gaussian-modelled — S2A/S2C from 2024, S2B from
+  2023 — for all bands **except B10** (water-vapour, does not see the ground). The E2ES S6 step
+  integrates each matrix by 5×5 to the detector grid and convolves with it (B10 → identity). This
+  replaces the earlier synthetic Gaussian-from-MTF kernel.
 
 ## A.5 Detector / focal plane
 - Two focal planes (dichroic split): **VNIR = monolithic Si CMOS (0.35 µm)** @ ~293 K, 10 bands;
