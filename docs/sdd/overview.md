@@ -26,7 +26,7 @@ The software is the single Python package `s2_e2es` (one CSC). Modules:
 | `sensor.py` | Sentinel-2 sensor model — harvested constants: bands, GSD, physical gains, Lref/SNR, integration time, TDI/SWIR sets, per-unit SRF (centre/bandwidth/equivalent wavelength), noise model α/β, dark pedestal, EQ-gain stability, quantization. `Band` dataclass (`.dn_ref`, `.cal_gain`, `.dark_dsnu`). |
 | `gipp.py` | Original parser of the  operational S2A GIPP XML → per-pixel arrays: R2EQOG (dark `COEFF_D` + cubic/bilinear relative-response gains), R2DEPI (defective), BLINDP (blind), R2PARA (offsets/flags), R2CRCO (crosstalk). |
 | `adf.py` | Per-band ADF assembly:S2 PSF matrices (`data/psf/`), noise coefficients; builds `BandADF` `from_gipp` / `from_product` / `synthesize`. |
-| `forward_radiometric_atbd.py` | Original implementation of the public L1 ATBD on-ground model `Z=X−D`, `Y=G(Z)` and its **exact inverse** — the round-trip bridge. |
+| `forward_radiometric_atbd.py` | Original implementation of the public L1 ATBD on-ground model $Z = X - D$, $Y = G(Z)$ and its **exact inverse** — the round-trip bridge. |
 | `reverse.py` | The reverse radiometric chain — one pure-NumPy function per ATBD §5 step, plus the `reverse_mvp` / `reverse_full` chains and the exact-inverse `reverse_radiometric` / `forward_radiometric` bridge. |
 | `calibration.py` | In-flight two-reference calibration sub-set: synthesize CSM sun-diffuser + dark, derive the dark/relative-response/absolute coefficients back (inverse-crime cure). |
 | `isp.py` | S15 — CCSDS Instrument Source Packet + SAD telemetry generation. |
@@ -57,7 +57,7 @@ flowchart TD
 ```
 
 The **implemented MVP execution order** (`reverse.reverse_mvp`) is `S1 → S6 → S7 → S13 → S11 → S12 →
-S14`: noise (S13) is impressed on the **signal** DN *before* the S11 dark pedestal, so `σ=√(α²+β·DN_signal)`
+S14`: noise (S13) is impressed on the **signal** DN *before* the S11 dark pedestal, so $\sigma = \sqrt{\alpha^2 + \beta \cdot \mathrm{DN}_\mathrm{signal}}$
 reproduces the spec SNR@Lref exactly. `reverse_full` adds S8 (SWIR re-stagger) and S10 (defects):
 `S1 → S6 → S7 → [S8] → S13 → S11 → S12 → [S10] → S14`. The exact-inverse bridge `reverse_radiometric`
 applies only `S1 → S7 → S11 → S12` (no PSF/noise/quantize) so it is algebraically invertible.
