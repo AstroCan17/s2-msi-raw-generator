@@ -4,7 +4,7 @@
 Verification & validation
 =========================
 
-ECSS-E-ST-40C Rev.1 software verification & validation plan and report for the Sentinel-2 MSI reverse E2ES.
+ECSS-E-ST-40C Rev.1 software verification & validation plan and report for the Sentinel-2 MSI Synthetic Raw Data Generator.
 
 .. toctree::
    :maxdepth: 1

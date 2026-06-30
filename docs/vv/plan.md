@@ -16,7 +16,7 @@
 
 # Software verification & validation plan
 
-**Project:** Sentinel-2 MSI Reverse E2ES (`s2_e2es`) · **DRD:** ECSS-E-ST-40C Rev.1 (Software verification
+**Project:** Sentinel-2 MSI Synthetic Raw Data Generator (`s2_e2es`) · **DRD:** ECSS-E-ST-40C Rev.1 (Software verification
 plan + Software validation plan, SVerP + SValP, combined for a single-CSC E2ES). Companion: the SVR
 (`report.md`). Requirements baseline: `../srs.md`.
 
