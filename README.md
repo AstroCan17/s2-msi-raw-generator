@@ -5,8 +5,10 @@ conjugate** of the `msi-processor` (L0c→L2A). It degrades a real Sentinel-2 **
 back to a synthetic **L0 RAW** product (focal-plane DN, 12 detectors × 13 bands), for:
 
 1. **RAW generation** — realistic L0 RAW when true Sentinel-2 L0 is unavailable.
-2. **Round-trip V&V** — real L1B → reverse → L0 → `msi-processor` forward → L1B′; the residual
-   `L1B′ − L1B` measures the processor's restoration quality on real ESA data.
+2. **Round-trip V&V** — an original radiometric round-trip on a **real L1A** with the **real
+   operational GIPP**: raw `X` → forward correction (dark + equalization) → `Y` → reverse impress →
+   `X′`. The residual `X′ − X` ≈ 0 (verified to ~1e-14 on real ESA DN) proves the forward and reverse
+   are exact inverses. Built from the public L1 ATBD — no external processor.
 
 **Scope:** radiometric-only, 14-step chain (S1 radiance→DN … S15 ISP packets); input is
 L1A/L1B, already in per-detector sensor geometry, so there is no geometry inversion (Issue #17).
@@ -29,21 +31,47 @@ no orthorectification to undo.
 
 ## Documentation
 
-- **ATBD** — `docs/atbd/atbd.md` (algorithm theoretical basis: the 14-step reverse chain
-  and Annex A — the sourced Sentinel-2 MSI datasheet).
+- **ATBD** — `docs/atbd/atbd.md` (algorithm theoretical basis: the S1–S15 reverse chain, the
+  sensor-model ADFs, the calibration sub-set, and Annex A — the sourced Sentinel-2 MSI datasheet).
+- **CHANGELOG** — `CHANGELOG.md`. **License** — `LICENSE` (Apache-2.0).
+- All instrument data is real ESA-sourced (official PSF, SRF, product noise model, operational GIPP);
+  nothing is fitted or synthetic. Implemented from public references only.
 
 ## Usage
 
 ```bash
-pip install -e ".[dev]"
-pytest                                   # 29 tests
-python scripts/demo_reverse_real.py      # reverse one band of a real L1B granule
-python scripts/demo_build_l0.py          # real L1B → assembled synthetic L0 RAW product
+pip install -e ".[read]"                 # numpy + zarr (eopf not required)
+pytest                                   # 104 tests
 ```
+
+**Reverse chain → L0 RAW** (on a real L1B granule):
+
+```bash
+python scripts/demo_reverse_real.py <L1B.zarr.zip> 4 B03   # reverse one band
+python scripts/demo_build_l0.py                            # assemble a synthetic L0 RAW product
+```
+
+**Real-data V&V with the operational GIPP** — point at the GIPP folder + a real L1A:
+
+```bash
+# round-trip V&V (forward → reverse == identity on real DN, ~1e-14 RMSE)
+python scripts/roundtrip_real_l1a.py <L1A.zarr> <GIPP_dir> B02 B03 B11 B12
+
+# calibration sub-set: synthetic diffuser + dark → derived dark/gain (inverse-crime cure)
+python scripts/demo_calibration.py <GIPP_dir>
+
+# save viewable images (bit-exact .npy + uint8 .png) of raw / corrected / residual / calib
+python scripts/save_images.py <L1A.zarr> <GIPP_dir> B03 --out images
+```
+
+The GIPP folder holds the real `S2A_OPER_GIP_*.xml` files (R2EQOG ×13, R2DEPI, BLINDP, R2PARA,
+R2CRCO); the L1A is an EOPF L1A Zarr (`measurements/DDnn/Bxx/l1a_raw_image`). Data lives under a
+gitignored `data/` (or pass any path). Real-data tests run when `S2_E2ES_GIPP_DIR` / `S2_E2ES_L1A`
+are set.
 
 ## Status
 
-**v1 complete — full 14-step reverse chain implemented (Increments 0–4), CI green.**
+**Complete — full S1–S15 reverse chain, all-real ADFs, original round-trip V&V; 104 tests, CI green.**
 
 | Increment | Content |
 |---|---|
@@ -52,7 +80,12 @@ python scripts/demo_build_l0.py          # real L1B → assembled synthetic L0 R
 | 2 | L0 RAW EOProduct assembly (156-array Zarr) |
 | 3 | S3/S4/S5/S8/S9/S10 (framing, offset, binning, SWIR re-stagger, crosstalk, defects) |
 | 4 | S15 CCSDS ISP packet generation + SAD telemetry |
+| 5 | Real per-band noise model (α,β) + official ATBD raw model (`X=A·G·L+D`), real DQR dark |
+| 6 | Real operational **GIPP** → per-pixel dark + relative response (`gipp.py`, `from_gipp`) |
+| 7 | Original ATBD forward + **round-trip V&V on real L1A** (RMSE ~1e-14) |
+| 8 | S2 **calibration sub-set** — CSM diffuser + dark → derived coeffs (inverse-crime cure) |
 
-Runs end-to-end on real ESA L1B. EOPF CPM 2.8.1, ECSS-E-ST-40C. **Next:** independent round-trip
-V&V against the pinned `msi-processor` wheel. (The L1C-entry + geometry-reverse module is cancelled —
-not applicable to an L1A/L1B entry.)
+**All radiometric ADFs are real** (official ESA PSF, SRF, product noise model, operational GIPP) —
+nothing fitted or synthetic. Runs end-to-end on real ESA L1A/L1B with `numpy` + `zarr` only.
+EOPF CPM 2.8.1, ECSS-E-ST-40C. The L1C-entry + geometry-reverse module is cancelled (not applicable
+to an L1A/L1B entry).
