@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Sphinx configuration for the Sentinel-2 MSI Reverse E2ES documentation."""
+"""Sphinx configuration for the Sentinel-2 MSI Synthetic Raw Data Generator documentation."""
 
 import os
 import sys
@@ -46,6 +46,9 @@ nitpicky = False
 myst_enable_extensions = ["linkify", "colon_fence", "deflist"]
 myst_linkify_fuzzy_links = False
 myst_heading_anchors = 3
+# Render ```mermaid fenced blocks as the mermaid directive (so the same fence
+# also renders natively on GitLab's markdown view).
+myst_fence_as_directive = ["mermaid"]
 
 # -- API docs (sphinxcontrib.apidoc) -----------------------------------------
 apidoc_module_dir = "../s2_e2es"
@@ -65,7 +68,7 @@ napoleon_numpy_docstring = True
 
 # -- HTML output --------------------------------------------------------------
 html_theme = "sphinx_book_theme"
-html_title = "Sentinel-2 MSI Reverse E2ES"
+html_title = "Sentinel-2 MSI Synthetic Raw Data Generator"
 html_theme_options = {
     "repository_url": "https://gitlab.eopf.copernicus.eu/e2es/s2-e2es",
     "repository_branch": "main",

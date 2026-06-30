@@ -1,4 +1,4 @@
-"""Lightweight reader for real Sentinel-2 EOPF L1A/L1B Zarr products (no full eopf dependency).
+"""Lightweight reader for Sentinel-2 EOPF L1A/L1B Zarr products (no full eopf dependency).
 
 Reads the per-detector / per-band radiance arrays straight from the Zarr store with ``zarr``.
 The full EOPF CPM (``eopf==2.8.1``, optional extra) is only needed to write spec-compliant L0

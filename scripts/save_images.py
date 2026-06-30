@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""Save viewable images of the reverse-E2ES outputs on a real L1A, with the real GIPP.
+"""Save viewable images of the reverse-E2ES outputs on a L1A, with the GIPP.
 
 For one band/detector it writes, for each stage, **two** files:
   * a **bit-exact** ``.npy`` (lossless — raw uint16, corrected/residual float32);
   * a **uint8 PNG** for the eye, min-max normalised ``((x − x.min())/(x.max() − x.min())·255)``.
 
-Stages: the real L1A **raw** ``X``; the **forward-corrected** L1B ``Y = G(X − D)``; the round-trip
+Stages: the L1A **raw** ``X``; the **forward-corrected** L1B ``Y = G(X − D)``; the round-trip
 **residual** ``X′ − X`` (≈ 0 ⇒ near-black, proving the exact inverse); and the synthetic calibration
 **dark** + **diffuser** acquisitions from the calibration sub-set.
 
@@ -77,7 +77,7 @@ def main() -> int:
     eq = gs.band(args.band).detectors[det]
     pfx = f"{args.band}_d{det:02d}"
 
-    print(f"L1A round-trip images — {args.band} d{det:02d}  (real GIPP)")
+    print(f"L1A round-trip images — {args.band} d{det:02d} (GIPP)")
     x = io.read_l1a_raw(args.l1a, det, args.band, lines=slice(0, args.lines))
     y = fwd.forward_correct(x, eq)             # L1A raw → L1B corrected (dark + equalisation)
     x_back = fwd.reverse_impress(y, eq)        # L1B → L1A' (our reverse, same GIPP)
@@ -87,7 +87,7 @@ def main() -> int:
     _dump(f"{pfx}_1_raw_L1A", x, args.out, exact_dtype=np.uint16)
     _dump(f"{pfx}_2_corrected_L1B", y, args.out, exact_dtype=np.float32)
     _dump(f"{pfx}_3_roundtrip_residual", x_back - x, args.out, exact_dtype=np.float32)
-    print(f"  round-trip RMSE on real DN = {rmse:.2e}  (residual image ≈ black ⇒ exact inverse)")
+    print(f" round-trip RMSE on DN = {rmse:.2e} (residual image ≈ black ⇒ exact inverse)")
 
     # synthetic calibration acquisitions (calibration sub-set)
     a = adf.BandADF.from_gipp(b, det, gs, active_width=x.shape[1])

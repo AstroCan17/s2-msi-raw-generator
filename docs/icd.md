@@ -31,7 +31,7 @@ data interfaces are file-based (Zarr / XML); there is no network, hardware, or d
 
 `s2_e2es` is a pure-Python library (runtime deps `numpy`, plus `zarr` for product I/O). It reads a real
 L1A/L1B granule, runs the radiometric reverse chain (ATBD §5, S1–S15), and assembles a 156-array L0 RAW
-EOProduct. Auxiliary inputs (PSF matrices, SRF, operational GIPP) are real ESA data.
+EOProduct. Auxiliary inputs (PSF matrices, SRF, operational GIPP) areS2 data.
 
 ## Interface design
 
@@ -39,8 +39,8 @@ EOProduct. Auxiliary inputs (PSF matrices, SRF, operational GIPP) are real ESA d
 
 | Module | Key entry points | Contract |
 |---|---|---|
-| `sensor` | `band(name, unit)`, `all_bands()`, `spectral_band_info(unit)`, `unit_from_platform()`, constants | Pure data/model; leaf module — real per-band gains/TDI/SRF/noise constants. |
-| `gipp` | `load_gipp_set(dir)` → `GippSet`; `read_r2eqog_band`, `read_r2depi`, `read_blindp`, `read_r2para`, `read_r2crco` | Parses real S2A GIPP XML → per-pixel arrays (`DetectorEq`, `BandEq`, `RadioParams`). |
+| `sensor` | `band(name, unit)`, `all_bands()`, `spectral_band_info(unit)`, `unit_from_platform()`, constants | Pure data/model; leaf module — per-band gains/TDI/SRF/noise constants. |
+| `gipp` | `load_gipp_set(dir)` → `GippSet`; `read_r2eqog_band`, `read_r2depi`, `read_blindp`, `read_r2para`, `read_r2crco` | Parses  S2A GIPP XML → per-pixel arrays (`DetectorEq`, `BandEq`, `RadioParams`). |
 | `adf` | `BandADF` (`from_gipp`, `from_product`, `synthesize`), `real_psf_kernel`, `noise_coeffs` | Builds the per-band ADF set (PSF, noise α,β, per-pixel dark/PRNU). |
 | `reverse` | `s1..s14` step functions, `reverse_mvp`, `reverse_full`, `reverse_radiometric`/`forward_radiometric` | NumPy reverse chain on `(lines, detector_columns)` arrays. |
 | `forward_radiometric_atbd` | `forward_correct`, `reverse_impress`, `forward_equalize`/`inverse_equalize`, `column_fpn` | Public-ATBD forward model + exact inverse (round-trip bridge). |
@@ -60,7 +60,7 @@ Dependency direction: `sensor` (leaf) → `adf`/`gipp` → `reverse`/`forward_ra
   `float64` DN (offset ≈48, saturation sentinel 32768). Read by `io.read_l1a_raw`.
 - **IF-IN-GIPP** — operational S2A GIPP, directory of `S2A_OPER_GIP_<TYPE>_*.xml`
   (R2EQOG ×13, R2DEPI, BLINDP, R2PARA, R2CRCO). Read by `gipp.load_gipp_set`.
-- **IF-IN-ADF** — packaged real PSF matrices (`s2_e2es/data/psf/{S2A,S2B,S2C}/*.csv`, 33×33 oversampled).
+- **IF-IN-ADF** — packaged PSF matrices (`s2_e2es/data/psf/{S2A,S2B,S2C}/*.csv`, 33×33 oversampled).
 - **IF-OUT-L0** — synthetic **L0 RAW** EOProduct (Zarr v2) — see ICD-IF-L0 below.
 - **IF-MMI** — man-machine: command-line scripts (`scripts/*.py`); stdout reports.
 
@@ -95,7 +95,7 @@ A full product = **12 detectors × 13 bands = 156** `band{N}` arrays + 156 `mask
 |---|---|---|
 | `stac_discovery` | `type="Feature"`, `properties{platform, instrument="Multi Spectral Imager MSI", eopf:type="S2MSIL0_", datetime, start_datetime, end_datetime}` | REQ-FUNC-033 |
 | `other_metadata.NUC_table_ID` / `onboard_compression_flag` / `onboard_equalization_flag` | `3` / `true` / `true` | REQ-FUNC-034 |
-| `other_metadata.sensor_configuration.acquisition_configuration` | `active_detectors_list` (zero-padded sorted), `compress_mode`, `equalization_mode`, `nuc_table_id`, `spectral_band_info` (per band: `compression_rate`, `integration_time{unit:ms,value}`, `physical_gains`, `central_wavelength{nm}`, `bandwidth{nm}`, `equivalent_wavelength{nm}` — real per-unit SRF), `tdi_configuration_list={"03":"APPLIED","04":"APPLIED","11":"APPLIED","12":"APPLIED"}` | REQ-FUNC-034 |
+| `other_metadata.sensor_configuration.acquisition_configuration` | `active_detectors_list` (zero-padded sorted), `compress_mode`, `equalization_mode`, `nuc_table_id`, `spectral_band_info` (per band: `compression_rate`, `integration_time{unit:ms,value}`, `physical_gains`, `central_wavelength{nm}`, `bandwidth{nm}`, `equivalent_wavelength{nm}` — per-unit SRF), `tdi_configuration_list={"03":"APPLIED","04":"APPLIED","11":"APPLIED","12":"APPLIED"}` | REQ-FUNC-034 |
 | `other_metadata.sensor_configuration.time_stamp.line_period` | `1.5658736` (ms) | REQ-FUNC-034 |
 | `processing_history` | `processor="s2_e2es"`, `processor_version`, `adf_provenance{physical_gains, cal_gain, psf, spectral, noise, dark, equalization, prnu, defects}` | REQ-FUNC-045 |
 
@@ -106,7 +106,7 @@ A full product = **12 detectors × 13 bands = 156** `band{N}` arrays + 156 `mask
 The output structure is verified by `tests/test_l0product.py` (156-array contract, dtypes, root metadata,
 `eopf:type`, `tdi_configuration_list`, `physical_gains`, `line_period`, `adf_provenance`) and
 `tests/test_integration.py` (end-to-end product incl. ISP + quality masks). Inputs are exercised on real
-ESA L1A/L1B and the real GIPP.
+ESA L1A/L1B and the GIPP.
 
 ## Traceability
 REQ-IF-001 → IF-IN-L1A/L1B; REQ-IF-002 → ICD-IF-L0; REQ-IF-003 → IF-IN-GIPP. Full matrix in

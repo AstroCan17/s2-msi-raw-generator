@@ -28,7 +28,7 @@ ECSS methods are used as follows:
 | Method | Code | Use in this project |
 |---|---|---|
 | **Test** | T | Automated `pytest` suite exercising each chain step, the round-trip, the calibration sub-set, the L0 product contract, and the ISP/CCSDS encoding. Primary method. |
-| **Analysis** | A | Closed-form / numerical reasoning where a test only bounds the result — e.g. SNR@Lref reproduction from the real α,β and `cal_gain`. |
+| **Analysis** | A | Closed-form / numerical reasoning where a test only bounds the result — e.g. SNR@Lref reproduction from the α,β and `cal_gain`. |
 | **Inspection** | I | Static check of artefacts — output metadata/provenance, `pyproject` dependencies, GIPP/PSF/SRF provenance. |
 | **Review** | R | Manual review — originality (no external-processor source/names), ATBD consistency. |
 
@@ -56,7 +56,7 @@ Each requirement in `../srs.md` carries its method and the implementing test; th
 - **Synthetic-fixture tests** run with no external data (tiny inline GIPP fixtures; packaged PSF CSVs under
   `s2_e2es/data/psf/`).
 - **Real-data tests** are environment-gated and skip unless `S2_E2ES_GIPP_DIR` (operational GIPP folder)
-  and `S2_E2ES_L1A` (a real L1A `.zarr`) are set.
+  and `S2_E2ES_L1A` (a L1A `.zarr`) are set.
 
 ## 4. Acceptance criteria
 

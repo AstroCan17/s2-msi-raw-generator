@@ -1,7 +1,7 @@
-"""End-to-end demo: real L1B → reverse → assemble synthetic L0 RAW product → re-open & verify.
+"""End-to-end demo:  L1B → reverse → assemble synthetic L0 RAW product → re-open & verify.
 
-Reads a few (detector, band) radiance frames from the real EOPF L1B, runs the MVP reverse chain,
-writes an L0 RAW Zarr (ICD-IF-L0), then re-opens it and prints the structure + real metadata.
+Reads a few (detector, band) radiance frames from the EOPF L1B, runs the MVP reverse chain,
+writes an L0 RAW Zarr (ICD-IF-L0), then re-opens it and prints the structure + metadata.
 
 Usage: python scripts/demo_build_l0.py [out_dir]
 """
@@ -48,7 +48,7 @@ def main() -> int:
               f"DN min/mean/max={dn.min()}/{dn.mean():.1f}/{dn.max()}  mask={m.dtype}{m.shape}")
 
     ac = dict(g.attrs)["other_metadata"]["sensor_configuration"]["acquisition_configuration"]
-    print("\nroot metadata (real values):")
+    print("\nroot metadata (values):")
     print(f"  eopf:type       = {dict(g.attrs)['stac_discovery']['properties']['eopf:type']}")
     print(f"  tdi_config      = {ac['tdi_configuration_list']}")
     print(f"  line_period(ms) = {dict(g.attrs)['other_metadata']['sensor_configuration']['time_stamp']['line_period']}")

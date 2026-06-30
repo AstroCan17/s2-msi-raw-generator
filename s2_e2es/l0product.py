@@ -1,10 +1,10 @@
 """Assemble a synthetic L0 RAW EOProduct (Increment 2, ICD-IF-L0).
 
-Writes the real EOPF L0 Zarr structure (ATBD Annex A.9 / REQ-FUNC-030–036):
+Writes the EOPF L0 Zarr structure (ATBD Annex A.9 / REQ-FUNC-030–036):
 
     measurements/d{DD}/b{BB}/band{BB}   uint16  (line, column)   — 12 det × 13 bands = 156 arrays
     quality/d{DD}/b{BB}/mask            uint8                    — 156 masks
-    root attrs: stac_discovery + other_metadata.sensor_configuration (real values)
+    root attrs: stac_discovery + other_metadata.sensor_configuration (values)
 
 Uses ``zarr`` (v2 format for EOPF/msi-processor interoperability), not the full ``eopf`` CPM. ISP
 telemetry (`conditions/anc_data/...`, step S15) is Increment 4 and omitted here.
@@ -51,7 +51,7 @@ def build_root_metadata(
     datetime_iso: str = "2024-04-03T00:00:00Z",
     active_detectors: list[int],
 ) -> dict:
-    """Root STAC + sensor-configuration metadata (real values; REQ-FUNC-033/034/054)."""
+    """Root STAC + sensor-configuration metadata (values; REQ-FUNC-033/034/054)."""
     tdi = {sensor.band_number(b): "APPLIED" for b in sensor.BANDS if b in sensor.TDI_BANDS}
     det_str = ",".join(f"{d:02d}" for d in sorted(active_detectors))
     unit = sensor.unit_from_platform(platform)
@@ -88,15 +88,15 @@ def build_root_metadata(
             "processor_version": __version__,
             # REQ-FUNC-045 — provenance of each ADF component.
             "adf_provenance": {
-                "physical_gains": "real (product metadata; metadata/round-trip bridge)",
-                "cal_gain": "real-derived (noise α,β + SNR@Lref); reproduces SNR@Lref",
-                "psf": "real (ESA SentiWiki S2{A,B,C}_PSF)",
-                "spectral": "real (SRF doc COPE-GSEG-EOPG-TN-15-0007)",
-                "noise": "real verbatim (L1A product noise_model α,β; S2-RUT)",
-                "dark": "real per-pixel (operational S2A GIPP R2EQOG COEFF_D) — or DQR 440-520 LSB fallback",
-                "equalization": "real per-pixel relative-response (GIPP R2EQOG); stability Clerc 2026 Table 3",
-                "prnu": "real per-pixel (GIPP R2EQOG, BandADF.from_gipp) — or L1B-derived / seeded fallback",
-                "defects": "real (GIPP R2DEPI saturated+blind columns)",
+                "physical_gains": "product metadata (metadata/round-trip bridge)",
+                "cal_gain": "derived (noise α,β + SNR@Lref); reproduces SNR@Lref",
+                "psf": "ESA SentiWiki S2{A,B,C}_PSF",
+                "spectral": "SRF doc COPE-GSEG-EOPG-TN-15-0007",
+                "noise": "verbatim (L1A product noise_model α,β; S2-RUT)",
+                "dark": "per-pixel (operational S2A GIPP R2EQOG COEFF_D) — or DQR 440-520 LSB fallback",
+                "equalization": "per-pixel relative-response (GIPP R2EQOG); stability Clerc 2026 Table 3",
+                "prnu": "per-pixel (GIPP R2EQOG, BandADF.from_gipp) — or L1B-derived / seeded fallback",
+                "defects": "GIPP R2DEPI saturated+blind columns",
             },
         },
     }
