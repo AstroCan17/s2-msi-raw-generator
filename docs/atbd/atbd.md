@@ -27,8 +27,9 @@ deconvolution, co-registration, orthorectification, atmospheric correction), the
 *impresses* them: it takes a real Sentinel-2 **L1A/L1B** product (at-sensor radiance, already in
 per-detector sensor geometry) and degrades it back to a synthetic **L0 RAW** product (focal-plane
 digital numbers, 12 staggered detectors × 13 bands). Because L1A/L1B are already sensor-geometry,
-the chain is **radiometric-only** — geometry inversion (orthorectification undo) is out of v1 scope
-(Issue #17); L1C entry is a future module.
+the chain is **radiometric-only** — there is no geometry inversion (orthorectification undo) to
+perform (Issue #17). An L1C entry + geometry-reverse module was considered and **cancelled**: with
+an L1A/L1B entry there is nothing to de-orthorectify.
 
 The E2ES serves two purposes:
 1. **RAW generation** — produce realistic L0 RAW when true Sentinel-2 L0 is
@@ -45,8 +46,8 @@ with explicit traceability to the `msi-processor` forward function each reverse 
 ## 1.3 Scope
 
 Increment-0 deliverable. Algorithm-theoretical basis only; software design, ICD, and V&V plan
-are separate DRDs. Reverse entry level is **L1A/L1B at-sensor radiance** (Issue #17); L1C +
-geometry reverse is a future module.
+are separate DRDs. Reverse entry level is **L1A/L1B at-sensor radiance** (Issue #17); the L1C-entry
++ geometry-reverse module is **cancelled** (not applicable to an L1A/L1B entry).
 
 ## 1.4 References
 
@@ -93,12 +94,12 @@ Reference System). `[extend as needed]`
 | g_phys | per-band physical gain (DN↔radiance, real value Annex A.11) | — |
 | g_nuc, o_nuc, k_dark | per-detector PRNU gain/offset, dark offset | — |
 | PSF_b | per-band point spread function kernel (DC=1) | none |
-| ρ_TOA | TOA reflectance (*future L1C module only*) | none, [0,1] |
-| ESUN_b, θ_s, d | solar irradiance (from SRF), solar zenith, Earth–Sun dist (*future L1C*) | mixed |
+| ρ_TOA | TOA reflectance (*cancelled L1C-entry module — unused*) | none, [0,1] |
+| ESUN_b, θ_s, d | solar irradiance (from SRF), solar zenith, Earth–Sun dist (*cancelled L1C-entry module — unused*) | mixed |
 
 ### 1.5.4 Note on coordinates
 Three coordinate sets: **detector** (focal-plane pixel, the L0 RAW frame),
-**image/granule** (native acquisition grid), **map** (UTM/WGS-84, MGRS-tiled — *future L1C only*).
+**image/granule** (native acquisition grid), **map** (UTM/WGS-84, MGRS-tiled — *cancelled L1C-entry module*).
 The v1 reverse operates entirely in **detector geometry** (input L1A/L1B is already there). Detector
 array: **2592 px across-track
 per module @ 10 m, 1296 px @ 20 m, ≈432 px @ 60 m**; 12 staggered modules per focal plane,
@@ -232,9 +233,12 @@ B03, B04, B11, B12** (real `tdi_configuration_list`). **ADF:** `ADF_RSWIR`. **Me
 **Calibration sub-set (Inc 3, inverse-crime cure):** synthetic sun-diffuser flat + dark → `estimate_nuc`
 → *estimated* radiometric/NUC ADF handed to the processor (not the truth impressed in S7/S12).
 
-**Future L1C module (out of v1, Issue #17):** prepend de-orthorectification (ground→detector via the S2
-viewing model — **ASGARD**, `ADF_VDIRP/SPAMO/GPARA/RESAM/TILEP/DEM`) + reflectance→radiance. L1C
-orthorectification destroys the native detector alignment the radiometric reverse relies on (PRNU paper).
+**Cancelled L1C-entry module (Issue #17):** an L1C entry would have required prepending
+de-orthorectification (ground→detector via the S2 viewing model — **ASGARD**,
+`ADF_VDIRP/SPAMO/GPARA/RESAM/TILEP/DEM`) + reflectance→radiance. This module is **dropped**: the
+adopted L1A/L1B entry is already in native detector geometry, so there is nothing to de-orthorectify.
+(L1C orthorectification destroys the native detector alignment the radiometric reverse relies on —
+the very reason an L1C entry was rejected; PRNU paper.)
 
 ---
 
@@ -250,7 +254,7 @@ Jointly change-controlled with the processor (per AD 1). **Conjugate subset** (b
   3×B11 + 1×B12), crosstalk `ADF_RCRCO` (<0.5 %). `nuc_table_id = 3`, equalization on.
 - `psf`: per-band kernel (DC=1) — same kernel `enhancement` uses; Gaussian-from-MTF (Annex A.4).
 - `viewing_model`: focal length 600 mm / F4 (TMA, 150 mm pupil), pixel pitch 7.5/15 µm, 12-detector
-  stagger, per-band GSD (Annex A.2), `line_period` 1.5658736 ms. *(Only used by the future L1C module.)*
+  stagger, per-band GSD (Annex A.2), `line_period` 1.5658736 ms. *(Was only needed by the cancelled L1C-entry module.)*
 
 **E2ES-only block** (processor never reads): noise model (`a,b` for σ=√(a+b·DN), `ADF_RNOMO`),
 crosstalk kernel, temporal gain drift (VNIR 0.1–0.35 %/months, SWIR faster).
@@ -283,7 +287,7 @@ Per-stage error-budget table, **reflective-domain terms**. Populate numerically 
 
 # 8. OPEN POINTS
 
-- Reverse entry level — **RESOLVED: L1A/L1B** (Issue #17); L1C + geometry reverse is a future module.
+- Reverse entry level — **RESOLVED: L1A/L1B** (Issue #17); the L1C-entry + geometry-reverse module is **cancelled**.
 - **L1A vs L1B for MVP:** L1B (radiance) → clean S1 radiance→DN (recommended); L1A is rawer.
 - Straylight (S6 far-field): scope out of v0 or book as named residual.
 - L0 RAW ICD: adopt the real EOPF L0 Zarr structure (Annex A.9) as ICD-IF-L0.
@@ -437,8 +441,9 @@ from sun-diffuser. Equivalent generic form `σ² = a·DN + b`. Components: dark 
   viewing zenith + azimuth **per band, per detector** on a **5 km grid (23×23 nodes, 5000 m)**;
   overlap nodes carry two values. In-orbit LOS calibration < **0.1 px**; main LOS geocentric;
   **yaw-steering** keeps ground velocity ⊥ detector arrays.
-- **De-orthorectify (future L1C module):** ortho pixel → ground (ITRF/WGS84) → inverse location (ASGARD) → detector
-  (col, line). Push-broom: **line index is linearly related to acquisition date**.
+- **De-orthorectify (cancelled L1C-entry module — for reference only):** ortho pixel → ground (ITRF/WGS84)
+  → inverse location (ASGARD) → detector (col, line). Push-broom: **line index is linearly related to
+  acquisition date**. Not implemented: the adopted L1A/L1B entry is already in detector geometry.
 - **Datation / line-time:** nadir ground velocity ≈ **6700 m/s**; line period (DERIVED = GSD/Vground)
   ≈ **1.49 ms** (10 m) / **2.99 ms** (20 m) / **8.96 ms** (60 m); relative dating < 0.15 ms; absolute
   line-date < 2 ms; ephemeris sampling 1 Hz; solar-array attitude perturbation sine at 0.032 Hz
@@ -455,7 +460,7 @@ from sun-diffuser. Equivalent generic form `σ² = a·DN + b`. Components: dark 
   keyed by (satellite S2A/S2B, registration_mode up/down-sampling, detector 1–12); each cell =
   **[along-track, across-track] pixel shift** for a band-pair vs a reference band. Along-track up to
   ~240 px (e.g. S2A det-1 B05↔ref = [239, −2]), across-track 0–34 px; **sign flips with detector
-  parity** (odd +, even −). Directly usable for **S8 SWIR de-arrangement** (and future L1C de-coregistration; no SIFT).
+  parity** (odd +, even −). Directly usable for **S8 SWIR de-arrangement** (the cancelled L1C de-coregistration would also have used it; no SIFT).
 - L1B = radiometrically corrected, per-detector geometry (retains parallax + overlap);
   L1C = orthorectified, band-co-registered, UTM tiles.
 

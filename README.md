@@ -8,9 +8,10 @@ back to a synthetic **L0 RAW** product (focal-plane DN, 12 detectors × 13 bands
 2. **Round-trip V&V** — real L1B → reverse → L0 → `msi-processor` forward → L1B′; the residual
    `L1B′ − L1B` measures the processor's restoration quality on real ESA data.
 
-**Scope (v1):** radiometric-only, 14-step chain (S1 radiance→DN … S15 ISP packets); input is
-L1A/L1B in per-detector sensor geometry, so no geometry inversion (Issue #17). L1C entry +
-geometry reverse is a future module.
+**Scope:** radiometric-only, 14-step chain (S1 radiance→DN … S15 ISP packets); input is
+L1A/L1B, already in per-detector sensor geometry, so there is no geometry inversion (Issue #17).
+An L1C entry + geometry reverse was considered and **cancelled** — with an L1A/L1B entry there is
+no orthorectification to undo.
 
 ## Package
 
@@ -50,4 +51,5 @@ python scripts/demo_build_l0.py          # real L1B → assembled synthetic L0 R
 | 4 | S15 CCSDS ISP packet generation + SAD telemetry |
 
 Runs end-to-end on real ESA L1B. EOPF CPM 2.8.1, ECSS-E-ST-40C. **Next:** independent round-trip
-V&V against the pinned `msi-processor` wheel; the optional L1C-entry + geometry-reverse module.
+V&V against the pinned `msi-processor` wheel. (The L1C-entry + geometry-reverse module is cancelled —
+not applicable to an L1A/L1B entry.)
