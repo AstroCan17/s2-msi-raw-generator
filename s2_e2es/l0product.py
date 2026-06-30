@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from . import __version__, sensor
+from . import __version__, isp, sensor
 from .adf import BandADF, synthesize
 from .reverse import reverse_mvp
 
@@ -96,11 +96,14 @@ def write_l0_product(
     platform: str = "Sentinel-2A",
     datetime_iso: str = "2024-04-03T00:00:00Z",
     masks: dict[FrameKey, np.ndarray] | None = None,
+    with_isp: bool = False,
 ) -> str:
     """Write the L0 RAW EOProduct Zarr to ``out_path`` and return it.
 
     Each frame must be uint16 in ``[0, DN_MAX]``. A quality mask is written per frame (saturated
-    pixels flagged where DN ≥ DN_MAX if no explicit mask is given).
+    pixels flagged where DN ≥ DN_MAX if no explicit mask is given). When ``with_isp`` is set
+    (Increment 4 / S15), per-band ``isp_header`` arrays and ``conditions/anc_data/s{APID}/isp``
+    SAD telemetry are written too.
     """
     if zarr is None:
         raise ImportError("zarr is required to write L0 products: `uv pip install zarr`")
@@ -112,6 +115,9 @@ def write_l0_product(
 
     m = root.create_group("measurements")
     q = root.create_group("quality")
+    cond = root.create_group("conditions").create_group("anc_data") if with_isp else None
+    line_period_s = sensor.LINE_PERIOD_MS / 1000.0
+
     for (det, bname), dn in sorted(frames.items()):
         if dn.dtype != np.uint16:
             raise TypeError(f"frame ({det},{bname}) must be uint16, got {dn.dtype}")
@@ -129,5 +135,21 @@ def write_l0_product(
         qg = q.require_group(f"d{det:02d}").require_group(bkey)
         qa = qg.create_array("mask", shape=mk.shape, dtype="uint8", chunks=mk.shape)
         qa[:] = mk
+
+        if with_isp:
+            apid = isp.apid_for(det, sensor.BANDS.index(bname))
+            hdr, plen = isp.frame_isp_headers(dn, apid, line_period_s=line_period_s)
+            ih = mg.create_array("isp_header", shape=hdr.shape, dtype="uint8", chunks=hdr.shape)
+            ih[:] = hdr
+            mg.attrs["apid"] = apid
+            # SAD/housekeeping telemetry for this APID stream
+            sad, sad_len = isp.build_sad_packets(apid, max(dn.shape[0] // 8, 1),
+                                                 period_s=line_period_s * 8)
+            sg = cond.require_group(f"s{apid}")
+            si = sg.create_array("isp", shape=sad.shape, dtype="uint8", chunks=sad.shape)
+            si[:] = sad
+            sl = sg.create_array("packet_data_length", shape=sad_len.shape, dtype="uint16",
+                                 chunks=sad_len.shape)
+            sl[:] = sad_len
 
     return out_path
