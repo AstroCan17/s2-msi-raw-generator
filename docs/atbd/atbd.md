@@ -125,19 +125,27 @@ on-board **sun-diffuser** (CSM) radiometric calibration, **12-bit** quantization
 2 SWIR); model as a per-band config. The S13 noise model dominates the SNR budget regardless. Full
 sourced values in **Annex A**.
 
-**Reverse data-flow figure (Fig-1 analog, to draw) — L1A/L1B → L0 RAW, radiometric-only:**
+**Reverse data-flow — L1A/L1B → L0 RAW, radiometric-only:**
+```mermaid
+flowchart TD
+    IN["L1B at-sensor radiance<br/>(per-detector geometry)"]
+    S1["S1 · radiance → DN (÷ physical_gain)"]
+    S3["S3 · undo framing / round-clamp"]
+    S4["S4 · undo radiometric offset"]
+    S5["S5 · undo 60 m binning"]
+    S6["S6 · convolve true optical PSF (re-blur)"]
+    S7["S7 · undo relative response (impress PRNU)"]
+    S8["S8 · re-insert SWIR arrangement"]
+    S9["S9 · re-apply crosstalk"]
+    S10["S10 · re-insert blind/defective pixels"]
+    S11["S11 · re-apply dark signal"]
+    S12["S12 · re-apply onboard equalization"]
+    S13["S13 · add noise σ=√(a+b·DN)"]
+    S14["S14 · quantize 12-bit"]
+    S15["S15 · format L0 RAW (156 detector/band frames + ISP telemetry + STAC)"]
+    IN --> S1 --> S3 --> S4 --> S5 --> S6 --> S7 --> S8 --> S9 --> S10 --> S11 --> S12 --> S13 --> S14 --> S15
 ```
- L1B at-sensor radiance (per-detector geometry)
-   → [S1] radiance → DN (÷ physical_gain)
-   → [S3] undo framing/round-clamp → [S4] undo radiometric offset → [S5] undo 60 m binning
-   → [S6] convolve true optical PSF (re-blur)
-   → [S7] undo relative response (impress PRNU) → [S8] re-insert SWIR arrangement
-   → [S9] re-apply crosstalk → [S10] re-insert blind/defective pixels
-   → [S11] re-apply dark signal → [S12] re-apply onboard equalization
-   → [S13] add noise σ=√(a+b·DN) → [S14] quantize 12-bit
-   → [S15] format L0 RAW (156 detector/band frames + ISP telemetry + STAC)
-```
-No geometry inversion (L1A/L1B already sensor geometry). `[TBD: render as a proper block diagram]`
+No geometry inversion (L1A/L1B already sensor geometry).
 
 ---
 

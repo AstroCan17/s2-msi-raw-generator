@@ -16,7 +16,7 @@
 
 # Software release note
 
-**Project:** Sentinel-2 MSI Reverse E2ES (`s2_e2es`) · **DRD:** ECSS-E-ST-40C Rev.1 (Software release
+**Project:** Sentinel-2 MSI Synthetic Raw Data Generator (`s2_e2es`) · **DRD:** ECSS-E-ST-40C Rev.1 (Software release
 document, SRelD). Full history: `../CHANGELOG.md`.
 
 ## 1. Release

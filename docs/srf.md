@@ -17,7 +17,7 @@
 # Software reuse file
 
 ECSS-E-ST-40C Rev.1 / ECSS-Q-ST-80C. This SRF records reused software and reused data, and states the
-originality of the Sentinel-2 MSI Reverse E2ES.
+originality of the Sentinel-2 MSI Synthetic Raw Data Generator.
 
 ## Introduction
 

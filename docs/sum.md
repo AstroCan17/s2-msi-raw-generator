@@ -16,7 +16,7 @@
 
 # Software user manual
 
-**Project:** Sentinel-2 MSI Reverse E2ES (`s2_e2es`) · **DRD:** ECSS-E-ST-40C Rev.1 (SUM). The E2ES
+**Project:** Sentinel-2 MSI Synthetic Raw Data Generator (`s2_e2es`) · **DRD:** ECSS-E-ST-40C Rev.1 (SUM). The E2ES
 degrades a Sentinel-2 L1A/L1B product back to a synthetic L0 RAW product and provides real-data
 verification & calibration tooling.
 

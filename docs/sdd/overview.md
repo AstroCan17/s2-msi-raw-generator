@@ -68,10 +68,25 @@ applies only `S1 → S7 → S11 → S12` (no PSF/noise/quantize) so it is algebr
 `calibration` depends on `adf` + `reverse`; `isp` and `io` are leaves (numpy / zarr only); `l0product`
 is the top integrator (imports `sensor`, `adf`, `reverse`, `isp`, and the package version).
 
-```
-sensor ──┬─→ adf ──┬─────────────→ reverse ──→ calibration
-         └─→ gipp ─┴─→ forward_radiometric_atbd
-isp, io  (leaves) ───────────────────────────→ l0product (integrator)
+```mermaid
+flowchart LR
+    sensor[sensor]
+    adf[adf]
+    gipp[gipp]
+    fwd[forward_radiometric_atbd]
+    reverse[reverse]
+    calibration[calibration]
+    isp[isp]
+    io[io]
+    l0["l0product (integrator)"]
+    sensor --> adf
+    sensor --> gipp
+    adf --> reverse
+    adf --> fwd
+    gipp --> fwd
+    reverse --> calibration
+    isp --> l0
+    io --> l0
 ```
 
 ## Software dynamic architecture
