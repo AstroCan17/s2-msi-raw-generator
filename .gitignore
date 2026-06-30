@@ -1,0 +1,24 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Data (large EOPF Zarr products — kept out of git)
+*.zarr/
+*.zarr.zip
+data/s2_dataset/
+
+# Build / docs
+build/
+dist/
+docs/_build/
+
+# Scratch / OS
+.DS_Store
+*.tmp
+scratchpad/

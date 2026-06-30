@@ -1,0 +1,24 @@
+[project]
+name = "s2_e2es"
+version = "0.3.0.dev0"
+description = "Sentinel-2 MSI reverse E2ES — degrade L1A/L1B back to synthetic L0 RAW"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "Apache-2.0" }
+dependencies = ["numpy>=1.26"]
+
+[project.optional-dependencies]
+# Lightweight reader for real EOPF L1A/L1B Zarr products (no full eopf needed).
+read = ["zarr>=3"]
+# EOPF CPM for writing spec-compliant L0 EOProducts + processor round-trip (heavy; SDE runner).
+eopf = ["eopf==2.8.1"]
+dev = ["pytest>=8", "zarr>=3"]
+
+[build-system]
+requires = ["flit_core>=3.9"]
+build-backend = "flit_core.buildapi"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+pythonpath = ["."]
