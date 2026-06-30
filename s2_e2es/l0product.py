@@ -93,9 +93,10 @@ def build_root_metadata(
                 "psf": "real (ESA SentiWiki S2{A,B,C}_PSF)",
                 "spectral": "real (SRF doc COPE-GSEG-EOPG-TN-15-0007)",
                 "noise": "real verbatim (L1A product noise_model α,β; S2-RUT)",
-                "dark": "real (S2A DQR Feb-2023: 440-520 LSB pedestal + DSNU 0.5/1.0 LSB)",
-                "equalization": "real stability (Clerc 2026 Table 3: 0.05% 1σ gain, no offset)",
-                "prnu": "from real L1B (scripts/derive_prnu_dark.py) or seeded; per-pixel NUC GIPP #36",
+                "dark": "real per-pixel (operational S2A GIPP R2EQOG COEFF_D) — or DQR 440-520 LSB fallback",
+                "equalization": "real per-pixel relative-response (GIPP R2EQOG); stability Clerc 2026 Table 3",
+                "prnu": "real per-pixel (GIPP R2EQOG, BandADF.from_gipp) — or L1B-derived / seeded fallback",
+                "defects": "real (GIPP R2DEPI saturated+blind columns)",
             },
         },
     }
