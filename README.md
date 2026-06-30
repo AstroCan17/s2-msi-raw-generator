@@ -21,6 +21,7 @@ no orthorectification to undo.
 | `s2_e2es/adf.py` | ADFs — **real** ESA PSF matrices (`data/psf/`) + SRF spectral + SNR@Lref noise; PRNU/dark from the real operational GIPP (`BandADF.from_gipp`) |
 | `s2_e2es/gipp.py` | Original reader for the real operational S2A **GIPP** (R2EQOG per-pixel dark+gains, R2DEPI, BLINDP, R2PARA, R2CRCO) |
 | `s2_e2es/forward_radiometric_atbd.py` | Public-ATBD forward radiometric model + exact inverse (round-trip V&V on the real L1A) |
+| `s2_e2es/calibration.py` | S2 calibration sub-set — synthetic CSM sun-diffuser + dark → **derived** gain/dark coeffs (inverse-crime cure) |
 | `s2_e2es/reverse.py` | Reverse chain steps **S1–S14** + `reverse_full` / `reverse_mvp` |
 | `s2_e2es/isp.py` | **S15** — CCSDS ISP packet generation + SAD telemetry |
 | `s2_e2es/io.py` | Real EOPF L1A/L1B Zarr reader (`zarr`) |

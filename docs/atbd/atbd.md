@@ -157,10 +157,15 @@ The processor's forward flow, reversed. Two sub-flows:
 
 **Main reverse chain:** S1→S3→S4→S5→S6→S7→S8→S9→S10→S11→S12→S13→S14→S15 (§5) — radiometric-only.
 
-**Calibration sub-set (Fig-5 conjugate):** synthetic **sun-diffuser flat** + **dark frame** →
-`radiometric.estimate_nuc` → derived radiometric/NUC ADF. The processor receives the *derived*
-(estimated) coefficients, not the truth impressed in S7/S12 — this realizes the derive-gains-from-references
-calibration philosophy and breaks inverse crime. `[Increment 3]`
+**Calibration sub-set (`s2_e2es/calibration.py`, Increment 3):** the S2 **two-reference** radiometric
+calibration in the reflective domain. The high-signal reference is the on-board **CSM sun-diffuser**
+(uniform full-field), the zero reference is
+a **dark** (CSM closed / night). The sub-set synthesises both L0 acquisitions by impressing the *true*
+ADF, then **derives** the coefficients back (L1 ATBD §4.1.1.2.2):
+`D(j)=⟨X_dark⟩_i`, `g(j)=A·⟨L_diff⟩/⟨X_diff−D⟩_i` with `⟨g(j)⟩_j=1` → fixes `A`. The processor then
+uses the **derived** coefficients (`estimated_adf`), not the truth impressed in S7/S11 — closing the
+loop **breaks inverse crime** (verified: derived dark recovers truth to <0.05 DN, relative response
+correlation >0.99, `A≈cal_gain`; the small residual is the real calibration uncertainty). `ADF_REQOG`.
 
 ---
 
@@ -250,8 +255,9 @@ real SNR@Lref (verified end-to-end, <1 %). **Acceptance:** σ within ±5 % over 
 **Forward:** package into CCSDS ISP; timestamps from `line_period = 1.5658736 ms`; SAD packets per APID.
 **ADF:** `ADF_SADMP`, `ADF_DATAT`. **Conjugate:** `l0_decode`. **Output:** the 156-frame L0 (Annex A.9).
 
-**Calibration sub-set (Inc 3, inverse-crime cure):** synthetic sun-diffuser flat + dark → `estimate_nuc`
-→ *estimated* radiometric/NUC ADF handed to the processor (not the truth impressed in S7/S12).
+**Calibration sub-set (Inc 3, inverse-crime cure — implemented `s2_e2es/calibration.py`):** synthetic
+CSM sun-diffuser + dark acquisitions → derive `D`, `g`, `A` (L1 ATBD §4.1.1.2.2) → *estimated* ADF
+(`estimated_adf`) handed to the processor, not the truth impressed in S7/S11.
 
 **Cancelled L1C-entry module (Issue #17):** an L1C entry would have required prepending
 de-orthorectification (ground→detector via the S2 viewing model — **ASGARD**,
