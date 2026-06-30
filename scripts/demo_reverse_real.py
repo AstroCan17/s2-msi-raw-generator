@@ -1,6 +1,6 @@
 """Demo: run the MVP reverse chain on a REAL Sentinel-2 L1B granule.
 
-Reads a detector/band radiance window from the real EOPF L1B product, runs the radiometric
+Reads a detector/band radiance window from the EOPF L1B product, runs the radiometric
 reverse → synthetic L0 DN, and checks the radiometric round-trip (reverse → forward) recovers
 the input radiance. NOTE: this uses the package's own algebraic forward as the inverse, so it is
 a *self-consistency* check (not the independent msi-processor V&V, which needs the pinned wheel).

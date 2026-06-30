@@ -1,6 +1,6 @@
 """Real published-data tests: official ESA PSF matrices + SRF per-unit spectral characterisation.
 
-These assert that the reverse chain uses the real SentiWiki PSF (`data/psf/`) and the real SRF
+These assert that the reverse chain uses the SentiWiki PSF (`data/psf/`) and the SRF
 band centre/bandwidth/equivalent wavelength (`sensor.py`) — not synthetic stand-ins.
 """
 
@@ -88,7 +88,7 @@ def test_cal_gain_dn_ref_reproduces_spec_snr(bn):
 
 @pytest.mark.parametrize("bn", ["B01", "B02", "B09", "B12"])
 def test_chain_reproduces_spec_snr_end_to_end(bn):
-    # Run the real chain on flat radiance=Lref and measure SNR = signal / noise-std → matches spec.
+    # Run the  chain on flat radiance=Lref and measure SNR = signal / noise-std → matches spec.
     b = sensor.band(bn)
     a = adf.synthesize(b, n_det=64, seed=2)
     rng = np.random.default_rng(0)
@@ -106,7 +106,7 @@ def test_spectral_band_info_carries_real_wavelengths():
     assert info["8A"]["equivalent_wavelength"]["value"] == pytest.approx(864.711, abs=1e-3)
 
 
-# --- from_product (real per-detector PRNU/dark) ------------------------------
+# --- from_product (per-detector PRNU/dark) ------------------------------
 
 def test_from_product_marks_real_and_keeps_real_psf():
     b = sensor.band("B03", "S2A")

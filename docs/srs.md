@@ -24,14 +24,14 @@ inspection · **R** review.
 
 ### 1.1 Purpose
 Specify the requirements for the **reverse End-to-End performance Simulator** of the Sentinel-2 MSI — the
-forward-instrument conjugate of the `msi-processor`. The software degrades a real Sentinel-2 **L1A/L1B**
+forward-instrument conjugate of the `msi-processor`. The software degrades a Sentinel-2 **L1A/L1B**
 product back to a synthetic **L0 RAW** product (focal-plane DN, 12 detectors × 13 bands), impressing the
 true instrument effects the forward processor removes.
 
 ### 1.2 Scope
 Radiometric-only reverse chain (14 algorithm steps S1–S15, ATBD §5), entry at **L1A/L1B** in per-detector
 sensor geometry. Geometry inversion (de-orthorectification / L1C entry) is **cancelled** — not applicable
-to an L1A/L1B entry (Issue #17). All instrument data is real ESA-sourced (official PSF, SRF, product noise
+to an L1A/L1B entry (Issue #17). All instrument data isS2-sourced (official PSF, SRF, product noise
 model, operational GIPP); nothing is fitted or synthetic in the realized path.
 
 ### 1.3 Applicable & reference documents
@@ -51,9 +51,9 @@ IDs are stable: **REQ-FUNC-NNN** (functional), **REQ-PERF-NNN** (performance), *
 
 ## 2. Mission context
 The forward `msi-processor` inverts instrument effects (calibration, PSF, equalization, …). The E2ES does
-the conjugate: it **impresses** the real effects to reconstruct a focal-plane L0 RAW, enabling (a) realistic
+the conjugate: it **impresses** the effects to reconstruct a focal-plane L0 RAW, enabling (a) realistic
 L0 generation when true S2 L0 is unavailable, and (b) a radiometric **round-trip V&V** (raw → forward
-correct → reverse impress → raw′, residual ≈ 0) on real ESA data with the real GIPP.
+correct → reverse impress → raw′, residual ≈ 0) on S2 data with the  GIPP.
 
 ## 3. Functional requirements (REQ-FUNC)
 
@@ -70,17 +70,17 @@ correct → reverse impress → raw′, residual ≈ 0) on real ESA data with th
   equalized signal DN per the L1 ATBD raw model `X = A·G·L + D`, with `A` (= `Band.cal_gain`).* **V: T**
   (`reverse.s1_radiance_to_dn`, `test_real_data`). realized
 - **REQ-FUNC-014 — PSF re-blur (S6).** *The software shall re-introduce the optical blur by convolving with
-  the real per-band, per-unit ESA PSF matrices (B10 → identity).* **V: T** (`adf.real_psf_kernel`,
+  the  per-band, per-unit ESA PSF matrices (B10 → identity).* **V: T** (`adf.real_psf_kernel`,
   `reverse.s6_psf_reblur`, `test_reverse`/`test_real_data`). realized
 - **REQ-FUNC-015 — Impress relative response / PRNU (S7).** *The software shall impress the per-pixel
   relative response from the operational GIPP R2EQOG (cubic VNIR / bilinear SWIR).* **V: T**
   (`forward_radiometric_atbd.inverse_equalize`, `adf.from_gipp`, `test_roundtrip_atbd`). realized
-- **REQ-FUNC-019 — Re-apply dark signal (S11).** *The software shall add the real per-pixel dark signal
+- **REQ-FUNC-019 — Re-apply dark signal (S11).** *The software shall add the per-pixel dark signal
   (GIPP R2EQOG COEFF_D; DQR fallback).* **V: T** (`reverse.s11_reapply_dark`, `test_gipp`). realized
 - **REQ-FUNC-020 — Reverse onboard equalization (S12).** *The software shall reverse the onboard
   equalization gain/offset.* **V: T** (`reverse.s12_reapply_onboard_eq`). realized
 - **REQ-FUNC-021 — Add sensor noise (S13).** *The software shall add signal-dependent noise `σ=√(α²+β·DN)`
-  with the real per-band α,β from the L1A product noise model, applied on the signal DN.* **V: T**
+  with the per-band α,β from the L1A product noise model, applied on the signal DN.* **V: T**
   (`reverse.s13_add_noise`, `test_reverse::test_noise_sigma_matches_model_within_5pct`). realized
 - **REQ-FUNC-022 — Quantize to 12-bit (S14).** *The software shall clip/round to `uint16` in `[0, 4095]`.*
   **V: T** (`reverse.s14_quantize`). realized
@@ -106,12 +106,12 @@ correct → reverse impress → raw′, residual ≈ 0) on real ESA data with th
 - **REQ-FUNC-033 — STAC discovery metadata.** *…platform, instrument, eopf:type, datetime.* **V: T**
   (`l0product.build_root_metadata`). realized
 - **REQ-FUNC-034 — Sensor-configuration metadata.** *…spectral_band_info, tdi_configuration_list,
-  line_period, real per-unit SRF values.* **V: T** (`test_l0product`, `test_integration`). realized
+  line_period, per-unit SRF values.* **V: T** (`test_l0product`, `test_integration`). realized
 - **REQ-FUNC-045 — ADF provenance.** *The software shall record per-component ADF provenance in the output
   metadata.* **V: I** (`l0product` `adf_provenance`). realized
 
 ### 3.4 ADF / calibration data
-- **REQ-FUNC-046 — Real operational GIPP ingest.** *The software shall parse the real S2A GIPP
+- **REQ-FUNC-046 — Real operational GIPP ingest.** *The software shall parse the S2A GIPP
   (R2EQOG/R2DEPI/BLINDP/R2PARA/R2CRCO) into per-pixel ADF arrays.* **V: T** (`gipp.load_gipp_set`,
   `test_gipp`). realized
 - **REQ-FUNC-044 — Synthetic fallback.** *The software shall provide physically-plausible fallback ADFs
@@ -120,7 +120,7 @@ correct → reverse impress → raw′, residual ≈ 0) on real ESA data with th
   response and absolute coefficient from synthetic CSM sun-diffuser + dark acquisitions, and supply the
   derived (not truth) coefficients to the processor.* **V: T** (`calibration.calibrate`/`estimated_adf`,
   `test_calibration`). realized
-- **REQ-FUNC-015 ADF source** real PSF (SentiWiki), SRF (RD 3), noise model (product), per-pixel
+- **REQ-FUNC-015 ADF source** PSF (SentiWiki), SRF (RD 3), noise model (product), per-pixel
   dark/PRNU (GIPP). **V: I/T**. realized
 
 ### 3.5 Deferred functional requirements (specified, not yet realized)
@@ -133,8 +133,8 @@ correct → reverse impress → raw′, residual ≈ 0) on real ESA data with th
   pixels.* **V: T** (`test_reverse`). realized
 - **REQ-PERF-002 — SNR@Lref fidelity.** *The chain shall reproduce the spec SNR@Lref per band.* **V: T/A**
   (`test_real_data`, <1 % typical / ±5 % bound). realized
-- **REQ-PERF-003 — Radiometric round-trip exactness.** *forward∘reverse on real L1A DN shall be an exact
-  inverse (RMSE → 0; ~1e-14 observed, bound <1e-6 real / <1e-9 synthetic).* **V: T**
+- **REQ-PERF-003 — Radiometric round-trip exactness.** *forward∘reverse on L1A DN shall be an exact
+  inverse (RMSE → 0; ~1e-14 observed, bound <1e-6  / <1e-9 synthetic).* **V: T**
   (`test_roundtrip_atbd`, `roundtrip_real_l1a.py`). realized
 - **REQ-PERF-004 — Calibration recovery.** *Derived dark shall recover truth (≤0.5 DN bound; ~0.05 DN
   typical); relative-response correlation ≥0.9 (>0.99 typical); A ≈ cal_gain (±5 %).* **V: T**

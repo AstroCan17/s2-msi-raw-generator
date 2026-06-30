@@ -16,30 +16,26 @@
 
 # Context overview
 
-```
-        ┌─────────────────────────┐
-  L1A / │  real Sentinel-2 product│
-  L1B   │  (EOPF Zarr, radiance / │──┐
-        │  raw counts)            │  │
-        └─────────────────────────┘  │      ┌───────────────────────────┐      ┌──────────────────┐
-                                      ├────► │   s2_e2es reverse E2ES     │────► │  L0 RAW EOProduct │
-        ┌─────────────────────────┐  │      │   (S1–S15, radiometric)    │      │  (Zarr, 156 arr   │
-  GIPP  │ operational S2A GIPP     │──┤      │                            │      │  + ISP + STAC)    │
-        │ R2EQOG/R2DEPI/BLINDP/    │  │      └───────────────────────────┘      └──────────────────┘
-        │ R2PARA/R2CRCO (XML)      │  │                 ▲
-        └─────────────────────────┘  │                 │
-        ┌─────────────────────────┐  │      ┌───────────────────────────┐
-  ADF   │ PSF matrices (CSV),      │──┘      │ calibration sub-set:       │
-        │ SRF, product noise model │         │ synth diffuser + dark →    │
-        └─────────────────────────┘         │ derived ADF (inverse-crime)│
-                                            └───────────────────────────┘
+```mermaid
+flowchart LR
+    L1["L1A / L1B<br/>Sentinel-2 product<br/>(EOPF Zarr, radiance / raw counts)"]
+    GIPP["operational S2A GIPP<br/>R2EQOG / R2DEPI / BLINDP /<br/>R2PARA / R2CRCO (XML)"]
+    ADF["ADF<br/>PSF matrices (CSV), SRF,<br/>product noise model"]
+    E2ES["s2_e2es reverse E2ES<br/>(S1–S15, radiometric)"]
+    L0["L0 RAW EOProduct<br/>(Zarr, 156 arrays + ISP + STAC)"]
+    CAL["calibration sub-set:<br/>synth diffuser + dark →<br/>derived ADF (inverse-crime)"]
+    L1 --> E2ES
+    GIPP --> E2ES
+    ADF --> E2ES
+    E2ES --> L0
+    E2ES -.-> CAL
 ```
 
-**Inputs.** A real Sentinel-2 **L1A** (raw DN) or **L1B** (radiance) EOPF Zarr granule; the operational
-S2A **GIPP** (per-pixel dark + relative response, defects, offsets, crosstalk); packaged real ADFs (ESA
+**Inputs.** A Sentinel-2 **L1A** (raw DN) or **L1B** (radiance) EOPF Zarr granule; the operational
+S2A **GIPP** (per-pixel dark + relative response, defects, offsets, crosstalk); packaged ADFs (ESA
 **PSF** matrices, **SRF** spectral characterisation, per-band **noise** model α,β).
 
-**Processing.** The reverse chain (S1–S15) impresses the real instrument effects to reconstruct
+**Processing.** The reverse chain (S1–S15) impresses the instrument effects to reconstruct
 focal-plane counts. A separate **calibration sub-set** synthesises sun-diffuser + dark acquisitions and
 *derives* the calibration coefficients back — the coefficients a downstream processor would actually use
 (inverse-crime cure).
@@ -48,4 +44,4 @@ focal-plane counts. A separate **calibration sub-set** synthesises sun-diffuser 
 optional CCSDS ISP telemetry, STAC + sensor-configuration metadata).
 
 **Verification context.** The radiometric round-trip (`raw → forward correct → reverse impress → raw′`)
-on a real L1A with the real GIPP confirms the forward and reverse are exact inverses (residual ≈ 0).
+on a L1A with the GIPP confirms the forward and reverse are exact inverses (residual ≈ 0).

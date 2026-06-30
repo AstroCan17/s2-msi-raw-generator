@@ -24,20 +24,20 @@ the increment history and the ECSS tailoring for the Sentinel-2 MSI Reverse E2ES
 Increment-based, test-first development. Each increment adds one capability of the reverse chain with its
 unit/integration tests, is implemented on a feature branch, reviewed via merge request, and gated on
 green continuous integration before merge to `main`. Algorithms are implemented from public
-specifications (the ATBD and the Sentinel-2 L1 ATBD) and validated against real ESA data where available.
+specifications (the ATBD and the Sentinel-2 L1 ATBD) and validated againstS2 data where available.
 
 ## Increments
 
 | Inc | Content |
 |-----|---------|
 | 0 | Scaffold, CI, ATBD + Annex A datasheet |
-| 1 | MVP radiometric core (S1, S6, S7, S11–S14) + sensor model + real ESA PSF / SRF ADFs |
+| 1 | MVP radiometric core (S1, S6, S7, S11–S14) + sensor model +S2 PSF / SRF ADFs |
 | 2 | L0 RAW EOProduct assembly (156-array Zarr + STAC / sensor configuration) |
 | 3 | Remaining chain steps S3/S4/S5/S8/S9/S10 (framing, offset, binning, SWIR re-stagger, crosstalk, defects) |
 | 4 | S15 CCSDS ISP packet generation + SAD telemetry |
-| 5 | Real per-band noise model (α, β) + official ATBD raw model `X = A·G·L + D`, real dark |
+| 5 | Real per-band noise model (α, β) + official ATBD raw model `X = A·G·L + D`, dark |
 | 6 | Real operational GIPP → per-pixel dark + relative response (`gipp.py`, `BandADF.from_gipp`) |
-| 7 | Original ATBD forward + round-trip V&V on a real L1A (RMSE ~1e-14) |
+| 7 | Original ATBD forward + round-trip V&V on a L1A (RMSE ~1e-14) |
 | 8 | Calibration sub-set — synthetic CSM sun-diffuser + dark → derived coefficients (inverse-crime cure) |
 | Docs | ECSS-E-ST-40C documentation set (SRS, SDD, ICD, DPM, V&V, SUM, SRN, CIDL, SCF, SRF, SDP) |
 

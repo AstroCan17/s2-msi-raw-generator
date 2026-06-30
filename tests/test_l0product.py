@@ -53,7 +53,7 @@ def test_write_and_reopen_l0_structure(tmp_path):
     assert ac["spectral_band_info"]["03"]["physical_gains"] == pytest.approx(4.17678)
     assert attrs["other_metadata"]["sensor_configuration"]["time_stamp"]["line_period"] \
         == pytest.approx(1.5658736)
-    assert attrs["processing_history"]["adf_provenance"]["psf"].startswith("real")
+    assert "SentiWiki" in attrs["processing_history"]["adf_provenance"]["psf"]
 
 
 def test_full_156_array_contract(tmp_path):

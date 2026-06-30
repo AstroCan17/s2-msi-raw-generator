@@ -39,7 +39,7 @@ The Software Configuration File documents the inventory, baseline, build means a
 
 - **Source modules** (`s2_e2es/`): `sensor.py`, `adf.py`, `gipp.py`, `forward_radiometric_atbd.py`,
   `reverse.py`, `calibration.py`, `isp.py`, `io.py`, `l0product.py`, `__init__.py`.
-- **Packaged data** (`s2_e2es/data/psf/`): real ESA PSF matrices, 12 bands × 3 units (S2A/S2B/S2C) CSV
+- **Packaged data** (`s2_e2es/data/psf/`):S2 PSF matrices, 12 bands × 3 units (S2A/S2B/S2C) CSV
   (B10 absent by design) + `PROVENANCE.md`.
 - **Scripts** (`scripts/`): `demo_reverse_real.py`, `demo_build_l0.py`, `derive_prnu_dark.py`,
   `roundtrip_real_l1a.py`, `demo_calibration.py`, `save_images.py`.
@@ -78,8 +78,8 @@ referenced by configurable paths (not bundled), e.g. `data/gipp` and `data/PDI_M
 
 ## Change list
 
-See `CHANGELOG.md`. Increments 0–4 delivered the S1–S15 reverse chain, real PSF/SRF ADFs and the L0 RAW
-assembly; increment 5 adopted the official ATBD raw model and the real product noise model; increment 6
+See `CHANGELOG.md`. Increments 0–4 delivered the S1–S15 reverse chain, PSF/SRF ADFs and the L0 RAW
+assembly; increment 5 adopted the official ATBD raw model and the product noise model; increment 6
 added the operational-GIPP per-pixel ADFs; increment 7 the round-trip V&V; increment 8 the calibration
 sub-set; the documentation increment delivered the ECSS DRD set.
 
@@ -87,7 +87,7 @@ sub-set; the documentation increment delivered the ECSS DRD set.
 
 - The bundled / referenced test L1A (`PDI_MSI_S2_L1A`) is a **DN-scaled CPM fixture**, not physically
   calibrated radiance — suitable for structure and round-trip verification, not for absolute radiometry.
-- The real operational **GIPP** and **L1A** are not stored in the repository (size / provenance); supply
+- The operational **GIPP** and **L1A** are not stored in the repository (size / provenance); supply
   them via the configurable path arguments / environment variables (`S2_E2ES_GIPP_DIR`, `S2_E2ES_L1A`).
 - L1C entry + geometry reverse is **cancelled** (not applicable to an L1A/L1B entry); a few requirements
   are **deferred** (see SRS §3.5).
