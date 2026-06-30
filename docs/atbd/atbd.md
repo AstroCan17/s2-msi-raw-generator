@@ -34,9 +34,12 @@ an L1A/L1B entry there is nothing to de-orthorectify.
 The E2ES serves two purposes:
 1. **RAW generation** — produce realistic L0 RAW when true Sentinel-2 L0 is
    proprietary/unavailable, feeding processor development and testing.
-2. **Round-trip V&V** — real L1B → reverse → synthetic L0 → processor forward → reconstructed
-   L1B′; the residual `L1B′ − L1B` measures the processor's restoration quality on *real* ESA
-   radiometric content.
+2. **Round-trip V&V** — an original radiometric round-trip on a **real L1A** with the **real GIPP**:
+   raw `X` → our ATBD forward correction (dark subtract + relative-response equalization) → corrected
+   `Y` → our reverse impress → `X′`. The residual `X′ − X` ≈ 0 (verified to ~1e-14 on real ESA DN)
+   proves the forward and reverse are exact inverses; a controlled per-pixel-PRNU test shows the
+   equalization genuinely flattens fixed-pattern noise (`forward_radiometric_atbd`,
+   `scripts/roundtrip_real_l1a.py`). Implemented from the public L1 ATBD — no external processor.
 
 ## 1.2 Purpose of document
 
@@ -198,10 +201,12 @@ matrix to the detector grid (B10 → identity). **ADF:** `ADF_RDEFI`. **Conjugat
 exact inverse). Far-field straylight has no S2 inverse (Risk 4).
 
 ## 5.S7 Undo relative response (impress PRNU) `[INDEP, Inc 1]`
-**Forward:** `DN /= gain[detector]` — impress **true per-detector PRNU**. **Model:** PRNU is **~1D
-per-detector** (residual averaged along the pushbroom column; PRNU paper) — a 1D signature per detector,
-not 2D random. **Real-data option:** Zenodo `records/18433006` per-detector S2 L1B noise residuals.
-**ADF:** `ADF_REQOG`. **Conjugate:** `radiometric.apply_nuc`.
+**Forward:** impress the **true per-pixel relative response** by inverting the on-ground equalization
+`Y = G(Z)` — VNIR cubic `A·Z³+B·Z²+C·Z` / SWIR bilinear (knee at `Zs`). **Real values:** the
+per-pixel gains come straight from the **operational S2A GIPP `R2EQOG`** (`COEFF_A/B/C` cubic /
+`COEFF_A1/A2/Zs` bilinear; C≈1.0–1.2 dominant), parsed by `s2_e2es.gipp` and applied via the analytic
+inverse `G⁻¹` in `forward_radiometric_atbd.inverse_equalize` (`BandADF.from_gipp`). **ADF:** `ADF_REQOG`.
+**Conjugate:** the forward radiometric correction `radiometric.apply_nuc`.
 
 ## 5.S8 Re-insert SWIR arrangement (B10/B11/B12) `[INDEP, Inc 3]`
 **Forward:** restore the staggered SWIR readout layout (the TDI "rearrangement"). **TDI APPLIED on
@@ -217,10 +222,11 @@ B03, B04, B11, B12** (real `tdi_configuration_list`). **ADF:** `ADF_RSWIR`. **Me
 **ADF:** `ADF_BLIND` (blind), `ADF_RDEPI` (defective). **Conjugate:** `radiometric.replace_bad_pixels`.
 
 ## 5.S11 Re-apply dark signal `[INDEP, Inc 1]`
-**Forward:** `DN += dark[pixel]`. **Real values** (S2A DQR OMPC.CS.DQR.01.02-2023, the Feb-2023
-period of the test product): mean dark **pedestal 440–520 LSB** (`DARK_PEDESTAL_LSB`) + per-pixel
-**DSNU < 0.5 LSB VNIR / < 1.0 LSB SWIR** (`Band.dark_dsnu`). Applied *after* S13 so the noise model
-sees the dark-subtracted signal. **ADF:** `ADF_REOB2`. **Conjugate:** `radiometric.remove_dark_fft`.
+**Forward:** `DN += dark[pixel]`. **Real values:** the **per-pixel** dark signal `D(j)` comes from the
+operational S2A GIPP **`R2EQOG` `COEFF_D`** (`s2_e2es.gipp`, `BandADF.from_gipp`) — mean 440–522 LSB per
+band, matching the DQR (OMPC.CS.DQR.01.02-2023) range but now resolved per pixel. (Fallback when no GIPP:
+`DARK_PEDESTAL_LSB` 440–520 + per-pixel DSNU `< 0.5/1.0 LSB`, `Band.dark_dsnu`.) Applied *after* S13 so
+the noise model sees the dark-subtracted signal. **ADF:** `ADF_REOB2`/`ADF_REQOG`.
 
 ## 5.S12 Re-apply onboard equalization `[INDEP, Inc 1]`
 **Forward:** invert the R2EQOG equalization — multiplicative (cubic VNIR `Z=ΣGₙ·Yⁿ` / bilinear SWIR)
@@ -274,15 +280,15 @@ Jointly change-controlled with the processor (per AD 1). **Conjugate subset** (b
 **E2ES-only block** (processor never reads): noise model (`a,b` for σ=√(a+b·DN), `ADF_RNOMO`),
 crosstalk kernel, temporal gain drift (VNIR 0.1–0.35 %/months, SWIR faster).
 
-**ADF access (corrected):** real gain/TDI/timing/offset/equalization are **in the products**; the
-**PSF is the real official ESA matrix** (SentiWiki) and the spectral characterisation is the real
-**SRF** (COPE-GSEG-EOPG-TN-15-0007); the **noise model** is the **real per-band α, β** read from the
-L1A product (`quality_indicators_info/.../noise_model`), σ=√(α²+β·DN) (S2-RUT) — reproduces SNR@Lref
-exactly. Only the per-detector **PRNU/dark** coefficients remain modelled — the per-pixel NUC table is
-**not in the product** (only `nuc_table_id`), it lives in the credentialed L1 radiometric ADFs
-(RABCA/RNOMO/REQOG/REOB2/RDEFI; `s2msi`, blocker #36) and the **DPR-common public bucket hosts only
-common/L2A ADFs** (DEM90, CAMS, MAOTC…), not the L1 ones. PRNU is instead derived from the matched
-real L1B product (`scripts/derive_prnu_dark.py`); a true dark needs a real dark-calibration granule.
+**ADF access — all real now.** Every radiometric ADF the chain needs is real: gain/TDI/timing/offset
+from the products; **PSF** = the official ESA matrices (SentiWiki); **spectral** = the real **SRF**
+(COPE-GSEG-EOPG-TN-15-0007); **noise** = the real per-band α, β from the L1A product
+(`quality_indicators_info/.../noise_model`), σ=√(α²+β·DN) (S2-RUT, reproduces SNR@Lref). The
+previously-modelled **per-pixel PRNU + dark** are now the **real operational S2A GIPP**: `R2EQOG`
+carries, per detector and per across-track pixel, the dark signal `COEFF_D` (≈440–522 LSB, matching
+the DQR) and the relative-response gains (VNIR cubic `A/B/C`, SWIR bilinear `A1/A2/Zs`); `R2DEPI` the
+defective/blind columns; `R2PARA` the −100/−1000 offsets; `R2CRCO`≈0. These GIPP **data** files are
+parsed by `s2_e2es.gipp` (an original reader) into per-pixel arrays (`BandADF.from_gipp`).
 
 ---
 
