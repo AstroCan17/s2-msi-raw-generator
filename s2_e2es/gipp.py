@@ -1,0 +1,243 @@
+"""Reader for the real Sentinel-2A operational GIPP calibration files.
+
+The GIPPs (``S2A_OPER_GIP_<TYPE>_MPC__…xml``) are ESA auxiliary calibration **data**. This module is
+an original parser of their documented XML element layout (Python stdlib ``xml.etree`` + numpy) — it
+carries no processor source code. It turns the GIPP into per-band / per-detector / per-pixel numpy
+arrays the reverse chain needs:
+
+* **R2EQOG** — the on-ground equalization file: per-pixel **dark signal** ``D`` and the
+  **relative-response (PRNU) gains** — VNIR cubic ``(A, B, C)`` (``Y = A·Z³+B·Z²+C·Z``) or SWIR
+  bilinear ``(A1, A2, Zs)`` (``Y = A1·Z`` for ``Z≤Zs`` else ``A2·Z+(A1−A2)·Zs``). Per the public
+  Sentinel-2 L1 ATBD §4.1.1, ``C`` (VNIR) / ``A1`` (SWIR) is the dominant per-pixel relative gain.
+* **R2DEPI** — defective (saturated + blind) pixel columns per band/detector.
+* **BLINDP** — blind-pixel column lists per band/detector/side.
+* **R2PARA** — per-band equalization/offset flags + radiometric offsets (−100 L1B / −1000 L1C).
+* **R2CRCO** / **R2BINN** — crosstalk matrix (≈0 for S2A) / 60 m binning kernel.
+
+Band order follows ``sensor.BANDS`` (``band_id`` 0…12 → B01…B08, B8A, B09…B12).
+"""
+
+from __future__ import annotations
+
+import glob
+import os
+import xml.etree.ElementTree as ET
+from dataclasses import dataclass, field
+
+import numpy as np
+
+from . import sensor
+
+# GIPP band_id (0..12) → canonical band name. Matches sensor.BANDS exactly (B8A at index 8).
+_BAND_BY_ID: tuple[str, ...] = sensor.BANDS
+
+
+def _band_name(band_id: int) -> str:
+    return _BAND_BY_ID[band_id]
+
+
+def _floats(text: str | None) -> np.ndarray:
+    """Parse a whitespace-separated list of floats robustly (ignores stray tokens)."""
+    if not text:
+        return np.empty(0, dtype=np.float64)
+    out = []
+    for tok in text.split():
+        try:
+            out.append(float(tok))
+        except ValueError:
+            pass
+    return np.asarray(out, dtype=np.float64)
+
+
+def _find_one(gipp_dir: str, gtype: str) -> str:
+    """Path of the single ``*GIP_<gtype>_*.xml`` file in ``gipp_dir``."""
+    hits = sorted(glob.glob(os.path.join(gipp_dir, f"*GIP_{gtype}_*.xml")))
+    if not hits:
+        raise FileNotFoundError(f"no {gtype} GIPP under {gipp_dir!r}")
+    return hits[0]
+
+
+def _find_band(gipp_dir: str, gtype: str, band: str) -> str:
+    """Path of the per-band ``*GIP_<gtype>_*_<band>.xml`` (e.g. R2EQOG B03)."""
+    suffix = band  # files end in …_B03.xml / …_B8A.xml
+    hits = sorted(glob.glob(os.path.join(gipp_dir, f"*GIP_{gtype}_*_{suffix}.xml")))
+    if not hits:
+        raise FileNotFoundError(f"no {gtype} GIPP for band {band} under {gipp_dir!r}")
+    return hits[0]
+
+
+# --- R2EQOG (equalization on-ground: dark + relative-response gains) ----------------------
+
+@dataclass(frozen=True)
+class DetectorEq:
+    """Per-detector R2EQOG coefficients (each array is per across-track pixel, length NB_OF_PIXELS)."""
+
+    model: str                      # "CUBIC" (VNIR) | "BILINEAR" (SWIR)
+    dark: np.ndarray                # (act,) per-pixel dark signal D (mean over the COEFF_D sub-lines)
+    coeffs: dict[str, np.ndarray]   # CUBIC: {A, B, C}; BILINEAR: {A1, A2, Zs}
+
+    @property
+    def rel_gain(self) -> np.ndarray:
+        """Dominant per-pixel relative-response (PRNU) gain: C for VNIR, A1 for SWIR."""
+        return self.coeffs["C"] if self.model == "CUBIC" else self.coeffs["A1"]
+
+
+@dataclass(frozen=True)
+class BandEq:
+    band: str
+    tdi: bool
+    detectors: dict[int, DetectorEq]  # detector 1..12
+
+    @property
+    def npix(self) -> int:
+        return int(self.detectors[1].dark.size)
+
+
+def _parse_coeff_d(coeff_d_el: ET.Element) -> np.ndarray:
+    """COEFF_D → per-pixel dark, collapsing the along-track sub-lines (6/3/1) to their mean (act,)."""
+    band_el = list(coeff_d_el)[0]  # <A_10M_BAND> / <A_20M_BAND> / <A_60M_BAND>
+    line_els = [c for c in band_el if c.tag.upper().startswith("LINE")]
+    if line_els:
+        rows = [_floats(c.text) for c in sorted(line_els, key=lambda e: e.tag)]
+        return np.mean(np.stack(rows), axis=0)
+    return _floats(band_el.text)
+
+
+def read_r2eqog_band(gipp_dir: str, band: str) -> BandEq:
+    """Parse the per-band R2EQOG file → real per-detector dark + relative-response gains."""
+    root = ET.parse(_find_band(gipp_dir, "R2EQOG", band)).getroot()
+    data = root.find("DATA")
+    clist = data.find("COEFFICIENTS_LIST")
+    tdi = (clist.get("tdi_config") or "NO_TDI").upper() == "APPLIED"
+    detectors: dict[int, DetectorEq] = {}
+    for coeff in clist.findall("COEFFICIENTS"):
+        det = int(coeff.get("detector_id"))
+        ge = coeff.find("GROUND_EQUALIZATION")
+        cubic, bilinear = ge.find("CUBIC"), ge.find("BI-LINEAR")
+        if cubic is not None:
+            cf = {k: _floats(cubic.find(f"COEFF_{k}").text) for k in ("A", "B", "C")}
+            dark = _parse_coeff_d(cubic.find("COEFF_D"))
+            detectors[det] = DetectorEq("CUBIC", dark, cf)
+        else:
+            cf = {"A1": _floats(bilinear.find("COEFF_A1").text),
+                  "A2": _floats(bilinear.find("COEFF_A2").text),
+                  "Zs": _floats(bilinear.find("COEFF_Zs").text)}
+            dark = _parse_coeff_d(bilinear.find("COEFF_D"))
+            detectors[det] = DetectorEq("BILINEAR", dark, cf)
+    return BandEq(band=band, tdi=tdi, detectors=detectors)
+
+
+# --- R2DEPI (defective pixels) + BLINDP (blind pixels) -----------------------------------
+
+def read_r2depi(gipp_dir: str) -> dict[str, dict[int, np.ndarray]]:
+    """Defective (saturated ∪ blind) 0-based across-track column indices, per band → detector."""
+    root = ET.parse(_find_one(gipp_dir, "R2DEPI")).getroot()
+    out: dict[str, dict[int, np.ndarray]] = {}
+    for band_el in root.iter("BAND"):
+        band = _band_name(int(band_el.get("band_id")))
+        per_det: dict[int, set] = {d: set() for d in range(1, 13)}
+        for sing in band_el.iter("SINGULARITY"):
+            for pos in sing.findall("POSITION"):
+                det = int(pos.get("detector_id"))
+                cols = pos.find("COLUMNS")
+                if cols is not None and cols.text:
+                    per_det[det].update(int(x) for x in cols.text.split())
+        out[band] = {d: np.array(sorted(c), dtype=int) for d, c in per_det.items()}
+    return out
+
+
+def read_blindp(gipp_dir: str) -> dict[str, dict[int, np.ndarray]]:
+    """Blind-pixel 0-based column indices (valid ∪ non-valid, both sides), per band → detector."""
+    root = ET.parse(_find_one(gipp_dir, "BLINDP")).getroot()
+    out: dict[str, dict[int, np.ndarray]] = {}
+    for band_el in root.iter("BAND"):
+        band = _band_name(int(band_el.get("band_id")))
+        per_det: dict[int, np.ndarray] = {}
+        for det_el in band_el.findall("DETECTOR"):
+            det = int(det_el.get("detector_id"))
+            cols: set = set()
+            for side in det_el.findall("SIDE"):
+                for tag in ("VALID_BLIND_PIXELS", "NON_VALID_BLIND_PIXELS"):
+                    el = side.find(tag)
+                    if el is not None and el.text:
+                        cols.update(int(x) for x in el.text.split())
+            per_det[det] = np.array(sorted(cols), dtype=int)
+        out[band] = per_det
+    return out
+
+
+# --- R2PARA (offsets + flags) + R2CRCO + R2BINN ------------------------------------------
+
+@dataclass(frozen=True)
+class RadioParams:
+    radiance_offset_l1b: dict[str, int]      # per band, −100
+    reflectance_offset_l1c: dict[str, int]   # per band, −1000
+    equalization_flag: dict[str, bool]
+    offset_flag: dict[str, bool]
+    dsnu_flag: dict[str, bool]
+
+
+def read_r2para(gipp_dir: str) -> RadioParams:
+    root = ET.parse(_find_one(gipp_dir, "R2PARA")).getroot()
+    data = root.find("DATA")
+
+    def _offsets(parent_tag: str) -> dict[str, int]:
+        node = data.iter(parent_tag).__next__()
+        res: dict[str, int] = {}
+        for el in node.findall("RADIO_ADD_OFFSET"):
+            res[_band_name(int(el.get("band_id")))] = int(float(el.text))
+        return res
+
+    shift = next(data.iter("RADIOMETRIC_SHIFT"))
+    l1b = {_band_name(int(e.get("band_id"))): int(float(e.text))
+           for e in next(shift.iter("RADIANCE_OFFSET_L1B")).findall("RADIO_ADD_OFFSET")}
+    l1c = {_band_name(int(e.get("band_id"))): int(float(e.text))
+           for e in next(shift.iter("REFLECTANCE_OFFSET_L1C")).findall("RADIO_ADD_OFFSET")}
+    eq, off, dsnu = {}, {}, {}
+    for be in data.iter("BAND_EQUALIZATION"):
+        b = _band_name(int(be.get("band_id") or be.findtext("BAND_ID")))
+        eq[b] = (be.findtext("EQUALIZATION_FLAG") or "true").lower() == "true"
+        off[b] = (be.findtext("OFFSET") or "true").lower() == "true"
+        dsnu[b] = (be.findtext("DARK_SIGNAL_NON_UNIFORMITY") or "true").lower() == "true"
+    return RadioParams(l1b, l1c, eq, off, dsnu)
+
+
+def read_r2crco(gipp_dir: str) -> dict[str, np.ndarray]:
+    """Per-band crosstalk row (OPTICAL+ELECTRICAL summed). ≈0 for S2A."""
+    root = ET.parse(_find_one(gipp_dir, "R2CRCO")).getroot()
+    out: dict[str, np.ndarray] = {}
+    for cc in root.iter("CROSSTALK_COEFF"):
+        band = _band_name(int(cc.get("band_id_k")))
+        opt = _floats(cc.findtext("OPTICAL"))
+        ele = _floats(cc.findtext("ELECTRICAL"))
+        out[band] = opt + ele
+    return out
+
+
+# --- bundle ------------------------------------------------------------------------------
+
+@dataclass
+class GippSet:
+    """All real GIPP calibration data needed by the reverse chain, parsed from ``gipp_dir``."""
+
+    gipp_dir: str
+    equalization: dict[str, BandEq] = field(default_factory=dict)   # band → R2EQOG
+    defective: dict[str, dict[int, np.ndarray]] = field(default_factory=dict)
+    blind: dict[str, dict[int, np.ndarray]] = field(default_factory=dict)
+    params: RadioParams | None = None
+    crosstalk: dict[str, np.ndarray] = field(default_factory=dict)
+
+    def band(self, name: str) -> BandEq:
+        return self.equalization[name]
+
+
+def load_gipp_set(gipp_dir: str, bands: tuple[str, ...] = sensor.BANDS) -> GippSet:
+    """Load the full real GIPP set from ``gipp_dir`` (R2EQOG per band + R2DEPI/BLINDP/R2PARA/R2CRCO)."""
+    gs = GippSet(gipp_dir=gipp_dir)
+    for b in bands:
+        gs.equalization[b] = read_r2eqog_band(gipp_dir, b)
+    gs.defective = read_r2depi(gipp_dir)
+    gs.blind = read_blindp(gipp_dir)
+    gs.params = read_r2para(gipp_dir)
+    gs.crosstalk = read_r2crco(gipp_dir)
+    return gs
