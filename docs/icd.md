@@ -57,7 +57,7 @@ Dependency direction: `sensor` (leaf) → `adf`/`gipp` → `reverse`/`forward_ra
 - **IF-IN-L1B** — Sentinel-2 **L1B** radiance, EOPF Zarr (`.zarr` dir or `.zarr.zip`). Path
   `measurements/d{DD}/b{xx}/img`, `float32` radiance, dims `(alt, act)`. Read by `io.read_l1b_band`.
 - **IF-IN-L1A** — Sentinel-2 **L1A** raw counts, EOPF Zarr. Path `measurements/DD{nn}/B{xx}/l1a_raw_image`,
-  `float64` DN (offset ≈48, saturation sentinel 32768). Read by `io.read_l1a_raw`.
+  `float64` DN (offset $\approx 48$, saturation sentinel 32768). Read by `io.read_l1a_raw`.
 - **IF-IN-GIPP** — operational S2A GIPP, directory of `S2A_OPER_GIP_<TYPE>_*.xml`
   (R2EQOG ×13, R2DEPI, BLINDP, R2PARA, R2CRCO). Read by `gipp.load_gipp_set`.
 - **IF-IN-ADF** — packaged PSF matrices (`s2_e2es/data/psf/{S2A,S2B,S2C}/*.csv`, 33×33 oversampled).
@@ -83,7 +83,7 @@ Band-key map `B03→b03`, `B8A→b8a`; band-number `B03→"03"`, `B8A→"8A"`; d
 |---|---|---|---|---|
 | `measurements/d{DD}/b{BB}/band{N}` | uint16 | (line, column); chunks = full | `[0, 4095]`; attr `short_name="band{N}"` | reverse chain (REQ-FUNC-031) |
 | `measurements/d{DD}/b{BB}/isp_header` *(with_isp)* | uint8 | (n_lines, 12) | CCSDS primary+CUC; group attr `apid` | `isp.frame_isp_headers` (S15) |
-| `quality/d{DD}/b{BB}/mask` | uint8 | = band shape | bit0 saturated (DN≥4095), bit1 hot, dead cols | reverse / defects (REQ-FUNC-032) |
+| `quality/d{DD}/b{BB}/mask` | uint8 | = band shape | bit0 saturated ($\mathrm{DN}\ge 4095$), bit1 hot, dead cols | reverse / defects (REQ-FUNC-032) |
 | `conditions/anc_data/s{APID}/isp` *(with_isp)* | uint8 | (n_packets, hdr+payload) | CCSDS SAD/housekeeping | `isp.build_sad_packets` |
 | `conditions/anc_data/s{APID}/packet_data_length` *(with_isp)* | uint16 | (n_packets,) | octet count | `isp.build_sad_packets` |
 

@@ -53,7 +53,7 @@ IDs are stable: **REQ-FUNC-NNN** (functional), **REQ-PERF-NNN** (performance), *
 The forward `msi-processor` inverts instrument effects (calibration, PSF, equalization, …). The E2ES does
 the conjugate: it **impresses** the effects to reconstruct a focal-plane L0 RAW, enabling (a) realistic
 L0 generation when true S2 L0 is unavailable, and (b) a radiometric **round-trip V&V** (raw → forward
-correct → reverse impress → raw′, residual ≈ 0) on S2 data with the  GIPP.
+correct → reverse impress → raw′, residual $\approx 0$) on S2 data with the GIPP.
 
 ## 3. Functional requirements (REQ-FUNC)
 
@@ -67,7 +67,7 @@ correct → reverse impress → raw′, residual ≈ 0) on S2 data with the  GIP
 
 ### 3.2 Radiometric reverse chain (one requirement per ATBD §5 step)
 - **REQ-FUNC-010 — Inverse absolute calibration (S1).** *The software shall convert at-sensor radiance to
-  equalized signal DN per the L1 ATBD raw model `X = A·G·L + D`, with `A` (= `Band.cal_gain`).* **V: T**
+  equalized signal DN per the L1 ATBD raw model $X = A \cdot G \cdot L + D$, with $A$ (= `Band.cal_gain`).* **V: T**
   (`reverse.s1_radiance_to_dn`, `test_real_data`). realized
 - **REQ-FUNC-014 — PSF re-blur (S6).** *The software shall re-introduce the optical blur by convolving with
   the  per-band, per-unit ESA PSF matrices (B10 → identity).* **V: T** (`adf.real_psf_kernel`,
@@ -79,8 +79,8 @@ correct → reverse impress → raw′, residual ≈ 0) on S2 data with the  GIP
   (GIPP R2EQOG COEFF_D; DQR fallback).* **V: T** (`reverse.s11_reapply_dark`, `test_gipp`). realized
 - **REQ-FUNC-020 — Reverse onboard equalization (S12).** *The software shall reverse the onboard
   equalization gain/offset.* **V: T** (`reverse.s12_reapply_onboard_eq`). realized
-- **REQ-FUNC-021 — Add sensor noise (S13).** *The software shall add signal-dependent noise `σ=√(α²+β·DN)`
-  with the per-band α,β from the L1A product noise model, applied on the signal DN.* **V: T**
+- **REQ-FUNC-021 — Add sensor noise (S13).** *The software shall add signal-dependent noise $\sigma = \sqrt{\alpha^2 + \beta \cdot \mathrm{DN}}$
+  with the per-band $\alpha,\beta$ from the L1A product noise model, applied on the signal DN.* **V: T**
   (`reverse.s13_add_noise`, `test_reverse::test_noise_sigma_matches_model_within_5pct`). realized
 - **REQ-FUNC-022 — Quantize to 12-bit (S14).** *The software shall clip/round to `uint16` in `[0, 4095]`.*
   **V: T** (`reverse.s14_quantize`). realized
@@ -88,7 +88,7 @@ correct → reverse impress → raw′, residual ≈ 0) on S2 data with the  GIP
   (`reverse.s5_unbin`). realized
 - **REQ-FUNC-016 — Restore SWIR arrangement (S8).** *…re-stagger B10/B11/B12 readout.* **V: T**
   (`reverse.s8_restage_swir`). realized
-- **REQ-FUNC-017 — Re-apply crosstalk (S9).** *…apply inter-band crosstalk (GIPP R2CRCO ≈0 for S2A).*
+- **REQ-FUNC-017 — Re-apply crosstalk (S9).** *…apply inter-band crosstalk (GIPP `R2CRCO` $\approx 0$ for S2A).*
   **V: T** (`reverse.s9_apply_crosstalk`). realized
 - **REQ-FUNC-018 — Re-insert blind/defective pixels (S10).** *…from GIPP R2DEPI/BLINDP.* **V: T**
   (`reverse.s10_inject_defects`, `test_inc3_steps`). realized
@@ -129,15 +129,15 @@ correct → reverse impress → raw′, residual ≈ 0) on S2 data with the  GIP
 - **REQ-FUNC-090 — L1C entry + geometry reverse.** **Cancelled** (not applicable to an L1A/L1B entry).
 
 ## 4. Performance requirements (REQ-PERF)
-- **REQ-PERF-001 — Noise model accuracy.** *Impressed σ shall be within ±5 % of `√(α²+β·DN)` over ≥10 000
+- **REQ-PERF-001 — Noise model accuracy.** *Impressed $\sigma$ shall be within ±5 % of $\sqrt{\alpha^2 + \beta \cdot \mathrm{DN}}$ over $\ge 10{,}000$
   pixels.* **V: T** (`test_reverse`). realized
 - **REQ-PERF-002 — SNR@Lref fidelity.** *The chain shall reproduce the spec SNR@Lref per band.* **V: T/A**
   (`test_real_data`, <1 % typical / ±5 % bound). realized
 - **REQ-PERF-003 — Radiometric round-trip exactness.** *forward∘reverse on L1A DN shall be an exact
-  inverse (RMSE → 0; ~1e-14 observed, bound <1e-6  / <1e-9 synthetic).* **V: T**
+  inverse ($\mathrm{RMSE} \to 0$; ~1e-14 observed, bound <1e-6 / <1e-9 synthetic).* **V: T**
   (`test_roundtrip_atbd`, `roundtrip_real_l1a.py`). realized
-- **REQ-PERF-004 — Calibration recovery.** *Derived dark shall recover truth (≤0.5 DN bound; ~0.05 DN
-  typical); relative-response correlation ≥0.9 (>0.99 typical); A ≈ cal_gain (±5 %).* **V: T**
+- **REQ-PERF-004 — Calibration recovery.** *Derived dark shall recover truth ($\le 0.5$ DN bound; ~0.05 DN
+  typical); relative-response correlation $\ge 0.9$ (>0.99 typical); $A \approx$ `cal_gain` (±5 %).* **V: T**
   (`test_calibration`). realized
 
 ## 5. Interface requirements (REQ-IF)

@@ -35,7 +35,7 @@ specifications (the ATBD and the Sentinel-2 L1 ATBD) and validated againstS2 dat
 | 2 | L0 RAW EOProduct assembly (156-array Zarr + STAC / sensor configuration) |
 | 3 | Remaining chain steps S3/S4/S5/S8/S9/S10 (framing, offset, binning, SWIR re-stagger, crosstalk, defects) |
 | 4 | S15 CCSDS ISP packet generation + SAD telemetry |
-| 5 | Real per-band noise model (α, β) + official ATBD raw model `X = A·G·L + D`, dark |
+| 5 | Real per-band noise model ($\alpha, \beta$) + official ATBD raw model $X = A\cdot G\cdot L + D$, dark |
 | 6 | Real operational GIPP → per-pixel dark + relative response (`gipp.py`, `BandADF.from_gipp`) |
 | 7 | Original ATBD forward + round-trip V&V on a L1A (RMSE ~1e-14) |
 | 8 | Calibration sub-set — synthetic CSM sun-diffuser + dark → derived coefficients (inverse-crime cure) |
