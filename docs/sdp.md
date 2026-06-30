@@ -17,7 +17,7 @@
 # Software development plan
 
 ECSS-E-ST-40C Rev.1 (with ECSS-Q-ST-80C for product assurance). This SDP defines the development process,
-the increment history and the ECSS tailoring for the Sentinel-2 MSI Reverse E2ES (`s2_e2es`).
+the increment history and the ECSS tailoring for the Sentinel-2 MSI Synthetic Raw Data Generator (`s2_e2es`).
 
 ## Process
 

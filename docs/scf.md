@@ -16,7 +16,7 @@
 
 # Software configuration file
 
-ECSS-E-ST-40C Rev.1. This SCF records the as-built configuration of the Sentinel-2 MSI Reverse E2ES.
+ECSS-E-ST-40C Rev.1. This SCF records the as-built configuration of the Sentinel-2 MSI Synthetic Raw Data Generator.
 
 ## Introduction
 
@@ -27,7 +27,7 @@ The Software Configuration File documents the inventory, baseline, build means a
 
 | Field | Value |
 |-------|-------|
-| Name | Sentinel-2 MSI Reverse E2ES |
+| Name | Sentinel-2 MSI Synthetic Raw Data Generator |
 | Package | `s2_e2es` |
 | Version | `0.3.0.dev0` (`s2_e2es/__init__.py`) |
 | Repository | `gitlab.eopf` `e2es/s2-e2es`, branch `main` |

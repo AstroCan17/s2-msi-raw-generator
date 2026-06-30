@@ -17,7 +17,7 @@
 # Configuration item data list
 
 ECSS-E-ST-40C Rev.1 (with ECSS-Q-ST-80C for product assurance). This CIDL enumerates the configuration
-items of the Sentinel-2 MSI Reverse E2ES (`s2_e2es`) deliverable.
+items of the Sentinel-2 MSI Synthetic Raw Data Generator (`s2_e2es`) deliverable.
 
 ## Introduction
 
