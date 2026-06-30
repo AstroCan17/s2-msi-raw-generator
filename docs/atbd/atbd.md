@@ -168,10 +168,15 @@ Entry = at-sensor **radiance** (L1B), per-detector geometry. Each step: forward 
 `[INDEP]` = author from true physics; `[INV]` = closed-form inverse guarded by parameter mismatch.
 
 ## 5.S1 Radiance → DN `[INV, Inc 1]`
-**Forward:** `DN = L / physical_gain` (the L1B metadata carries real per-band `physical_gains`,
-Annex A.11: B01 4.105 … B12 106.16); equivalently `DN = L·π·d²/(ESUN·cosθ_s·Ak)`. **ADF:** `ADF_RABCA`.
-**Conjugate:** `toa.dn_to_radiance`. **Note:** ESUN/SRF must match the product's
-satellite (S2A/B/C — up to ~15 % bias otherwise, Risk 2); reciprocal-gain convention (S2 multiplies).
+**Model:** the official L1 ATBD raw equation **`X_k = A_k·G_k(j,L)·L_k + D_k`** (S2-PDGS-MPC-ATBD-L1
+§4.1.1): S1 impresses the absolute-calibration term **`DN = A·L`** (A = `Band.cal_gain`), S7 the
+relative sensitivity `G`, S11 the dark `D`. **Choice of A:** the product's `physical_gains`
+(Annex A.11) are kept for metadata/the round-trip bridge, but they are incoherent with the real
+noise model on this synthetic dataset (they mis-scale low-radiance bands by up to ~10×). So `A` is
+derived from the **real noise α,β + real SNR@Lref** (`cal_gain = dn_ref/Lref`, where `dn_ref` is the
+12-bit DN at which `σ=√(α²+β·DN)` yields the spec SNR) — anchoring the chain to **reproduce the real
+SNR@Lref exactly** (verified end-to-end). **ADF:** `ADF_RABCA`. **Conjugate:** `toa.dn_to_radiance`
+(`L = DN/A`).
 
 ## 5.S3 Undo framing & round/clamp `[INDEP, Inc 3]`
 **Forward:** extend to continuous detector strip; restore sub-pixel precision. **ADF:** `ADF_PRDLO`,
@@ -212,17 +217,21 @@ B03, B04, B11, B12** (real `tdi_configuration_list`). **ADF:** `ADF_RSWIR`. **Me
 **ADF:** `ADF_BLIND` (blind), `ADF_RDEPI` (defective). **Conjugate:** `radiometric.replace_bad_pixels`.
 
 ## 5.S11 Re-apply dark signal `[INDEP, Inc 1]`
-**Forward:** `DN += dark[pixel]` (S2 dark from nighttime-ocean, ≥10.8 s avg; VNIR <1 DN, SWIR ~5 DN).
-**ADF:** `ADF_REOB2`. **Conjugate:** `radiometric.remove_dark_fft`. S2 dark ≠ 0 (Risk 3).
+**Forward:** `DN += dark[pixel]`. **Real values** (S2A DQR OMPC.CS.DQR.01.02-2023, the Feb-2023
+period of the test product): mean dark **pedestal 440–520 LSB** (`DARK_PEDESTAL_LSB`) + per-pixel
+**DSNU < 0.5 LSB VNIR / < 1.0 LSB SWIR** (`Band.dark_dsnu`). Applied *after* S13 so the noise model
+sees the dark-subtracted signal. **ADF:** `ADF_REOB2`. **Conjugate:** `radiometric.remove_dark_fft`.
 
 ## 5.S12 Re-apply onboard equalization `[INDEP, Inc 1]`
 **Forward:** `DN_raw = DN_eq/gain_ob + off_ob` (DSNU + offset per band; `equalization_mode = true`,
 `nuc_table_id = 3`). **ADF:** `ADF_REOB2`. **Conjugate:** `radiometric.estimate_nuc`.
 
 ## 5.S13 Add sensor noise `[INDEP, Inc 1]`
-**Forward:** `σ = √(a + b·DN)`; `DN += N(0,σ)`, seeded (FPN = PRNU + DSNU + shot + read). **Acceptance:**
-σ within ±5 % of spec over ≥10 000 px (REQ-FUNC-021). **ADF:** `ADF_RNOMO` (a,b per band/detector).
-**Conjugate:** processor *denoises*. `[TBD: a,b — fit to SNR@Lref or from ADF_RNOMO]`
+**Forward:** the **real S2-RUT noise model** `σ = √(α² + β·DN)`, with **α, β read verbatim from the
+L1A product** (`quality_indicators_info/.../noise_model`, `sensor.NOISE_ALPHA/NOISE_BETA`); `DN +=
+N(0,σ)`, seeded. Applied on the **signal DN** (before the S11 dark pedestal), so it reproduces the
+real SNR@Lref (verified end-to-end, <1 %). **Acceptance:** σ within ±5 % over ≥10 000 px
+(REQ-FUNC-021). **ADF:** `ADF_RNOMO`. **Conjugate:** processor *denoises*.
 
 ## 5.S14 Quantize `[INDEP, Inc 1]`
 **Forward:** `clip(round(DN), 0, 4095)` → uint16 (12-bit at sensor). **ADF:** `ADF_CONVE`.

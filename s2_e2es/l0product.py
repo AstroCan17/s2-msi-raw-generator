@@ -88,11 +88,13 @@ def build_root_metadata(
             "processor_version": __version__,
             # REQ-FUNC-045 — provenance of each ADF component.
             "adf_provenance": {
-                "physical_gains": "real (product metadata)",
+                "physical_gains": "real (product metadata; metadata/round-trip bridge)",
+                "cal_gain": "real-derived (noise α,β + SNR@Lref); reproduces SNR@Lref",
                 "psf": "real (ESA SentiWiki S2{A,B,C}_PSF)",
                 "spectral": "real (SRF doc COPE-GSEG-EOPG-TN-15-0007)",
-                "noise": "real (L1A product noise_model α,β; S2-RUT)",
-                "prnu_dark": "PRNU from real L1B (scripts/derive_prnu_dark.py); dark representative",
+                "noise": "real verbatim (L1A product noise_model α,β; S2-RUT)",
+                "dark": "real (S2A DQR Feb-2023: 440-520 LSB pedestal + DSNU 0.5/1.0 LSB)",
+                "prnu": "from real L1B (scripts/derive_prnu_dark.py) or seeded; per-pixel NUC GIPP #36",
             },
         },
     }

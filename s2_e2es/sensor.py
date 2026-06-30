@@ -122,6 +122,13 @@ NOISE_BETA: dict[str, float] = {
     "B10": 0.00961, "B11": 0.09292, "B12": 0.08259,
 }
 
+# REAL dark signal — S2A Data Quality Report covering Feb-2023 (OMPC.CS.DQR.01.02-2023, the period
+# of our test product's acquisition 2023-02-16). Mean dark pedestal 440–520 LSB depending on band
+# (we use the published mid-range; exact per-band table is not in the DQR), with per-pixel dark
+# non-uniformity (DSNU) < 0.5 LSB (VNIR) / < 1.0 LSB (SWIR). Re-applied in S11 (X = A·G·L + D).
+DARK_PEDESTAL_LSB: float = 480.0           # DQR mean dark signal (440–520 LSB range)
+DARK_DSNU_LSB: dict[str, float] = {"VNIR": 0.5, "SWIR": 1.0}  # DQR per-pixel dark non-uniformity (1σ)
+
 # Radiometric / quantization constants.
 RADIO_ADD_OFFSET_L1B: int = -100   # L1B; L1C would be -1000 (PB04.00)
 BIT_DEPTH: int = 12
@@ -151,8 +158,28 @@ class Band:
 
     @property
     def dn_ref(self) -> float:
-        """Calibrated DN corresponding to Lref (= Lref / physical_gain)."""
-        return self.lref / self.physical_gain
+        """Equalized signal DN at Lref, on the true 12-bit instrument scale.
+
+        Derived from the REAL noise model + REAL SNR@Lref: the DN where the noise σ=√(α²+β·DN)
+        gives the spec SNR (``DN/σ = SNR``), i.e. the positive root of ``DN² − SNR²β·DN − SNR²α² = 0``.
+        This anchors the chain so the real α,β reproduce the real SNR@Lref. (The product's
+        ``physical_gain`` is incoherent with α,β on this synthetic dataset, so it is kept for metadata
+        / the round-trip bridge but not used to set the working DN scale.)
+        """
+        s2 = self.snr_at_lref ** 2
+        return (s2 * self.noise_beta + (s2 * s2 * self.noise_beta ** 2
+                                        + 4.0 * s2 * self.noise_alpha ** 2) ** 0.5) / 2.0
+
+    @property
+    def cal_gain(self) -> float:
+        """Absolute calibration gain A used in S1 (``DN = A·L``): ``dn_ref / Lref`` — real-derived
+        (noise α,β + SNR@Lref), so the chain reproduces the real SNR@Lref."""
+        return self.dn_ref / self.lref
+
+    @property
+    def dark_dsnu(self) -> float:
+        """Per-pixel dark non-uniformity (1σ DN) for this band's focal plane (real DQR value)."""
+        return DARK_DSNU_LSB["SWIR" if self.name in SWIR_BANDS else "VNIR"]
 
 
 def band(name: str, unit: str = DEFAULT_UNIT) -> Band:

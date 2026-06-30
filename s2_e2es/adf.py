@@ -2,18 +2,25 @@
 
 Provenance of each component:
 
-* gain      — REAL `physical_gains` from the product metadata (`sensor.PHYSICAL_GAIN`).
+All values are used verbatim from real ESA sources — nothing is fitted. The raw model is the
+official L1 ATBD equation ``X = A·G·L + D`` (S2-PDGS-MPC-ATBD-L1 §4.1.1). Provenance per component:
+
+* gain (A)  — ``Band.cal_gain``, the absolute calibration A in S1 (``DN=A·L``), derived from the real
+              noise α,β + real SNR@Lref so the chain reproduces SNR@Lref. The product's
+              ``physical_gain`` is incoherent with α,β on this synthetic dataset (it mis-scales low-
+              radiance bands by up to ~10×), so it is kept only for L0 metadata / the round-trip bridge.
 * PSF       — REAL official ESA per-band, per-unit PSF matrices (SentiWiki `S2{A,B,C}_PSF.zip`,
               `data/psf/`); 33×33 oversampling-5 matrices integrated to the detector grid. B10 has
               no published PSF (water-vapour band) → identity kernel. See ``real_psf_kernel``.
 * spectral  — REAL per-unit centre/bandwidth/equivalent wavelength (SRF doc, in `sensor.py`).
-* noise a,b — REAL noise model ``σ=√(α+β·DN)`` with α, β straight from the L1A product metadata
-              (`sensor.NOISE_ALPHA/NOISE_BETA`); reproduces the spec SNR@Lref exactly (no fitting).
-* PRNU,dark,equalization — the per-pixel coefficients live in credentialed GIPPs (`s2msi`, #36) and
-              are NOT published on SentiWiki. ``synthesize`` produces seeded representative values;
-              ``BandADF.from_product`` accepts real per-detector arrays derived from the matched real
-              L0↔L1A products (see ``scripts/derive_prnu_dark.py``). The on-board / on-ground model
-              form follows the official L1 ATBD (S2-PDGS-MPC-ATBD-L1 §4.1.1).
+* noise α,β — REAL noise model ``σ=√(α²+β·DN)`` (S2-RUT) with α, β straight from the L1A product
+              metadata (`sensor.NOISE_ALPHA/NOISE_BETA`), used verbatim. With the cal_gain DN scale
+              the chain reproduces the real SNR@Lref.
+* dark (D)  — REAL S2A dark from the Feb-2023 DQR: pedestal `sensor.DARK_PEDESTAL_LSB` (440–520 LSB)
+              + per-pixel DSNU (`Band.dark_dsnu`, < 0.5/1.0 LSB VNIR/SWIR).
+* PRNU (G), equalization — per-pixel NUC (R2EQOG GIPP) is credentialed (`s2msi`, #36), not in the
+              product. ``synthesize`` seeds a representative per-detector G; ``BandADF.from_product``
+              takes the real PRNU derived from the real L1B (`scripts/derive_prnu_dark.py`).
 """
 
 from __future__ import annotations
@@ -190,10 +197,9 @@ def synthesize(
     """
     rng = np.random.default_rng(seed + hash(b.name) % 10_000)
     a, bb = noise_coeffs(b)
-    # 1D per-detector PRNU (relative response), dark larger for SWIR.
+    # 1D per-detector PRNU (relative response); dark = real DQR pedestal + per-pixel DSNU (1σ).
     prnu_gain = 1.0 + rng.normal(0.0, prnu_std, size=n_det)
-    dark_base = 5.0 if b.name in sensor.SWIR_BANDS else 0.8
-    dark_dn = np.abs(rng.normal(dark_base, dark_base * 0.1, size=n_det))
+    dark_dn = sensor.DARK_PEDESTAL_LSB + rng.normal(0.0, b.dark_dsnu, size=n_det)
     eq_gain = 1.0 + rng.normal(0.0, prnu_std / 2.0, size=n_det)
     eq_offset = rng.normal(0.0, 0.5, size=n_det)
     return BandADF(

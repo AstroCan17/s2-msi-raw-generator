@@ -9,7 +9,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from s2_e2es import adf, sensor
+from s2_e2es import adf, reverse, sensor
 
 
 # --- Real PSF matrices --------------------------------------------------------
@@ -76,16 +76,27 @@ def test_noise_coeffs_are_the_real_product_values():
 
 
 @pytest.mark.parametrize("bn", [b for b in sensor.BANDS])
-def test_real_noise_model_reproduces_spec_snr(bn):
-    # σ = √(α + β·DN); the DN where DN/σ == SNR must exist and reproduce the spec SNR exactly.
+def test_cal_gain_dn_ref_reproduces_spec_snr(bn):
+    # cal_gain anchors dn_ref so σ=√(α²+β·dn_ref) gives the spec SNR exactly; dn_ref in 12-bit range.
     b = sensor.band(bn)
     a, beta = adf.noise_coeffs(b)
-    snr = b.snr_at_lref
-    # solve DN² − snr²·β·DN − snr²·α = 0 for the positive root
-    dn_ref = (snr**2 * beta + np.sqrt((snr**2 * beta) ** 2 + 4 * snr**2 * a)) / 2
-    sigma = np.sqrt(a + beta * dn_ref)
-    assert dn_ref / sigma == pytest.approx(snr, rel=1e-6)
-    assert dn_ref < 4096                        # within the 12-bit range
+    sigma = np.sqrt(a + beta * b.dn_ref)
+    assert b.dn_ref / sigma == pytest.approx(b.snr_at_lref, rel=1e-6)
+    assert 0 < b.dn_ref < 4096
+    assert b.cal_gain == pytest.approx(b.dn_ref / b.lref)
+
+
+@pytest.mark.parametrize("bn", ["B01", "B02", "B09", "B12"])
+def test_chain_reproduces_spec_snr_end_to_end(bn):
+    # Run the real chain on flat radiance=Lref and measure SNR = signal / noise-std → matches spec.
+    b = sensor.band(bn)
+    a = adf.synthesize(b, n_det=64, seed=2)
+    rng = np.random.default_rng(0)
+    signal = reverse.s1_radiance_to_dn(np.full((400, 64), b.lref), b.cal_gain)
+    signal = reverse.s7_impress_relative_response(signal, a.prnu_gain)
+    noisy = reverse.s13_add_noise(signal, a.noise_a, a.noise_b, rng)
+    measured_snr = float((b.cal_gain * b.lref) / np.std(noisy - signal))
+    assert measured_snr == pytest.approx(b.snr_at_lref, rel=0.05)
 
 
 def test_spectral_band_info_carries_real_wavelengths():
