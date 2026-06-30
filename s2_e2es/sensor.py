@@ -1,6 +1,6 @@
 """Sentinel-2 MSI sensor model — REAL values harvested from product metadata + official docs.
 
-Sources: ATBD Annex A.11 (real `physical_gains`, TDI, line_period from `S02MSIL1B_20240403…`),
+Sources: ATBD Annex A.11 (`physical_gains`, TDI, line_period from `S02MSIL1B_20240403…`),
 SentiWiki MSI radiometric table (SNR@Lref) and the official **Spectral Response Functions**
 document (COPE-GSEG-EOPG-TN-15-0007 v4.0, 2024) for per-unit band centre/bandwidth/equivalent
 wavelength. No synthetic values here. Per-unit (S2A/S2B/S2C) data is matched to the product's
@@ -68,7 +68,7 @@ COMPRESSION_RATE: dict[str, float] = {
     "B07": 2.655, "B08": 2.97, "B8A": 2.655, "B09": 2.655, "B10": 2.655, "B11": 2.4, "B12": 2.4,
 }
 
-# TDI is APPLIED on these bands (real `tdi_configuration_list`, ATBD Annex A.11).
+# TDI is APPLIED on these bands (`tdi_configuration_list`, ATBD Annex A.11).
 TDI_BANDS: frozenset[str] = frozenset({"B03", "B04", "B11", "B12"})
 
 # SWIR bands needing staggered-readout rearrangement (S8).
@@ -160,8 +160,8 @@ class Band:
     centre_nm: float = 0.0          # wavelength at mid-bandwidth (SRF doc)
     bandwidth_nm: float = 0.0       # bandwidth (SRF doc)
     equiv_wavelength_nm: float = 0.0  # radiometric equivalent wavelength (SRF doc)
-    noise_alpha: float = 0.0        # real noise model σ=√(α+β·DN), α (L1A product)
-    noise_beta: float = 0.0         # real noise model σ=√(α+β·DN), β (L1A product)
+    noise_alpha: float = 0.0 # noise model σ=√(α+β·DN), α (L1A product)
+    noise_beta: float = 0.0 # noise model σ=√(α+β·DN), β (L1A product)
 
     @property
     def dn_ref(self) -> float:
@@ -169,7 +169,7 @@ class Band:
 
         Derived from the REAL noise model + REAL SNR@Lref: the DN where the noise σ=√(α²+β·DN)
         gives the spec SNR (``DN/σ = SNR``), i.e. the positive root of ``DN² − SNR²β·DN − SNR²α² = 0``.
-        This anchors the chain so the real α,β reproduce the real SNR@Lref. (The product's
+        This anchors the chain so the α,β reproduce the SNR@Lref. (The product's
         ``physical_gain`` is incoherent with α,β on this synthetic dataset, so it is kept for metadata
         / the round-trip bridge but not used to set the working DN scale.)
         """
@@ -180,12 +180,12 @@ class Band:
     @property
     def cal_gain(self) -> float:
         """Absolute calibration gain A used in S1 (``DN = A·L``): ``dn_ref / Lref`` — real-derived
-        (noise α,β + SNR@Lref), so the chain reproduces the real SNR@Lref."""
+        (noise α,β + SNR@Lref), so the chain reproduces the SNR@Lref."""
         return self.dn_ref / self.lref
 
     @property
     def dark_dsnu(self) -> float:
-        """Per-pixel dark non-uniformity (1σ DN) for this band's focal plane (real DQR value)."""
+        """Per-pixel dark non-uniformity (1σ DN) for this band's focal plane (DQR value)."""
         return DARK_DSNU_LSB["SWIR" if self.name in SWIR_BANDS else "VNIR"]
 
 
@@ -227,10 +227,10 @@ def zarr_band_key(name: str) -> str:
 
 
 def spectral_band_info(unit: str = DEFAULT_UNIT) -> dict[str, dict]:
-    """Per-band `spectral_band_info` block for the L0 root metadata (real values).
+    """Per-band `spectral_band_info` block for the L0 root metadata (values).
 
     Radiometric values are from product metadata (Annex A.11); spectral centre/bandwidth/equivalent
-    wavelength are the real per-unit values from the SRF document (COPE-GSEG-EOPG-TN-15-0007).
+    wavelength are the per-unit values from the SRF document (COPE-GSEG-EOPG-TN-15-0007).
     """
     if unit not in UNITS:
         raise KeyError(f"unknown Sentinel-2 unit: {unit!r}")

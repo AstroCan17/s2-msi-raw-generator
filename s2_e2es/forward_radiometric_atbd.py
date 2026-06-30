@@ -1,6 +1,6 @@
 """Original implementation of the Sentinel-2 on-ground radiometric model (public L1 ATBD §4.1.1).
 
-Given the real per-pixel GIPP coefficients (``s2_e2es.gipp.DetectorEq``), this provides the **forward**
+Given the per-pixel GIPP coefficients (``s2_e2es.gipp.DetectorEq``), this provides the **forward**
 radiometric correction (raw L1A → corrected L1B) and its exact **inverse** (the reverse-E2ES impress
 step). The model is the published one::
 
@@ -75,7 +75,7 @@ def reverse_impress(y: np.ndarray, eq: DetectorEq) -> np.ndarray:
 def column_fpn(frame: np.ndarray, smooth: int = 31) -> float:
     """High-frequency across-track fixed-pattern-noise metric: std of (column means − running mean).
 
-    A real PRNU-striped image has higher column FPN before equalization than after.
+    A PRNU-striped image has higher column FPN before equalization than after.
     """
     f = np.asarray(frame, dtype=np.float64)
     pos = f > 0

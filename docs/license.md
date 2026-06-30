@@ -34,6 +34,6 @@ repository root.
     See the License for the specific language governing permissions and
     limitations under the License.
 
-The bundled real ESA/Copernicus reference **data** (official PSF matrices under
+The bundledS2/Copernicus reference **data** (official PSF matrices under
 `s2_e2es/data/psf/`, SRF and GIPP-derived values) is Copernicus open data, used per its own
 terms; see `docs/srf.md` for provenance.

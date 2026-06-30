@@ -13,7 +13,7 @@ This module (a) **generates** the synthetic dark + diffuser L0 acquisitions by i
 ADF through the reverse chain, then (b) **derives** ``D``, ``g`` and ``A`` back from them — the
 *estimated* calibration a downstream processor would actually use, instead of the truth ADF. Closing
 this loop (impress truth → estimate → use the estimate) is the E2ES **inverse-crime cure**: residuals
-then reflect real calibration uncertainty, not a tautology.
+then reflect calibration uncertainty, not a tautology.
 """
 
 from __future__ import annotations

@@ -1,4 +1,4 @@
-"""Reader for the real Sentinel-2A operational GIPP calibration files.
+"""Reader for the Sentinel-2A operational GIPP calibration files.
 
 The GIPPs (``S2A_OPER_GIP_<TYPE>_MPC__…xml``) are ESA auxiliary calibration **data**. This module is
 an original parser of their documented XML element layout (Python stdlib ``xml.etree`` + numpy) — it
@@ -104,7 +104,7 @@ def _parse_coeff_d(coeff_d_el: ET.Element) -> np.ndarray:
 
 
 def read_r2eqog_band(gipp_dir: str, band: str) -> BandEq:
-    """Parse the per-band R2EQOG file → real per-detector dark + relative-response gains."""
+    """Parse the per-band R2EQOG file →  per-detector dark + relative-response gains."""
     root = ET.parse(_find_band(gipp_dir, "R2EQOG", band)).getroot()
     data = root.find("DATA")
     clist = data.find("COEFFICIENTS_LIST")
@@ -218,7 +218,7 @@ def read_r2crco(gipp_dir: str) -> dict[str, np.ndarray]:
 
 @dataclass
 class GippSet:
-    """All real GIPP calibration data needed by the reverse chain, parsed from ``gipp_dir``."""
+    """All GIPP calibration data needed by the reverse chain, parsed from ``gipp_dir``."""
 
     gipp_dir: str
     equalization: dict[str, BandEq] = field(default_factory=dict)   # band → R2EQOG
@@ -232,7 +232,7 @@ class GippSet:
 
 
 def load_gipp_set(gipp_dir: str, bands: tuple[str, ...] = sensor.BANDS) -> GippSet:
-    """Load the full real GIPP set from ``gipp_dir`` (R2EQOG per band + R2DEPI/BLINDP/R2PARA/R2CRCO)."""
+    """Load the full GIPP set from ``gipp_dir`` (R2EQOG per band + R2DEPI/BLINDP/R2PARA/R2CRCO)."""
     gs = GippSet(gipp_dir=gipp_dir)
     for b in bands:
         gs.equalization[b] = read_r2eqog_band(gipp_dir, b)
