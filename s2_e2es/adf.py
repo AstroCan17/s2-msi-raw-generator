@@ -16,13 +16,12 @@ official L1 ATBD equation ``X = A·G·L + D`` (S2-PDGS-MPC-ATBD-L1 §4.1.1). Pro
 * noise α,β — REAL noise model ``σ=√(α²+β·DN)`` (S2-RUT) with α, β straight from the L1A product
               metadata (`sensor.NOISE_ALPHA/NOISE_BETA`), used verbatim. With the cal_gain DN scale
               the chain reproduces the real SNR@Lref.
-* dark (D)  — REAL S2A dark from the Feb-2023 DQR: pedestal `sensor.DARK_PEDESTAL_LSB` (440–520 LSB)
-              + per-pixel DSNU (`Band.dark_dsnu`, < 0.5/1.0 LSB VNIR/SWIR).
-* PRNU (G), equalization — per-pixel NUC (R2EQOG GIPP) is credentialed (`s2msi`, #36), not in the
-              product. ``synthesize`` seeds a representative per-detector G; ``BandADF.from_product``
-              takes the real PRNU derived from the real L1B (`scripts/derive_prnu_dark.py`). The
-              equalization gain uses the REAL measured stability (0.05 % 1σ, no offset — Clerc et al.
-              2026 S2C cal/val, `sensor.EQ_GAIN_STD`).
+* dark (D), PRNU (G) — REAL **per-pixel** values from the operational S2A GIPP `R2EQOG` (dark `COEFF_D`
+              ≈440–522 LSB; relative-response gains cubic `A/B/C` / bilinear `A1/A2/Zs`), parsed by
+              `s2_e2es.gipp` and built via ``BandADF.from_gipp``. Fallbacks: the Feb-2023 DQR dark
+              (`sensor.DARK_PEDESTAL_LSB` + `Band.dark_dsnu`) and ``BandADF.from_product`` (L1B-derived
+              PRNU); ``synthesize`` seeds representative values when no GIPP is supplied. Onboard-eq gain
+              uses the real measured stability (0.05 % 1σ, no offset; `sensor.EQ_GAIN_STD`).
 """
 
 from __future__ import annotations
@@ -155,6 +154,49 @@ class BandADF:
     eq_gain: np.ndarray     # (n_det,) onboard equalization gain, ~1.0
     eq_offset: np.ndarray   # (n_det,) onboard equalization offset in DN
     prnu_is_real: bool = False  # True when prnu/dark were derived from real products
+    source: str = "synthetic"   # provenance of the per-detector prnu/dark arrays
+
+    @classmethod
+    def from_gipp(
+        cls,
+        b: sensor.Band,
+        detector: int,
+        gippset,
+        *,
+        active_width: int | None = None,
+    ) -> "BandADF":
+        """Build a :class:`BandADF` for one detector from the REAL operational GIPP (R2EQOG):
+        per-pixel dark signal ``D`` and relative-response (PRNU) gain (C cubic / A1 bilinear).
+
+        ``gippset`` is a :class:`s2_e2es.gipp.GippSet`. When ``active_width`` is given and differs from
+        the GIPP across-track size, the blind columns (from BLINDP) are stripped so the arrays align to
+        the active product width. PSF and noise stay real (SentiWiki PSF, product noise model).
+        """
+        deteq = gippset.band(b.name).detectors[detector]
+        dark = np.asarray(deteq.dark, dtype=float)
+        gain = np.asarray(deteq.rel_gain, dtype=float)
+        if active_width is not None and active_width != dark.size:
+            blind = gippset.blind.get(b.name, {}).get(detector)
+            keep = np.setdiff1d(np.arange(dark.size), blind) if blind is not None \
+                else np.arange(dark.size)
+            if keep.size != active_width:  # fall back to a centred active window
+                start = (dark.size - active_width) // 2
+                keep = np.arange(start, start + active_width)
+            dark, gain = dark[keep], gain[keep]
+        n = dark.size
+        a, bb = noise_coeffs(b)
+        return cls(
+            band=b,
+            noise_a=a,
+            noise_b=bb,
+            psf=real_psf_kernel(b.name, b.unit),
+            prnu_gain=gain,
+            dark_dn=dark,
+            eq_gain=np.ones(n),
+            eq_offset=np.zeros(n),
+            prnu_is_real=True,
+            source="GIPP R2EQOG",
+        )
 
     @classmethod
     def from_product(
@@ -180,6 +222,7 @@ class BandADF:
             eq_gain=np.ones(n_det) if eq_gain is None else np.asarray(eq_gain, dtype=float),
             eq_offset=np.zeros(n_det) if eq_offset is None else np.asarray(eq_offset, dtype=float),
             prnu_is_real=True,
+            source="real product (L1B-derived)",
         )
 
 
