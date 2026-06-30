@@ -1,18 +1,20 @@
 ---
 title: "Sentinel-2 MSI Reverse E2ES — L1→L0 Algorithms Theoretical Basis Document"
 document_number: "S2MSI-E2ES-ATBD-0001"
-version: "draft-A"
-date: "2026-06-29"
-status: skeleton
+version: "1.0"
+date: "2026-06-30"
+status: issued
 confidentiality: Internal
-applicable_processor: "msi-processor (pinned wheel)"
 ---
 
-> **Skeleton notice.** This is the Increment-0 ATBD *skeleton* for the Sentinel-2 MSI
-> **reverse** End-to-End performance Simulator (E2ES). It defines the reverse L1→L0
-> algorithm chain — the conjugate of the forward `msi-processor` (L0→L1). Algorithm
-> *structure* and *conjugacy* are defined; numerical values, figures, and per-band tables are
-> marked `[TBD]` for population in Increments 1–5.
+> **Issued.** This ATBD defines the Sentinel-2 MSI **reverse** End-to-End performance Simulator
+> (E2ES) — the L1→L0 algorithm chain (S1–S15). Algorithm structure, conjugacy, and **real**
+> numerical values are populated: real per-band gains/TDI/timing from products, official ESA PSF
+> matrices, the SRF spectral characterisation, the product noise model, and the **real operational
+> S2A GIPP** (per-pixel dark + relative response). Radiometric inversion is validated by an original
+> round-trip on a **real L1A** (RMSE ~1e-14), and the calibration sub-set derives the coefficients
+> from synthetic CSM-diffuser + dark acquisitions (inverse-crime cure). Implemented from the public
+> L1 ATBD + GIPP data only.
 
 ---
 
@@ -65,7 +67,7 @@ are separate DRDs. Reverse entry level is **L1A/L1B at-sensor radiance** (Issue 
 ### 1.4.2 Reference documents
 | | |
 |---|---|
-| RD 2 | ESA Sentinel-2 Spectral Response Functions (S2-SRF) — per-band SRF + `[TBD doc id]` |
+| RD 2 | ESA Sentinel-2 Spectral Response Functions (S2-SRF), doc COPE-GSEG-EOPG-TN-15-0007 v4.0 (2024) |
 | RD 3 | SentiWiki Sentinel-2 MSI — instrument/mission parameters |
 | RD 4 | PyRawS — Sentinel-2 raw (L0-like) granule structure & per-detector layout |
 | RD 5 | S2 datastrip metadata — `SOLAR_IRRADIANCE` (ESUN) per band |
@@ -220,7 +222,8 @@ B03, B04, B11, B12** (real `tdi_configuration_list`). **ADF:** `ADF_RSWIR`. **Me
 
 ## 5.S9 Re-apply crosstalk `[INDEP, Inc 3]`
 **Forward:** `DN_i += Σ xtalk[i,j]·DN_j` (optical + electrical). **Magnitude:** <0.5 % channel-to-channel.
-**ADF:** `ADF_RCRCO`. **Conjugate:** *none* (S2-specific; named residual). `[TBD: crosstalk matrix]`
+**ADF:** `ADF_RCRCO`. **Conjugate:** *none* (S2-specific; named residual). Real matrix = the GIPP
+`R2CRCO` (per-band OPTICAL+ELECTRICAL row; ≈0 for S2A → identity).
 
 ## 5.S10 Re-insert blind/defective pixels `[INDEP, Inc 3]`
 **Forward:** insert masked blind columns + inject defective pixels (**3 in B11, 1 in B12** per S2C Cal/Val).
@@ -272,7 +275,8 @@ the very reason an L1C entry was rejected; PRNU paper.)
 
 Jointly change-controlled with the processor (per AD 1). **Conjugate subset** (both halves read):
 - `spectral`: per-band S2 SRF samples (central λ Annex A.1); **ESUN_b derived from the same SRF**,
-  **matched to the product's satellite** (S2A/B/C; Risk 2). `[TBD: full SRF curves — user-provided]`
+  **matched to the product's satellite** (S2A/B/C; Risk 2) — per-unit centre/bandwidth/equivalent
+  wavelength from the SRF doc are in `sensor.py`.
 - `radiometric`: per-band gain — **real `physical_gains` from the product metadata** (Annex A.11,
   no credentialed ADF needed); `radio_add_offset = −100` (L1B). Source ADF: `ADF_RABCA`.
 - `nuc`/`dark`/`badpixel`: per-detector PRNU (**1D per-detector model**; real residuals from Zenodo
