@@ -31,11 +31,23 @@ no orthorectification to undo.
 
 ## Documentation
 
-- **ATBD** — `docs/atbd/atbd.md` (algorithm theoretical basis: the S1–S15 reverse chain, the
-  sensor-model ADFs, the calibration sub-set, and Annex A — the sourced Sentinel-2 MSI datasheet).
-- **CHANGELOG** — `CHANGELOG.md`. **License** — `LICENSE` (Apache-2.0).
-- All instrument data is real ESA-sourced (official PSF, SRF, product noise model, operational GIPP);
-  nothing is fitted or synthetic. Implemented from public references only.
+Full **ECSS-E-ST-40C Rev.1** software documentation set under `docs/` (tailored for a single-CSC E2ES):
+
+| DRD | File | Content |
+|---|---|---|
+| ATBD | `docs/atbd/atbd.md` | Algorithm theoretical basis — S1–S15 chain + Annex A datasheet (issued v1.0) |
+| SRS | `docs/srs.md` | Requirements (REQ-FUNC/PERF/IF/QUAL) + verification methods |
+| SDD | `docs/sdd/` | Software design — architecture, module design, REQ→code→test traceability |
+| ICD | `docs/icd.md` | Interfaces — L1A/L1B + GIPP inputs, the L0 RAW output (ICD-IF-L0) |
+| DPM | `docs/dpm/` | Data processing model — the reverse chain blocks + parameter/data list |
+| V&V | `docs/vv/` | Verification & validation plan + report (104 tests, RMSE ~1e-14) |
+| SUM | `docs/sum.md` | User manual — install, usage, CLI |
+| SRN | `docs/srn.md` | Release note |
+| CIDL / SCF / SRF / SDP | `docs/{cidl,scf,srf,sdp}.md` | Config item list, config file, reuse file, development plan |
+
+**CHANGELOG** — `CHANGELOG.md`. **License** — `LICENSE` (Apache-2.0). All instrument data is real
+ESA-sourced (official PSF, SRF, product noise model, operational GIPP) — nothing fitted or synthetic;
+implemented from public references only.
 
 ## Usage
 
