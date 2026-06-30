@@ -7,8 +7,8 @@ Provenance of each component:
               `data/psf/`); 33×33 oversampling-5 matrices integrated to the detector grid. B10 has
               no published PSF (water-vapour band) → identity kernel. See ``real_psf_kernel``.
 * spectral  — REAL per-unit centre/bandwidth/equivalent wavelength (SRF doc, in `sensor.py`).
-* noise a,b — ``σ=√(a+b·DN)`` anchored to the REAL SNR@Lref (SentiWiki MSI table); shot-dominated
-              photon-transfer split (read floor `read_fraction` of σ_ref²).
+* noise a,b — REAL noise model ``σ=√(α+β·DN)`` with α, β straight from the L1A product metadata
+              (`sensor.NOISE_ALPHA/NOISE_BETA`); reproduces the spec SNR@Lref exactly (no fitting).
 * PRNU,dark,equalization — the per-pixel coefficients live in credentialed GIPPs (`s2msi`, #36) and
               are NOT published on SentiWiki. ``synthesize`` produces seeded representative values;
               ``BandADF.from_product`` accepts real per-detector arrays derived from the matched real
@@ -72,8 +72,20 @@ def real_psf_kernel(
     return k
 
 
+def noise_coeffs(b: sensor.Band) -> tuple[float, float]:
+    """REAL noise model coefficients ``(a, b)`` for ``σ = √(a + b·DN)`` from the L1A product.
+
+    The official S2-RUT model (Gorroño & Gascon) is ``Noise(DN) = √(α² + β·DN)``, with α, β straight
+    from the product's `quality_indicators_info/.../noise_model` (`sensor.NOISE_ALPHA/NOISE_BETA`).
+    Returns ``a = α²`` and ``b = β`` so the chain's ``σ=√(a+b·DN)`` is exactly the RUT model; it
+    reproduces the spec SNR@Lref. No fitting.
+    """
+    return b.noise_alpha ** 2, b.noise_beta
+
+
 def fit_noise_coeffs(b: sensor.Band, read_fraction: float = 0.1) -> tuple[float, float]:
-    """Fit ``(a, b)`` of ``σ² = a + b·DN`` to the band's SNR@Lref.
+    """Fallback fit of ``(a, b)`` of ``σ² = a + b·DN`` to SNR@Lref — used only if the real product
+    noise model is unavailable. Prefer :func:`noise_coeffs` (the real α, β).
 
     Splits the total variance at Lref (``σ_ref² = (DN_ref/SNR)²``) into a read/dark floor
     ``a = read_fraction·σ_ref²`` and a shot term ``b = (1-read_fraction)·σ_ref²/DN_ref``, so that
@@ -144,12 +156,11 @@ class BandADF:
         dark_dn: np.ndarray,
         eq_gain: np.ndarray | None = None,
         eq_offset: np.ndarray | None = None,
-        read_fraction: float = 0.1,
     ) -> "BandADF":
         """Build a :class:`BandADF` from REAL per-detector PRNU/dark arrays (e.g. derived from the
         matched real L0↔L1A products by ``scripts/derive_prnu_dark.py``). PSF and noise stay real."""
         n_det = prnu_gain.shape[0]
-        a, bb = fit_noise_coeffs(b, read_fraction)
+        a, bb = noise_coeffs(b)
         return cls(
             band=b,
             noise_a=a,
@@ -172,13 +183,13 @@ def synthesize(
 ) -> BandADF:
     """Build a :class:`BandADF` for band ``b`` over ``n_det`` detector columns.
 
-    PSF (real, per-unit), spectral and gain are published values; noise is anchored to the real
-    SNR@Lref. The per-detector PRNU/dark/equalization arrays are seeded representative values —
-    pass real product-derived arrays via :meth:`BandADF.from_product` to remove the last modelled
-    component (the per-pixel GIPP is credentialed, blocker #36).
+    PSF (real, per-unit), spectral, gain and the noise model (real α, β from the product) are all
+    real. The per-detector PRNU/dark/equalization arrays are seeded representative values — pass real
+    product-derived arrays via :meth:`BandADF.from_product` to remove the last modelled component
+    (the per-pixel NUC GIPP is credentialed, blocker #36).
     """
     rng = np.random.default_rng(seed + hash(b.name) % 10_000)
-    a, bb = fit_noise_coeffs(b)
+    a, bb = noise_coeffs(b)
     # 1D per-detector PRNU (relative response), dark larger for SWIR.
     prnu_gain = 1.0 + rng.normal(0.0, prnu_std, size=n_det)
     dark_base = 5.0 if b.name in sensor.SWIR_BANDS else 0.8

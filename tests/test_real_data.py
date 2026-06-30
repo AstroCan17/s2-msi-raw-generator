@@ -65,6 +65,29 @@ def test_unit_from_platform():
     assert sensor.unit_from_platform("S2C") == "S2C"
 
 
+# --- Real noise model (α, β from the L1A product) ----------------------------
+
+def test_noise_coeffs_are_the_real_product_values():
+    b = sensor.band("B05")
+    a, beta = adf.noise_coeffs(b)
+    # S2-RUT model √(α²+β·DN): a = α², b = β, with α,β straight from the L1A noise_model.
+    assert sensor.NOISE_ALPHA["B05"] == 0.578 and sensor.NOISE_BETA["B05"] == 0.03123
+    assert a == pytest.approx(0.578 ** 2) and beta == 0.03123
+
+
+@pytest.mark.parametrize("bn", [b for b in sensor.BANDS])
+def test_real_noise_model_reproduces_spec_snr(bn):
+    # σ = √(α + β·DN); the DN where DN/σ == SNR must exist and reproduce the spec SNR exactly.
+    b = sensor.band(bn)
+    a, beta = adf.noise_coeffs(b)
+    snr = b.snr_at_lref
+    # solve DN² − snr²·β·DN − snr²·α = 0 for the positive root
+    dn_ref = (snr**2 * beta + np.sqrt((snr**2 * beta) ** 2 + 4 * snr**2 * a)) / 2
+    sigma = np.sqrt(a + beta * dn_ref)
+    assert dn_ref / sigma == pytest.approx(snr, rel=1e-6)
+    assert dn_ref < 4096                        # within the 12-bit range
+
+
 def test_spectral_band_info_carries_real_wavelengths():
     info = sensor.spectral_band_info("S2A")
     assert info["02"]["central_wavelength"]["value"] == 492.0

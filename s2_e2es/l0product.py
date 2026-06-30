@@ -91,8 +91,8 @@ def build_root_metadata(
                 "physical_gains": "real (product metadata)",
                 "psf": "real (ESA SentiWiki S2{A,B,C}_PSF)",
                 "spectral": "real (SRF doc COPE-GSEG-EOPG-TN-15-0007)",
-                "snr": "real (SentiWiki MSI table)",
-                "prnu_dark": "modelled unless derived from real products (scripts/derive_prnu_dark.py)",
+                "noise": "real (L1A product noise_model α,β; S2-RUT)",
+                "prnu_dark": "PRNU from real L1B (scripts/derive_prnu_dark.py); dark representative",
             },
         },
     }

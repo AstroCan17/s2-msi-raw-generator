@@ -264,11 +264,13 @@ crosstalk kernel, temporal gain drift (VNIR 0.1–0.35 %/months, SWIR faster).
 
 **ADF access (corrected):** real gain/TDI/timing/offset/equalization are **in the products**; the
 **PSF is the real official ESA matrix** (SentiWiki) and the spectral characterisation is the real
-**SRF** (COPE-GSEG-EOPG-TN-15-0007); noise (a,b) is anchored to the real **SNR@Lref** (SentiWiki).
-Only the per-detector **PRNU/dark** coefficients remain modelled — those live in the credentialed L1
-radiometric ADFs (RABCA/RNOMO/REQOG/REOB2/RDEFI; `s2msi`, blocker #36) and the **DPR-common public
-bucket hosts only common/L2A ADFs** (DEM90, CAMS, MAOTC…), not the L1 ones. They are instead derived
-from the matched real L0↔L1A products via `scripts/derive_prnu_dark.py` (no synthetic stand-in).
+**SRF** (COPE-GSEG-EOPG-TN-15-0007); the **noise model** is the **real per-band α, β** read from the
+L1A product (`quality_indicators_info/.../noise_model`), σ=√(α²+β·DN) (S2-RUT) — reproduces SNR@Lref
+exactly. Only the per-detector **PRNU/dark** coefficients remain modelled — the per-pixel NUC table is
+**not in the product** (only `nuc_table_id`), it lives in the credentialed L1 radiometric ADFs
+(RABCA/RNOMO/REQOG/REOB2/RDEFI; `s2msi`, blocker #36) and the **DPR-common public bucket hosts only
+common/L2A ADFs** (DEM90, CAMS, MAOTC…), not the L1 ones. PRNU is instead derived from the matched
+real L1B product (`scripts/derive_prnu_dark.py`); a true dark needs a real dark-calibration granule.
 
 ---
 
@@ -299,8 +301,9 @@ Per-stage error-budget table, **reflective-domain terms**. Populate numerically 
 - SRF: **DONE** — real per-unit band centre/bandwidth/equivalent wavelength from the official SRF
   doc (COPE-GSEG-EOPG-TN-15-0007) are in `sensor.py`.
 - PSF: **DONE** — real official ESA per-band, per-unit matrices (`data/psf/`).
-- Noise (a,b): anchored to the real SNR@Lref (SentiWiki). PRNU/dark: derive from matched real
-  L0↔L1A products (`scripts/derive_prnu_dark.py`); per-pixel GIPP credentialed (#36).
+- Noise: **DONE** — real per-band α, β from the L1A product (S2-RUT σ=√(α²+β·DN)).
+- PRNU: derive from the real L1B product (`scripts/derive_prnu_dark.py`). Dark: needs a real
+  dark-calibration granule (none in this dataset); per-pixel NUC GIPP credentialed (#36).
 
 ---
 

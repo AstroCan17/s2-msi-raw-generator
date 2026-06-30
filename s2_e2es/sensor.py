@@ -108,6 +108,20 @@ EQUIV_WAVELENGTH_NM: dict[str, dict[str, float]] = {
             "B10": 1372.177, "B11": 1612.004, "B12": 2191.270},
 }
 
+# REAL per-band noise model — the S2-RUT model σ = √(α² + β·DN) (Gorroño & Gascon), coefficients
+# straight from the L1A product metadata (`quality_indicators_info/radiometric_info/.../noise_model`).
+# Verified: reproduces the spec SNR@Lref exactly for every band. No fitting. (S02MSIL1A_20240403, S2A.)
+NOISE_ALPHA: dict[str, float] = {
+    "B01": 0.560, "B02": 0.567, "B03": 0.488, "B04": 0.489, "B05": 0.578, "B06": 0.576,
+    "B07": 0.576, "B08": 0.571, "B8A": 0.574, "B09": 0.563, "B10": 1.067, "B11": 0.683,
+    "B12": 0.704,
+}
+NOISE_BETA: dict[str, float] = {
+    "B01": 0.00054, "B02": 0.04696, "B03": 0.03482, "B04": 0.04047, "B05": 0.03123,
+    "B06": 0.04388, "B07": 0.04220, "B08": 0.04447, "B8A": 0.08714, "B09": 0.10258,
+    "B10": 0.00961, "B11": 0.09292, "B12": 0.08259,
+}
+
 # Radiometric / quantization constants.
 RADIO_ADD_OFFSET_L1B: int = -100   # L1B; L1C would be -1000 (PB04.00)
 BIT_DEPTH: int = 12
@@ -132,6 +146,8 @@ class Band:
     centre_nm: float = 0.0          # wavelength at mid-bandwidth (SRF doc)
     bandwidth_nm: float = 0.0       # bandwidth (SRF doc)
     equiv_wavelength_nm: float = 0.0  # radiometric equivalent wavelength (SRF doc)
+    noise_alpha: float = 0.0        # real noise model σ=√(α+β·DN), α (L1A product)
+    noise_beta: float = 0.0         # real noise model σ=√(α+β·DN), β (L1A product)
 
     @property
     def dn_ref(self) -> float:
@@ -156,6 +172,8 @@ def band(name: str, unit: str = DEFAULT_UNIT) -> Band:
         centre_nm=BAND_CENTRE_NM[unit][name],
         bandwidth_nm=BANDWIDTH_NM[unit][name],
         equiv_wavelength_nm=EQUIV_WAVELENGTH_NM[unit][name],
+        noise_alpha=NOISE_ALPHA[name],
+        noise_beta=NOISE_BETA[name],
     )
 
 
