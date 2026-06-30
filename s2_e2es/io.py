@@ -47,6 +47,24 @@ def read_l1b_band(
     return np.asarray(arr[lines] if lines is not None else arr[:], dtype=np.float64)
 
 
+def read_l1a_raw(
+    path: str,
+    detector: int,
+    band: str,
+    *,
+    lines: slice | None = None,
+) -> np.ndarray:
+    """Read one detector/band raw-DN array from an EOPF **L1A** product.
+
+    L1A uses ``measurements/DD{dd}/B{band}/l1a_raw_image`` (uppercase ``DDnn``/``Bxx``, image name
+    ``l1a_raw_image``) — the raw instrument counts (with dark + PRNU still present), unlike the
+    L1A/L1B radiance reader :func:`read_l1b_band` (lowercase ``dDD/bXX/img``).
+    """
+    g = _open(path)
+    arr = g[f"measurements/DD{detector:02d}/{band.upper()}/l1a_raw_image"]
+    return np.asarray(arr[lines] if lines is not None else arr[:], dtype=np.float64)
+
+
 def read_platform(path: str) -> str | None:
     """Best-effort read of the platform id (e.g. ``"Sentinel-2A"``) from STAC metadata."""
     g = _open(path)

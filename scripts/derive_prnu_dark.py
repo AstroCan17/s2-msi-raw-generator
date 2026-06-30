@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
 """Derive REAL per-detector PRNU + dark from matched real Sentinel-2 products.
 
-The per-pixel PRNU/dark/equalization coefficients live in credentialed GIPPs (`s2msi`, blocker
-#36) and are not published on SentiWiki. This script estimates them directly from the **real**
-products instead, so the reverse chain carries no fabricated per-detector signature:
+This estimates per-detector PRNU + dark directly from the **real** products, as an alternative to the
+operational GIPP path (`s2_e2es.gipp` / `BandADF.from_gipp`) when only L1A/L1B products are at hand:
 
 * **PRNU relative response** — per-detector-column relative gain, from a real L1A (deNUCed DN) or
   L1B granule: normalise each column's robust mean by the cross-track running mean, isolating the
