@@ -70,14 +70,15 @@ def derive_column_dark(frame: np.ndarray, pct: float = 1.0) -> np.ndarray:
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--l1a", required=True, help="real L1A/L1B .zarr(.zip) for PRNU (bright scene)")
-    ap.add_argument("--dark", help="real dark/night .zarr(.zip) for the dark offset (else --l1a)")
+    ap.add_argument("--dark", help="real DARK-calibration granule (.zarr/.zip) — night/ocean, CSM "
+                    "closed (L1 ATBD §4.1.1.2.1). REQUIRED for a real dark; a daytime scene floor is "
+                    "NOT a dark signal and is never used as one.")
     ap.add_argument("--bands", nargs="+", default=list(sensor.BANDS))
     ap.add_argument("--detectors", default="1-12")
     ap.add_argument("--lines", type=int, default=2048, help="along-track lines to read")
     ap.add_argument("--out", default="real_prnu_dark.npz")
     args = ap.parse_args()
 
-    dark_path = args.dark or args.l1a
     detectors = _parse_detectors(args.detectors)
     sl = slice(0, args.lines)
     tables: dict[str, np.ndarray] = {}
@@ -86,17 +87,26 @@ def main() -> None:
         for bn in args.bands:
             try:
                 frame = io.read_l1b_band(args.l1a, det, bn, lines=sl)
-                dark_frame = io.read_l1b_band(dark_path, det, bn, lines=sl)
             except Exception as exc:  # noqa: BLE001 - skip missing det/band gracefully
                 print(f"skip d{det:02d}/{bn}: {exc}")
                 continue
-            tables[f"{det:02d}_{bn}_prnu"] = derive_column_prnu(frame)
-            tables[f"{det:02d}_{bn}_dark"] = derive_column_dark(dark_frame)
-            print(f"d{det:02d}/{bn}: prnu σ={tables[f'{det:02d}_{bn}_prnu'].std():.4f} "
-                  f"dark μ={tables[f'{det:02d}_{bn}_dark'].mean():.2f} DN")
+            prnu = derive_column_prnu(frame)
+            tables[f"{det:02d}_{bn}_prnu"] = prnu
+            msg = f"d{det:02d}/{bn}: prnu σ={prnu.std():.4f}"
+            if args.dark:  # only from a real dark-calibration granule
+                try:
+                    dark_frame = io.read_l1b_band(args.dark, det, bn, lines=sl)
+                    dark = derive_column_dark(dark_frame)
+                    tables[f"{det:02d}_{bn}_dark"] = dark
+                    msg += f" dark μ={dark.mean():.2f} DN"
+                except Exception as exc:  # noqa: BLE001
+                    msg += f" (no dark: {exc})"
+            print(msg)
 
     np.savez_compressed(args.out, **tables)
-    print(f"wrote {args.out} ({len(tables)} arrays from real products)")
+    has_dark = any(k.endswith("_dark") for k in tables)
+    print(f"wrote {args.out} ({len(tables)} arrays from real products; "
+          f"dark={'real' if has_dark else 'NOT derived — pass a real --dark granule'})")
 
 
 if __name__ == "__main__":
