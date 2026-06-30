@@ -223,8 +223,11 @@ period of the test product): mean dark **pedestal 440–520 LSB** (`DARK_PEDESTA
 sees the dark-subtracted signal. **ADF:** `ADF_REOB2`. **Conjugate:** `radiometric.remove_dark_fft`.
 
 ## 5.S12 Re-apply onboard equalization `[INDEP, Inc 1]`
-**Forward:** `DN_raw = DN_eq/gain_ob + off_ob` (DSNU + offset per band; `equalization_mode = true`,
-`nuc_table_id = 3`). **ADF:** `ADF_REOB2`. **Conjugate:** `radiometric.estimate_nuc`.
+**Forward:** invert the R2EQOG equalization — multiplicative (cubic VNIR `Z=ΣGₙ·Yⁿ` / bilinear SWIR)
+on the dark-subtracted signal (Clerc et al. 2026, S2C cal/val; `equalization_mode = true`,
+`nuc_table_id = 3`). Linearized here as `DN_raw = DN_eq/gain_ob`, with the **real per-detector gain
+stability 0.05 % 1σ** (paper Table 3, Ra factor; `sensor.EQ_GAIN_STD`) and **no offset** (the dark is
+the S11 pedestal). **ADF:** `ADF_REOB2`. **Conjugate:** `radiometric.estimate_nuc`.
 
 ## 5.S13 Add sensor noise `[INDEP, Inc 1]`
 **Forward:** the **real S2-RUT noise model** `σ = √(α² + β·DN)`, with **α, β read verbatim from the

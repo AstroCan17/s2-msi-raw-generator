@@ -129,6 +129,13 @@ NOISE_BETA: dict[str, float] = {
 DARK_PEDESTAL_LSB: float = 480.0           # DQR mean dark signal (440–520 LSB range)
 DARK_DSNU_LSB: dict[str, float] = {"VNIR": 0.5, "SWIR": 1.0}  # DQR per-pixel dark non-uniformity (1σ)
 
+# REAL onboard-equalization gain stability (S2C cal/val paper, Clerc et al. 2026, RS 18(9) 1387,
+# Table 3 — Ra factor): extreme variation < 0.2 % (B09 0.3 %), per-pixel std < 0.05 % for VNIR.
+# The R2EQOG equalization is multiplicative (cubic VNIR / bilinear SWIR), Z = Σ Gₙ·Yⁿ on the
+# dark-subtracted signal Y — so the per-detector equalization is a near-unity gain with no offset
+# (the dark is the S11 pedestal, not an equalization offset).
+EQ_GAIN_STD: float = 0.0005                # 0.05 % per-detector equalization-gain 1σ (Table 3)
+
 # Radiometric / quantization constants.
 RADIO_ADD_OFFSET_L1B: int = -100   # L1B; L1C would be -1000 (PB04.00)
 BIT_DEPTH: int = 12

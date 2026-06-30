@@ -20,7 +20,9 @@ official L1 ATBD equation ``X = A·G·L + D`` (S2-PDGS-MPC-ATBD-L1 §4.1.1). Pro
               + per-pixel DSNU (`Band.dark_dsnu`, < 0.5/1.0 LSB VNIR/SWIR).
 * PRNU (G), equalization — per-pixel NUC (R2EQOG GIPP) is credentialed (`s2msi`, #36), not in the
               product. ``synthesize`` seeds a representative per-detector G; ``BandADF.from_product``
-              takes the real PRNU derived from the real L1B (`scripts/derive_prnu_dark.py`).
+              takes the real PRNU derived from the real L1B (`scripts/derive_prnu_dark.py`). The
+              equalization gain uses the REAL measured stability (0.05 % 1σ, no offset — Clerc et al.
+              2026 S2C cal/val, `sensor.EQ_GAIN_STD`).
 """
 
 from __future__ import annotations
@@ -200,8 +202,9 @@ def synthesize(
     # 1D per-detector PRNU (relative response); dark = real DQR pedestal + per-pixel DSNU (1σ).
     prnu_gain = 1.0 + rng.normal(0.0, prnu_std, size=n_det)
     dark_dn = sensor.DARK_PEDESTAL_LSB + rng.normal(0.0, b.dark_dsnu, size=n_det)
-    eq_gain = 1.0 + rng.normal(0.0, prnu_std / 2.0, size=n_det)
-    eq_offset = rng.normal(0.0, 0.5, size=n_det)
+    # Real onboard-equalization stability (Clerc 2026 Table 3): ~unity gain, 0.05 % 1σ, no offset.
+    eq_gain = 1.0 + rng.normal(0.0, sensor.EQ_GAIN_STD, size=n_det)
+    eq_offset = np.zeros(n_det)
     return BandADF(
         band=b,
         noise_a=a,
