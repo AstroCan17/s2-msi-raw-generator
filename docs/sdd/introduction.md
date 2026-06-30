@@ -17,8 +17,7 @@
 # Introduction
 
 ## Purpose
-This Software Design Document (SDD) describes the architecture and detailed design of the **Sentinel-2
-MSI Reverse E2ES** (`s2_e2es`). It is the design counterpart of the Software Requirements Specification
+This Software Design Document (SDD) describes the architecture and detailed design of the **Sentinel-2 MSI Synthetic Raw Data Generator** (`s2_e2es`). It is the design counterpart of the Software Requirements Specification
 (`docs/srs.md`) and the Algorithm Theoretical Basis Document (`docs/atbd/atbd.md`), authored per
 **ECSS-E-ST-40C Rev.1** (SDD DRD), tailored for a single Configuration Software Component (CSC).
 

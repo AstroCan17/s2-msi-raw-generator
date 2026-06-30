@@ -16,7 +16,7 @@
 
 # Interface control document
 
-**Project:** Sentinel-2 MSI Reverse E2ES (`s2_e2es`) · **DRD:** ECSS-E-ST-40C Rev.1, Annex E (ICD).
+**Project:** Sentinel-2 MSI Synthetic Raw Data Generator (`s2_e2es`) · **DRD:** ECSS-E-ST-40C Rev.1, Annex E (ICD).
 Companion to the SRS (`docs/srs.md`, interface requirements REQ-IF-001/002/003) and the ATBD
 (`docs/atbd/atbd.md`).
 
