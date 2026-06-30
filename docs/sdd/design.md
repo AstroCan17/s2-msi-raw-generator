@@ -26,7 +26,7 @@ the GIPP data format.
 ## Overall architecture
 
 ### Key design decisions
-- **Official ATBD raw model `X = A·G·L + D`.** S1 applies the absolute-calibration multiply `DN = A·L`;
+- **Official ATBD raw model $X = A \cdot G \cdot L + D$.** S1 applies the absolute-calibration multiply $\mathrm{DN} = A \cdot L$;
   S7 the relative response `G`; S11 the dark `D`. This matches the public L1 ATBD §4.1.1 forward model so
   the reverse is its exact conjugate.
 - **`cal_gain` anchored on the noise model + SNR.** The absolute coefficient `A` (`Band.cal_gain`)
@@ -34,7 +34,7 @@ the GIPP data format.
   exactly on the true 12-bit DN scale (the product `physical_gain` is retained as metadata).
 - **Real per-pixel dark + relative response from the operational GIPP** (R2EQOG `COEFF_D` / cubic
   (A,B,C) / bilinear (A1,A2,Zs)); no fitted or seeded values in the realized path.
-- **Noise impressed on the signal DN, before the dark pedestal**, so `σ=√(α²+β·DN_signal)` reproduces
+- **Noise impressed on the signal DN, before the dark pedestal**, so $\sigma = \sqrt{\alpha^2 + \beta \cdot \mathrm{DN}_\mathrm{signal}}$ reproduces
   the spec SNR@Lref.
 - **Calibration sub-set (inverse-crime cure).** Coefficients handed to a downstream processor are
   *derived* from synthetic CSM sun-diffuser + dark acquisitions, not the truth impressed in S7/S11.

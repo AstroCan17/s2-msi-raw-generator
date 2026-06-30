@@ -43,7 +43,7 @@ exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
 nitpicky = False
 
 # -- MyST (Markdown) ----------------------------------------------------------
-myst_enable_extensions = ["linkify", "colon_fence", "deflist"]
+myst_enable_extensions = ["linkify", "colon_fence", "deflist", "dollarmath", "amsmath"]
 myst_linkify_fuzzy_links = False
 myst_heading_anchors = 3
 # Render ```mermaid fenced blocks as the mermaid directive (so the same fence

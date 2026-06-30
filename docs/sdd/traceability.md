@@ -58,9 +58,9 @@ method (T/A/I/R) and status. Verification details and quantitative results are i
 
 | REQ ID | Requirement | Design | Code | Test | Method | Status |
 |---|---|---|---|---|---|---|
-| REQ-PERF-001 | Noise σ within ±5 % over ≥10⁴ px | reverse | `s13_add_noise` | `test_reverse::test_noise_sigma_matches_model_within_5pct` | T | realized |
+| REQ-PERF-001 | Noise $\sigma$ within ±5 % over $\ge 10^4$ px | reverse | `s13_add_noise` | `test_reverse::test_noise_sigma_matches_model_within_5pct` | T | realized |
 | REQ-PERF-002 | SNR@Lref fidelity | sensor, reverse | `Band.cal_gain`, `s13_add_noise` | `test_real_data` | T,A | realized |
-| REQ-PERF-003 | Round-trip exactness (RMSE→0) | forward_radiometric_atbd | `forward_correct`/`reverse_impress` | `test_roundtrip_atbd`, `scripts/roundtrip_real_l1a.py` | T | realized |
+| REQ-PERF-003 | Round-trip exactness ($\mathrm{RMSE} \to 0$) | forward_radiometric_atbd | `forward_correct`/`reverse_impress` | `test_roundtrip_atbd`, `scripts/roundtrip_real_l1a.py` | T | realized |
 | REQ-PERF-004 | Calibration recovery accuracy | calibration | `calibrate` | `test_calibration` | T | realized |
 
 ## Interface requirements

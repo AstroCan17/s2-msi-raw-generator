@@ -45,9 +45,9 @@ All reused data is **public** ESA/Copernicus reference data; only the data value
 |------|-----|---------------------|
 | Official ESA PSF matrices | S6 PSF re-blur kernels (per band, per unit) | published PSF matrices; bundled at `s2_e2es/data/psf/` with `PROVENANCE.md` |
 | Spectral Response Functions | per-unit centre/bandwidth/equivalent wavelength | SRF doc COPE-GSEG-EOPG-TN-15-0007 v4.0 |
-| Product noise model (α, β) | S13 sensor-noise coefficients | read from the L1A product `quality_indicators_info/.../noise_model` |
+| Product noise model ($\alpha, \beta$) | S13 sensor-noise coefficients | read from the L1A product `quality_indicators_info/.../noise_model` |
 | Operational GIPP | per-pixel dark + relative response, defects, offsets | R2EQOG / R2DEPI / BLINDP / R2PARA / R2CRCO (read as data) |
-| Sentinel-2 L1 ATBD | forward radiometric model `X = A·G·L + D` (the algorithm we invert) | S2-PDGS-MPC-ATBD-L1 §4.1.1 (public specification) |
+| Sentinel-2 L1 ATBD | forward radiometric model $X = A\cdot G\cdot L + D$ (the algorithm we invert) | S2-PDGS-MPC-ATBD-L1 §4.1.1 (public specification) |
 
 ## Originality statement
 

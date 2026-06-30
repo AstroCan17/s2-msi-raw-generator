@@ -166,7 +166,7 @@ calibration in the reflective domain. The high-signal reference is the on-board 
 (uniform full-field), the zero reference is
 a **dark** (CSM closed / night). The sub-set synthesises both L0 acquisitions by impressing the *true*
 ADF, then **derives** the coefficients back (L1 ATBD §4.1.1.2.2):
-`D(j)=⟨X_dark⟩_i`, `g(j)=A·⟨L_diff⟩/⟨X_diff−D⟩_i` with `⟨g(j)⟩_j=1` → fixes `A`. The processor then
+$D(j) = \langle X_\mathrm{dark} \rangle_i$, $g(j) = A \cdot \langle L_\mathrm{diff} \rangle / \langle X_\mathrm{diff} - D \rangle_i$ with $\langle g(j) \rangle_j = 1$ → fixes `A`. The processor then
 uses the **derived** coefficients (`estimated_adf`), not the truth impressed in S7/S11 — closing the
 loop **breaks inverse crime** (verified: derived dark recovers truth to <0.05 DN, relative response
 correlation >0.99, `A≈cal_gain`; the small residual is the calibration uncertainty). `ADF_REQOG`.
@@ -180,15 +180,15 @@ Entry = at-sensor **radiance** (L1B), per-detector geometry. Each step: forward 
 `[INDEP]` = author from true physics; `[INV]` = closed-form inverse guarded by parameter mismatch.
 
 ## 5.S1 Radiance → DN `[INV, Inc 1]`
-**Model:** the official L1 ATBD raw equation **`X_k = A_k·G_k(j,L)·L_k + D_k`** (S2-PDGS-MPC-ATBD-L1
-§4.1.1): S1 impresses the absolute-calibration term **`DN = A·L`** (A = `Band.cal_gain`), S7 the
+**Model:** the official L1 ATBD raw equation **$X_k = A_k \cdot G_k(j,L) \cdot L_k + D_k$** (S2-PDGS-MPC-ATBD-L1
+§4.1.1): S1 impresses the absolute-calibration term **$\mathrm{DN} = A \cdot L$** (A = `Band.cal_gain`), S7 the
 relative sensitivity `G`, S11 the dark `D`. **Choice of A:** the product's `physical_gains`
 (Annex A.11) are kept for metadata/the round-trip bridge, but they are incoherent with the real
 noise model on this synthetic dataset (they mis-scale low-radiance bands by up to ~10×). So `A` is
 derived from the **noise α,β + SNR@Lref** (`cal_gain = dn_ref/Lref`, where `dn_ref` is the
-12-bit DN at which `σ=√(α²+β·DN)` yields the spec SNR) — anchoring the chain to **reproduce the real
+12-bit DN at which $\sigma = \sqrt{\alpha^2 + \beta \cdot \mathrm{DN}}$ yields the spec SNR) — anchoring the chain to **reproduce the real
 SNR@Lref exactly** (verified end-to-end). **ADF:** `ADF_RABCA`. **Conjugate:** `toa.dn_to_radiance`
-(`L = DN/A`).
+($L = \mathrm{DN}/A$).
 
 ## 5.S3 Undo framing & round/clamp `[INDEP, Inc 3]`
 **Forward:** extend to continuous detector strip; restore sub-pixel precision. **ADF:** `ADF_PRDLO`,
@@ -203,7 +203,7 @@ SNR@Lref exactly** (verified end-to-end). **ADF:** `ADF_RABCA`. **Conjugate:** `
 **Conjugate:** `georeference.resample_to_grid`.
 
 ## 5.S6 PSF re-blur `[INDEP, Inc 1]`
-**Forward:** `I = I_sharp ★ PSF_true`, using the **official ESA per-band, per-unit PSF
+**Forward:** $I = I_\mathrm{sharp} \ast \mathrm{PSF}_\mathrm{true}$, using the **official ESA per-band, per-unit PSF
 matrices** (SentiWiki `S2{A,B,C}_PSF`, Annex A.4) integrated from the published 33×33 oversampled
 matrix to the detector grid (B10 → identity). **ADF:** `ADF_RDEFI`. **Conjugate:**
 `enhancement.mtf_compensate`/`_correlate2d` (an *independent regularized* inverse — must NOT be the
@@ -211,7 +211,7 @@ exact inverse). Far-field straylight has no S2 inverse (Risk 4).
 
 ## 5.S7 Undo relative response (impress PRNU) `[INDEP, Inc 1]`
 **Forward:** impress the **true per-pixel relative response** by inverting the on-ground equalization
-`Y = G(Z)` — VNIR cubic `A·Z³+B·Z²+C·Z` / SWIR bilinear (knee at `Zs`). **Real values:** the
+$Y = G(Z)$ — VNIR cubic $A\,Z^3 + B\,Z^2 + C\,Z$ / SWIR bilinear (knee at `Zs`). **Real values:** the
 per-pixel gains come straight from the **operational S2A GIPP `R2EQOG`** (`COEFF_A/B/C` cubic /
 `COEFF_A1/A2/Zs` bilinear; C≈1.0–1.2 dominant), parsed by `s2_e2es.gipp` and applied via the analytic
 inverse `G⁻¹` in `forward_radiometric_atbd.inverse_equalize` (`BandADF.from_gipp`). **ADF:** `ADF_REQOG`.
@@ -223,7 +223,7 @@ B03, B04, B11, B12** (`tdi_configuration_list`). **ADF:** `ADF_RSWIR`. **Method:
 `shift_lut.csv` deterministic per-(satellite, detector, band-pair) shifts (Annex A.9).
 
 ## 5.S9 Re-apply crosstalk `[INDEP, Inc 3]`
-**Forward:** `DN_i += Σ xtalk[i,j]·DN_j` (optical + electrical). **Magnitude:** <0.5 % channel-to-channel.
+**Forward:** $\mathrm{DN}_i \mathrel{+}= \sum_j \mathrm{xtalk}[i,j] \cdot \mathrm{DN}_j$ (optical + electrical). **Magnitude:** <0.5 % channel-to-channel.
 **ADF:** `ADF_RCRCO`. **Conjugate:** *none* (S2-specific; named residual). Real matrix = the GIPP
 `R2CRCO` (per-band OPTICAL+ELECTRICAL row; ≈0 for S2A → identity).
 
@@ -239,16 +239,15 @@ band, matching the DQR (OMPC.CS.DQR.01.02-2023) range but now resolved per pixel
 the noise model sees the dark-subtracted signal. **ADF:** `ADF_REOB2`/`ADF_REQOG`.
 
 ## 5.S12 Re-apply onboard equalization `[INDEP, Inc 1]`
-**Forward:** invert the R2EQOG equalization — multiplicative (cubic VNIR `Z=ΣGₙ·Yⁿ` / bilinear SWIR)
+**Forward:** invert the R2EQOG equalization — multiplicative (cubic VNIR $Z = \sum_n G_n \cdot Y^n$ / bilinear SWIR)
 on the dark-subtracted signal (Clerc et al. 2026, S2C cal/val; `equalization_mode = true`,
 `nuc_table_id = 3`). Linearized here as `DN_raw = DN_eq/gain_ob`, with the **per-detector gain
 stability 0.05 % 1σ** (paper Table 3, Ra factor; `sensor.EQ_GAIN_STD`) and **no offset** (the dark is
 the S11 pedestal). **ADF:** `ADF_REOB2`. **Conjugate:** `radiometric.estimate_nuc`.
 
 ## 5.S13 Add sensor noise `[INDEP, Inc 1]`
-**Forward:** the **S2-RUT noise model** `σ = √(α² + β·DN)`, with **α, β read verbatim from the
-L1A product** (`quality_indicators_info/.../noise_model`, `sensor.NOISE_ALPHA/NOISE_BETA`); `DN +=
-N(0,σ)`, seeded. Applied on the **signal DN** (before the S11 dark pedestal), so it reproduces the
+**Forward:** the **S2-RUT noise model** $\sigma = \sqrt{\alpha^2 + \beta \cdot \mathrm{DN}}$, with **$\alpha$, $\beta$ read verbatim from the
+L1A product** (`quality_indicators_info/.../noise_model`, `sensor.NOISE_ALPHA/NOISE_BETA`); $\mathrm{DN} \mathrel{+}= \mathcal{N}(0,\sigma)$, seeded. Applied on the **signal DN** (before the S11 dark pedestal), so it reproduces the
  SNR@Lref (verified end-to-end, <1 %). **Acceptance:** σ within ±5 % over ≥10 000 px
 (REQ-FUNC-021). **ADF:** `ADF_RNOMO`. **Conjugate:** processor *denoises*.
 
@@ -289,13 +288,13 @@ Jointly change-controlled with the processor (per AD 1). **Conjugate subset** (b
 - `viewing_model`: focal length 600 mm / F4 (TMA, 150 mm pupil), pixel pitch 7.5/15 µm, 12-detector
   stagger, per-band GSD (Annex A.2), `line_period` 1.5658736 ms. *(Was only needed by the cancelled L1C-entry module.)*
 
-**E2ES-only block** (processor never reads): noise model (`a,b` for σ=√(a+b·DN), `ADF_RNOMO`),
+**E2ES-only block** (processor never reads): noise model (`a,b` for $\sigma=\sqrt{a+b\cdot\mathrm{DN}}$, `ADF_RNOMO`),
 crosstalk kernel, temporal gain drift (VNIR 0.1–0.35 %/months, SWIR faster).
 
 **ADF access — all now.** Every radiometric ADF the chain needs is real: gain/TDI/timing/offset
 from the products; **PSF** = the official ESA matrices (SentiWiki); **spectral** = the **SRF**
 (COPE-GSEG-EOPG-TN-15-0007); **noise** = the per-band α, β from the L1A product
-(`quality_indicators_info/.../noise_model`), σ=√(α²+β·DN) (S2-RUT, reproduces SNR@Lref). The
+(`quality_indicators_info/.../noise_model`), $\sigma=\sqrt{\alpha^2+\beta\cdot\mathrm{DN}}$ (S2-RUT, reproduces SNR@Lref). The
 previously-modelled **per-pixel PRNU + dark** are now the **operational S2A GIPP**: `R2EQOG`
 carries, per detector and per across-track pixel, the dark signal `COEFF_D` (≈440–522 LSB, matching
 the DQR) and the relative-response gains (VNIR cubic `A/B/C`, SWIR bilinear `A1/A2/Zs`); `R2DEPI` the
@@ -314,7 +313,7 @@ Per-stage error-budget table, **reflective-domain terms**. Populate numerically 
 | S6 | PSF-restoration residual (forward-true vs inverse-estimate) | optics/MTF | MTF@Nyquist 0.15–0.30 (Annex A.4) |
 | S7/S12 | PRNU/DSNU + equalization residual | radiometric | inter-band rel. 3 %; linearity 1 % |
 | S9 | crosstalk residual (no processor inverse) | detector | <0.5 % channel-to-channel |
-| S13 | SNR floor | noise model `√(a+b·DN)` | SNR@Lref per band (Annex A.6); ±5 % over ≥10⁴ px |
+| S13 | SNR floor | noise model $\sqrt{a + b \cdot \mathrm{DN}}$ | SNR@Lref per band (Annex A.6); ±5 % over ≥10⁴ px |
 | S14 | quantization | 12-bit (0–4095) | ≈ Lref/SNR LSB |
 | end-to-end | round-trip RMSE `L1B′ − L1B` per band | composite | declared radiometric tolerance; multi-temporal rel. ≤1 % |
 
@@ -331,7 +330,7 @@ Per-stage error-budget table, **reflective-domain terms**. Populate numerically 
 - SRF: **DONE** — per-unit band centre/bandwidth/equivalent wavelength from the official SRF
   doc (COPE-GSEG-EOPG-TN-15-0007) are in `sensor.py`.
 - PSF: **DONE** — official ESA per-band, per-unit matrices (`data/psf/`).
-- Noise: **DONE** — per-band α, β from the L1A product (S2-RUT σ=√(α²+β·DN)).
+- Noise: **DONE** — per-band α, β from the L1A product (S2-RUT $\sigma=\sqrt{\alpha^2+\beta\cdot\mathrm{DN}}$).
 - PRNU: derive from the L1B product (`scripts/derive_prnu_dark.py`). Dark: needs a real
   dark-calibration granule (none in this dataset); per-pixel NUC GIPP credentialed (#36).
 
@@ -396,7 +395,7 @@ unverified/derived flags. Values to be migrated into the sensor-model ADF v0 (§
   20 m bands in the <0.45 bracket; the 10/20 m → 0.15–0.30 framing matches Drusch 2012.)
 - **Official PSF matrices ARE published** (SentiWiki `S2{A,B,C}_PSF.zip`, packaged in
   `s2_e2es/data/psf/`): per-band, per-unit **33×33** matrices, **oversampling 5**, centre at
-  (17, 17), normalised (Σ = 1), for **L1B focal-plane geometry (after binning)**. Computed from
+  (17, 17), normalised ($\Sigma = 1$), for **L1B focal-plane geometry (after binning)**. Computed from
   measured Nyquist MTF (along-track + across-track), Gaussian-modelled — S2A/S2C from 2024, S2B from
   2023 — for all bands **except B10** (water-vapour, does not see the ground). The E2ES S6 step
   integrates each matrix by 5×5 to the detector grid and convolves with it (B10 → identity). This
@@ -442,12 +441,12 @@ unverified/derived flags. Values to be migrated into the sensor-model ADF v0 (§
 - **Inverse (user / reverse-entry):** `ρ = (DN + RADIO_ADD_OFFSET) / QUANTIFICATION_VALUE = (DN − 1000)/10000`.
 - **Forward (product encode):** `DN = ρ·10000 − RADIO_ADD_OFFSET = ρ·10000 + 1000`.
 - No-data DN = **0**; saturated DN = **65535**. Pre-PB04.00 products carry **no** offset.
-- TOA-reflectance equation (PSD): `ρ = π·CN·d² / (A·ESUN·cosθ_s)`, CN = equalised count after L1B
+- TOA-reflectance equation (PSD): $\rho = \pi \cdot C_N \cdot d^2 / (A \cdot E_\mathrm{SUN} \cdot \cos\theta_s)$, CN = equalised count after L1B
   offset, `A` = absolute calibration coefficient per band (in GIPP/ADF — **not published numerically**).
 
-**Instrument noise model** (Gorroño & Gascon, S2-RUT): `Noise(Z) = √(α_Z² + β_Z·Z)`, Z = equalised
-signal; `α_Z` = std of dark-signal frames (read + dark + electronic floor), `β_Z` = shot/Poisson
-from sun-diffuser. Equivalent generic form `σ² = a·DN + b`. Components: dark + readout + electronic
+**Instrument noise model** (Gorroño & Gascon, S2-RUT): $\mathrm{Noise}(Z) = \sqrt{\alpha_Z^2 + \beta_Z \cdot Z}$, Z = equalised
+signal; $\alpha_Z$ = std of dark-signal frames (read + dark + electronic floor), $\beta_Z$ = shot/Poisson
+from sun-diffuser. Equivalent generic form $\sigma^2 = a \cdot \mathrm{DN} + b$. Components: dark + readout + electronic
 + shot. **Per-band α_Z/β_Z are NOT public** → fit to the SNR@Lref anchor + dark-noise floor.
 
 **Reference radiance Lref (W·m⁻²·sr⁻¹·µm⁻¹) and required SNR @ Lref** (S2A/S2B spec, identical):
