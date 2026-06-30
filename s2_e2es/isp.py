@@ -84,6 +84,7 @@ def frame_isp_headers(
     """Per-line ISP headers for a detector/band frame (image data itself stays in ``band{BB}``).
 
     Returns ``(headers, packet_data_length)``:
+
     * ``headers``  — uint8 ``(n_lines, ISP_HEADER_LEN)`` primary + CUC-time header per line.
     * ``packet_data_length`` — uint16 ``(n_lines,)`` octet count of each packet's data field
       (= CUC secondary header + one image line of uint16 samples).

@@ -13,6 +13,16 @@ read = ["zarr>=3"]
 # EOPF CPM for writing spec-compliant L0 EOProducts + processor round-trip (heavy; SDE runner).
 eopf = ["eopf==2.8.1"]
 dev = ["pytest>=8", "zarr>=3"]
+# Sphinx documentation site (GitLab Pages).
+docs = [
+    "sphinx>=7",
+    "myst-parser>=2",
+    "linkify-it-py>=2",
+    "sphinx-book-theme>=1.1",
+    "sphinxcontrib-apidoc>=0.5",
+    "sphinx-autodoc-typehints>=2",
+    "sphinxcontrib-mermaid>=0.9",
+]
 
 [build-system]
 requires = ["flit_core>=3.9"]
