@@ -12,6 +12,7 @@ ADF schema — matches ``msi_processor``'s ``AuxiliaryDataFile.data_ptr`` mappin
     nuc.zarr          /gain/<band>, /offset/<band>    float32 (detector,)  PRNU correction g_d, o_d
     dark.zarr         /dark_offset/<band>             float32 scalar       per-band dark k
     radiometric.zarr  /gain/<band>, /offset/<band>    float32 scalar       DN→radiance G, O
+    spectral.zarr     /esun/<band>                    float32 scalar       ESUN (toa reflectance)
     noise.zarr        /alpha/<band>, /beta/<band>     float32 scalar       σ=√(α²+β·DN)  (E2ES-side)
 
 **Convention.** The NUC ``gain``/``offset`` follow the processor's own two-point form
@@ -42,11 +43,14 @@ try:
 except ImportError:  # pragma: no cover
     zarr = None
 
-# The four ADF file names + their operational S2 type codes (SentiWiki ADF reference).
+# The ADF file names + their operational S2 type codes (SentiWiki ADF reference). ESUN has no distinct
+# operational ADF — it ships within ADF_RABCA / the L1C SOLAR_IRRADIANCE metadata — but msi-processor
+# consumes it as a separate `spectral` ADF, so we emit `spectral.zarr` under an own `ADF_SPECT` label.
 ADF_TYPES = {
     "nuc": "ADF_REQOG",
     "dark": "ADF_REOB2",
     "radiometric": "ADF_RABCA",
+    "spectral": "ADF_SPECT",
     "noise": "ADF_RNOMO",
 }
 
@@ -61,6 +65,7 @@ class BandCal:
     dark_offset: float        # per-band dark k = μ_D
     radio_gain: float         # absolute DN→radiance gain = 1 / cal_gain
     radio_offset: float = 0.0  # absolute DN→radiance offset
+    esun: float = 0.0         # ESUN solar irradiance (W·m⁻²·µm⁻¹), for the toa reflectance step
     noise_alpha: float = 0.0  # σ = √(α² + β·DN)
     noise_beta: float = 0.0
 
@@ -120,9 +125,10 @@ def write_calibration_db(
     *,
     unit: str = sensor.DEFAULT_UNIT,
     source: str = "derived (CSM diffuser + dark calibration)",
+    include_spectral: bool = True,
     include_noise: bool = True,
 ) -> list[Path]:
-    """Write the EOPF zarr ADF set (``nuc`` / ``dark`` / ``radiometric`` [+ ``noise``]) to ``out_dir``.
+    """Write the EOPF zarr ADF set (``nuc`` / ``dark`` / ``radiometric`` [+ ``spectral`` + ``noise``]).
 
     Returns the list of written ``.zarr`` paths. A ``PROVENANCE.md`` is written beside them.
     """
@@ -163,6 +169,19 @@ def write_calibration_db(
         _write_scalar(o_grp, c.band, c.radio_offset)
     written.append(rad_path)
 
+    # spectral.zarr — per-band ESUN (toa-unit reflectance ADF; mandatory when emit_reflectance).
+    if include_spectral:
+        spec_path = out / "spectral.zarr"
+        root = zarr.open_group(str(spec_path), mode="w", zarr_format=2)
+        root.attrs.update(_provenance(
+            unit, "spectral",
+            "per-band ESUN (solar irradiance, W m-2 um-1); operationally within ADF_RABCA / L1C SOLAR_IRRADIANCE",
+            "Thuillier 2003 (ATBD Annex A.3)"))
+        e_grp = root.create_group("esun")
+        for c in cals:
+            _write_scalar(e_grp, c.band, c.esun)
+        written.append(spec_path)
+
     # noise.zarr — E2ES-side noise model (RNOMO); msi-processor does not read it.
     if include_noise:
         noise_path = out / "noise.zarr"
@@ -174,11 +193,12 @@ def write_calibration_db(
             _write_scalar(b_grp, c.band, c.noise_beta)
         written.append(noise_path)
 
-    _write_provenance_md(out / "PROVENANCE.md", unit, source, cals, include_noise)
+    _write_provenance_md(out / "PROVENANCE.md", unit, source, cals, include_spectral, include_noise)
     return written
 
 
-def _write_provenance_md(path: Path, unit: str, source: str, cals: list[BandCal], include_noise: bool) -> None:
+def _write_provenance_md(path: Path, unit: str, source: str, cals: list[BandCal],
+                         include_spectral: bool, include_noise: bool) -> None:
     """Write a human-readable manifest beside the artifacts (like ``data/psf/PROVENANCE.md``)."""
     bands = ", ".join(c.band for c in cals)
     rows = [
@@ -186,6 +206,8 @@ def _write_provenance_md(path: Path, unit: str, source: str, cals: list[BandCal]
         "| `dark.zarr` | `/dark_offset/<band>` | float32 scalar | msi-processor radiometric unit |",
         "| `radiometric.zarr` | `/gain/<band>`, `/offset/<band>` | float32 scalar | msi-processor toa unit |",
     ]
+    if include_spectral:
+        rows.append("| `spectral.zarr` | `/esun/<band>` | float32 scalar | msi-processor toa unit (reflectance) |")
     if include_noise:
         rows.append("| `noise.zarr` | `/alpha/<band>`, `/beta/<band>` | float32 scalar | E2ES-side (RNOMO); not read by msi-processor |")
     text = "\n".join([

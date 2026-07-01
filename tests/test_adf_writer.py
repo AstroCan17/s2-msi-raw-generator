@@ -67,17 +67,17 @@ def test_write_calibration_db_schema(tmp_path):
             "B03",
             nuc_gain=np.array([1.0, 0.99, 1.01], np.float32),
             nuc_offset=np.array([0.0, 0.1, -0.1], np.float32),
-            dark_offset=480.0, radio_gain=0.25, radio_offset=0.0,
+            dark_offset=480.0, radio_gain=0.25, radio_offset=0.0, esun=1823.24,
             noise_alpha=0.488, noise_beta=0.03482,
         ),
         adf_writer.BandCal(
             "B8A",
             nuc_gain=np.ones(4, np.float32), nuc_offset=np.zeros(4, np.float32),
-            dark_offset=481.0, radio_gain=0.20, noise_alpha=0.574, noise_beta=0.08714,
+            dark_offset=481.0, radio_gain=0.20, esun=955.32, noise_alpha=0.574, noise_beta=0.08714,
         ),
     ]
     paths = adf_writer.write_calibration_db(tmp_path, cals, unit="S2A")
-    assert {p.name for p in paths} == {"nuc.zarr", "dark.zarr", "radiometric.zarr", "noise.zarr"}
+    assert {p.name for p in paths} == {"nuc.zarr", "dark.zarr", "radiometric.zarr", "spectral.zarr", "noise.zarr"}
     assert (tmp_path / "PROVENANCE.md").exists()
 
     nuc = zarr.open_group(str(tmp_path / "nuc.zarr"), mode="r")
@@ -97,20 +97,40 @@ def test_write_calibration_db_schema(tmp_path):
     noise = zarr.open_group(str(tmp_path / "noise.zarr"), mode="r")
     assert float(np.asarray(noise["beta/B03"])) == pytest.approx(0.03482)
 
+    # spectral.zarr — per-band ESUN 0-d float32 scalar, exactly what toa/_resolve_esun reads
+    spec = zarr.open_group(str(tmp_path / "spectral.zarr"), mode="r")
+    e = np.asarray(spec["esun/B03"])
+    assert e.dtype == np.float32 and e.shape == ()
+    assert float(e) == pytest.approx(1823.24)
+    assert spec.attrs["adf_type"] == "ADF_SPECT"
 
-def test_write_calibration_db_can_omit_noise(tmp_path):
+
+def test_write_calibration_db_can_omit_spectral_and_noise(tmp_path):
     cals = [adf_writer.BandCal("B02", np.ones(3, np.float32), np.zeros(3, np.float32),
                                dark_offset=480.0, radio_gain=0.3)]
-    paths = adf_writer.write_calibration_db(tmp_path, cals, include_noise=False)
+    paths = adf_writer.write_calibration_db(tmp_path, cals, include_spectral=False, include_noise=False)
     assert {p.name for p in paths} == {"nuc.zarr", "dark.zarr", "radiometric.zarr"}
     assert not (tmp_path / "noise.zarr").exists()
+    assert not (tmp_path / "spectral.zarr").exists()
+
+
+def test_spectral_esun_matches_thuillier_all_bands(tmp_path):
+    """The 13-band build writes ESUN /esun/<band> scalars equal to the S2A Thuillier set (ATBD §A.3)."""
+    out = tmp_path / "caldb"
+    build_cal_db.build(out, n_det=32, seed=1)
+    spec = zarr.open_group(str(out / "spectral.zarr"), mode="r")
+    assert set(spec["esun"].array_keys()) == set(sensor.BANDS)          # 13 bands
+    for bn in sensor.BANDS:
+        v = np.asarray(spec[f"esun/{bn}"])
+        assert v.dtype == np.float32 and v.shape == ()
+        assert float(v) == pytest.approx(sensor.ESUN["S2A"][bn], rel=1e-6)
 
 
 def test_build_all_bands_and_consume(tmp_path):
     """Full 13-band build; feed the ADFs back through the processor formulas -> recover radiance."""
     out = tmp_path / "caldb"
     paths = build_cal_db.build(out, n_det=64, seed=3)
-    assert len(paths) == 4
+    assert len(paths) == 5
 
     nuc = zarr.open_group(str(out / "nuc.zarr"), mode="r")
     assert set(nuc["gain"].array_keys()) == set(sensor.BANDS)   # 13 bands

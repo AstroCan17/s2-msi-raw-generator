@@ -53,6 +53,7 @@ def derive_band_cal(
         dark_offset=float(dark_offset),
         radio_gain=radio_gain,
         radio_offset=0.0,
+        esun=float(sensor.esun(band_name, unit)),
         noise_alpha=float(b.noise_alpha),
         noise_beta=float(b.noise_beta),
     )
