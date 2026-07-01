@@ -103,6 +103,12 @@ correct → reverse impress → raw′, residual $\approx 0$) on S2 data with th
 - **REQ-FUNC-031 — 156 measurement arrays.** *…`measurements/d{DD}/b{BB}/band{N}` uint16 in `[0,4095]`,
   12 det × 13 bands.* **V: T** (`test_l0product::test_full_156_array_contract`). realized
 - **REQ-FUNC-032 — 156 quality masks.** *…`quality/d{DD}/b{BB}/mask` uint8.* **V: T** (`test_l0product`). realized
+- **REQ-FUNC-040 — Quality-flag taxonomy.** *The software shall express L0 quality as msi-processor
+  `QAFlag`-compatible seeds (NO_DATA/LOST_PACKET/SATURATED/DEFECTIVE) and write the canonical L0 mask in the
+  Sentinel-2 `MSK_QUALIT` 8-bit-plane layout.* **V: T** (`quality`, `test_quality`, `test_integration`). realized
+- **REQ-FUNC-041 — EOQC quality report.** *The software shall emit an EOPF EOQC-style per-product quality
+  report (overall OK/KO + per-check list; ECSS-Q-ST-20C) embedded in the L0 `quality` group and available as
+  standalone JSON.* **V: T** (`quality_report`, `test_quality_report`). realized
 - **REQ-FUNC-033 — STAC discovery metadata.** *…platform, instrument, eopf:type, datetime.* **V: T**
   (`l0product.build_root_metadata`). realized
 - **REQ-FUNC-034 — Sensor-configuration metadata.** *…spectral_band_info, tdi_configuration_list,
