@@ -5,6 +5,14 @@ All notable changes to the Sentinel-2 MSI reverse E2ES (`s2_msi_raw_generator`).
 ## [Unreleased]
 
 ### Added
+- **Quality-flag taxonomy** (`s2_msi_raw_generator/quality.py`) — L0 quality expressed as msi-processor
+  `QAFlag`-compatible seeds (NO_DATA/LOST_PACKET/SATURATED/DEFECTIVE, same bit values for monotone-OR
+  interop); the canonical L0 mask is now the Sentinel-2 `MSK_QUALIT` 8-bit-plane layout
+  (`l0_flags`/`to_msk_qualit`/`from_s10_qa`). (REQ-FUNC-040)
+- **EOQC quality report** (`s2_msi_raw_generator/quality_report.py`) — EOPF EOQC-style per-product report
+  (overall OK/KO + per-check list: STAC content/geometry, Sensing_Time, ISO_Time, Datation_Sync,
+  Time_Correlation, orbit bounds, structure), embedded in the L0 `quality` group and writable as standalone
+  JSON. ECSS-Q-ST-20C. (REQ-FUNC-041)
 - **Real line datation** (`s2_msi_raw_generator/datation.py`) — `Datation` (ADF_DATAT model) stamps each ISP
   line with a real GPS/OBT time from an acquisition epoch (was `t0=0`); `isp.parse_cuc_time`; per-band
   `band_time_stamp` + acquisition epoch in the L0 metadata. (REQ-FUNC-035)

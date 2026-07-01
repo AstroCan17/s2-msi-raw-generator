@@ -13,9 +13,11 @@ timing / STAC datetime come from a real :class:`~s2_msi_raw_generator.datation.D
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import numpy as np
 
-from . import __version__, isp, sensor
+from . import __version__, isp, quality, quality_report, sensor
 from .adf import BandADF, synthesize
 from .datation import Datation
 from .reverse import reverse_mvp
@@ -155,6 +157,7 @@ def write_l0_product(
     masks: dict[FrameKey, np.ndarray] | None = None,
     footprint: dict | None = None,
     orbit: dict | None = None,
+    emit_qc: bool = True,
     with_isp: bool = False,
 ) -> str:
     """Write the L0 RAW EOProduct Zarr to ``out_path`` and return it.
@@ -174,9 +177,10 @@ def write_l0_product(
     detectors = sorted({det for det, _ in frames})
     n_lines = max((dn.shape[0] for dn in frames.values()), default=1)
     root = zarr.open_group(out_path, mode="w", zarr_format=2)
-    root.attrs.update(build_root_metadata(
+    meta = build_root_metadata(
         platform=platform, datation=datation, n_lines=n_lines,
-        active_detectors=detectors, footprint=footprint, orbit=orbit))
+        active_detectors=detectors, footprint=footprint, orbit=orbit)
+    root.attrs.update(meta)
 
     m = root.create_group("measurements")
     q = root.create_group("quality")
@@ -193,10 +197,12 @@ def write_l0_product(
         a[:] = dn
         a.attrs["short_name"] = f"band{bnum}"
 
+        # Canonical L0 mask = S2 MSK_QUALIT (8 bit-planes), seeded from DN (saturation/no-data/lost)
+        # OR'd with any injected-defect qa (reverse.s10 bit0=dead/bit1=hot → DEFECTIVE/SATURATED).
+        qflags = quality.l0_flags(dn)
         if masks is not None and (det, bname) in masks:
-            mk = masks[(det, bname)].astype(np.uint8)
-        else:
-            mk = (dn >= sensor.DN_MAX).astype(np.uint8)  # bit 0 = saturated
+            qflags = qflags | quality.from_s10_qa(masks[(det, bname)])
+        mk = quality.to_msk_qualit(qflags)
         qg = q.require_group(f"d{det:02d}").require_group(bkey)
         qa = qg.create_array("mask", shape=mk.shape, dtype="uint8", chunks=mk.shape)
         qa[:] = mk
@@ -218,5 +224,10 @@ def write_l0_product(
             sl = sg.create_array("packet_data_length", shape=sad_len.shape, dtype="uint16",
                                  chunks=sad_len.shape)
             sl[:] = sad_len
+
+    # EOPF EOQC-style per-product quality report, embedded in the quality group (REQ-FUNC-041).
+    if emit_qc:
+        q.attrs["qc"] = quality_report.build_qc_report(
+            meta, product_name=Path(out_path).name, has_measurements=bool(frames))
 
     return out_path
