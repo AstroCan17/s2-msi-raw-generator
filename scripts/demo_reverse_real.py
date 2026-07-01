@@ -15,7 +15,7 @@ import sys
 
 import numpy as np
 
-from s2_e2es import adf, io, reverse, sensor
+from s2_msi_raw_generator import adf, io, reverse, sensor
 
 DEFAULT_L1B = (
     "/media/cando/T7/01_cdk/59_gitlab_repos/Copernicus/raw-data-gen/data/"

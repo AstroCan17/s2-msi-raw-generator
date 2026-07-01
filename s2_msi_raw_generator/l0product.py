@@ -84,7 +84,7 @@ def build_root_metadata(
             },
         },
         "processing_history": {
-            "processor": "s2_e2es",
+            "processor": "s2_msi_raw_generator",
             "processor_version": __version__,
             # REQ-FUNC-045 — provenance of each ADF component.
             "adf_provenance": {

@@ -15,7 +15,7 @@ import pytest
 
 zarr = pytest.importorskip("zarr")
 
-from s2_e2es import adf, adf_writer, reverse, sensor
+from s2_msi_raw_generator import adf, adf_writer, reverse, sensor
 
 # Import the producer script (scripts/ is not a package).
 _SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "build_cal_db.py"
@@ -85,7 +85,7 @@ def test_write_calibration_db_schema(tmp_path):
     g = np.asarray(nuc["gain/B03"])
     assert g.dtype == np.float32 and g.shape == (3,)
     assert np.asarray(nuc["offset/B8A"]).shape == (4,)
-    assert nuc.attrs["processor"] == "s2_e2es"
+    assert nuc.attrs["processor"] == "s2_msi_raw_generator"
     assert nuc.attrs["adf_type"] == "ADF_REQOG"
 
     # scalars are 0-d and float()-able (as the processor reads them)

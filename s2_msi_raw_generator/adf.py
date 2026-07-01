@@ -18,7 +18,7 @@ official L1 ATBD equation ``X = A·G·L + D`` (S2-PDGS-MPC-ATBD-L1 §4.1.1). Pro
               the chain reproduces the SNR@Lref.
 * dark (D), PRNU (G) — REAL **per-pixel** values from the operational S2A GIPP `R2EQOG` (dark `COEFF_D`
               ≈440–522 LSB; relative-response gains cubic `A/B/C` / bilinear `A1/A2/Zs`), parsed by
-              `s2_e2es.gipp` and built via ``BandADF.from_gipp``. Fallbacks: the Feb-2023 DQR dark
+              `s2_msi_raw_generator.gipp` and built via ``BandADF.from_gipp``. Fallbacks: the Feb-2023 DQR dark
               (`sensor.DARK_PEDESTAL_LSB` + `Band.dark_dsnu`) and ``BandADF.from_product`` (L1B-derived
               PRNU); ``synthesize`` seeds representative values when no GIPP is supplied. Onboard-eq gain
               uses the measured stability (0.05 % 1σ, no offset; `sensor.EQ_GAIN_STD`).
@@ -168,7 +168,7 @@ class BandADF:
         """Build a :class:`BandADF` for one detector from the REAL operational GIPP (R2EQOG):
         per-pixel dark signal ``D`` and relative-response (PRNU) gain (C cubic / A1 bilinear).
 
-        ``gippset`` is a :class:`s2_e2es.gipp.GippSet`. When ``active_width`` is given and differs from
+        ``gippset`` is a :class:`s2_msi_raw_generator.gipp.GippSet`. When ``active_width`` is given and differs from
         the GIPP across-track size, the blind columns (from BLINDP) are stripped so the arrays align to
         the active product width. PSF and noise stay (SentiWiki PSF, product noise model).
         """

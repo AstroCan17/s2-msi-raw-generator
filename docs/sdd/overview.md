@@ -19,7 +19,7 @@
 ## Software static architecture
 
 ### Component view
-The software is the single Python package `s2_e2es` (one CSC). Modules:
+The software is the single Python package `s2_msi_raw_generator` (one CSC). Modules:
 
 | Module | Responsibility |
 |---|---|

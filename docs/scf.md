@@ -21,15 +21,15 @@ ECSS-E-ST-40C Rev.1. This SCF records the as-built configuration of the Sentinel
 ## Introduction
 
 The Software Configuration File documents the inventory, baseline, build means and known issues of the
-`s2_e2es` software configuration item, so that the delivered package can be rebuilt and run reproducibly.
+`s2_msi_raw_generator` software configuration item, so that the delivered package can be rebuilt and run reproducibly.
 
 ## Software configuration item overview
 
 | Field | Value |
 |-------|-------|
 | Name | Sentinel-2 MSI Synthetic Raw Data Generator |
-| Package | `s2_e2es` |
-| Version | `0.3.0.dev0` (`s2_e2es/__init__.py`) |
+| Package | `s2_msi_raw_generator` |
+| Version | `0.3.0.dev0` (`s2_msi_raw_generator/__init__.py`) |
 | Repository | `gitlab.eopf` `e2es/s2-msi-raw-generator`, branch `main` |
 | License | Apache-2.0 |
 | Language / runtime | Python ≥ 3.11 |
@@ -37,9 +37,9 @@ The Software Configuration File documents the inventory, baseline, build means a
 
 ## Inventory of materials
 
-- **Source modules** (`s2_e2es/`): `sensor.py`, `adf.py`, `gipp.py`, `forward_radiometric_atbd.py`,
+- **Source modules** (`s2_msi_raw_generator/`): `sensor.py`, `adf.py`, `gipp.py`, `forward_radiometric_atbd.py`,
   `reverse.py`, `calibration.py`, `isp.py`, `io.py`, `l0product.py`, `__init__.py`.
-- **Packaged data** (`s2_e2es/data/psf/`):S2 PSF matrices, 12 bands × 3 units (S2A/S2B/S2C) CSV
+- **Packaged data** (`s2_msi_raw_generator/data/psf/`):S2 PSF matrices, 12 bands × 3 units (S2A/S2B/S2C) CSV
   (B10 absent by design) + `PROVENANCE.md`.
 - **Scripts** (`scripts/`): `demo_reverse_real.py`, `demo_build_l0.py`, `derive_prnu_dark.py`,
   `roundtrip_real_l1a.py`, `demo_calibration.py`, `save_images.py`.

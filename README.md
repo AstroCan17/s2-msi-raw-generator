@@ -1,4 +1,4 @@
-# Sentinel-2 MSI Synthetic Raw Data Generator (`s2_e2es`)
+# Sentinel-2 MSI Synthetic Raw Data Generator (`s2_msi_raw_generator`)
 
 End-to-End performance Simulator for Sentinel-2 MSI — the **reverse / forward-instrument
 conjugate** of the `msi-processor` (L0c→L2A). It degrades a  Sentinel-2 **L1A/L1B** product
@@ -26,7 +26,7 @@ input/output data, and where it is stored:
 flowchart LR
     IN[("Real S2 L1A/L1B<br/>EOPF product")]
     ADFsrc[("ADF sources<br/>GIPP - PSF - SRF")]
-    subgraph GEN["s2_e2es — Synthetic Raw Data Generator - PRODUCER"]
+    subgraph GEN["s2_msi_raw_generator — Synthetic Raw Data Generator - PRODUCER"]
         direction TB
         REV["reverse chain S1-S15<br/>(reverse.py)"]
         CAL["calibration.py<br/>derive D, g, A"]
@@ -60,16 +60,16 @@ ADF, so the round-trip is non-tautological.
 
 | Module | Responsibility |
 |---|---|
-| `s2_e2es/sensor.py` | S2 band model — per-band gains/TDI/Lref/integration-time (datasheet) |
-| `s2_e2es/adf.py` | ADFs — **real** ESA PSF matrices (`data/psf/`) + SRF spectral + SNR@Lref noise; PRNU/dark from the operational GIPP (`BandADF.from_gipp`) |
-| `s2_e2es/gipp.py` | Original reader for the operational S2A **GIPP** (R2EQOG per-pixel dark+gains, R2DEPI, BLINDP, R2PARA, R2CRCO) |
-| `s2_e2es/forward_radiometric_atbd.py` | Public-ATBD forward radiometric model + exact inverse (round-trip V&V on the L1A) |
-| `s2_e2es/calibration.py` | S2 calibration sub-set — synthetic CSM sun-diffuser + dark → **derived** gain/dark coeffs (inverse-crime cure) |
-| `s2_e2es/reverse.py` | Reverse chain steps **S1–S14** + `reverse_full` / `reverse_mvp` |
-| `s2_e2es/isp.py` | **S15** — CCSDS ISP packet generation + SAD telemetry |
-| `s2_e2es/io.py` | Real EOPF L1A/L1B Zarr reader (`zarr`) |
-| `s2_e2es/l0product.py` | L0 RAW EOProduct assembly (156-array Zarr + STAC/sensor-config + ISP) |
-| `s2_e2es/adf_writer.py` | **Calibration database** — writes derived coeffs as EOPF ADFs (`nuc`/`dark`/`radiometric`/`noise`) for the downstream L1PP processor |
+| `s2_msi_raw_generator/sensor.py` | S2 band model — per-band gains/TDI/Lref/integration-time (datasheet) |
+| `s2_msi_raw_generator/adf.py` | ADFs — **real** ESA PSF matrices (`data/psf/`) + SRF spectral + SNR@Lref noise; PRNU/dark from the operational GIPP (`BandADF.from_gipp`) |
+| `s2_msi_raw_generator/gipp.py` | Original reader for the operational S2A **GIPP** (R2EQOG per-pixel dark+gains, R2DEPI, BLINDP, R2PARA, R2CRCO) |
+| `s2_msi_raw_generator/forward_radiometric_atbd.py` | Public-ATBD forward radiometric model + exact inverse (round-trip V&V on the L1A) |
+| `s2_msi_raw_generator/calibration.py` | S2 calibration sub-set — synthetic CSM sun-diffuser + dark → **derived** gain/dark coeffs (inverse-crime cure) |
+| `s2_msi_raw_generator/reverse.py` | Reverse chain steps **S1–S14** + `reverse_full` / `reverse_mvp` |
+| `s2_msi_raw_generator/isp.py` | **S15** — CCSDS ISP packet generation + SAD telemetry |
+| `s2_msi_raw_generator/io.py` | Real EOPF L1A/L1B Zarr reader (`zarr`) |
+| `s2_msi_raw_generator/l0product.py` | L0 RAW EOProduct assembly (156-array Zarr + STAC/sensor-config + ISP) |
+| `s2_msi_raw_generator/adf_writer.py` | **Calibration database** — writes derived coeffs as EOPF ADFs (`nuc`/`dark`/`radiometric`/`noise`) for the downstream L1PP processor |
 
 ## Documentation
 
