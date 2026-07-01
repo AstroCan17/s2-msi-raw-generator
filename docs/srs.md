@@ -86,7 +86,7 @@ correct → reverse impress → raw′, residual $\approx 0$) on S2 data with th
   **V: T** (`reverse.s14_quantize`). realized
 - **REQ-FUNC-013 — Reverse 60 m binning (S5).** *…un-bin B01/B09/B10 to detector resolution.* **V: T**
   (`reverse.s5_unbin`). realized
-- **REQ-FUNC-016 — Restore SWIR arrangement (S8).** *…re-stagger B10/B11/B12 readout.* **V: T**
+- **REQ-FUNC-016 — Restore SWIR arrangement (S8).** *…reverse the SWIR re-arrangement of the B10/B11/B12 readout.* **V: T**
   (`reverse.s8_restage_swir`). realized
 - **REQ-FUNC-017 — Re-apply crosstalk (S9).** *…apply inter-band crosstalk (GIPP `R2CRCO` $\approx 0$ for S2A).*
   **V: T** (`reverse.s9_apply_crosstalk`). realized

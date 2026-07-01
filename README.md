@@ -135,7 +135,7 @@ are set.
 | 0 | Scaffold, CI, ATBD + Annex A datasheet |
 | 1 | MVP radiometric core (S1, S6, S7, S11–S14) + sensor model +S2 PSF / SRF ADFs |
 | 2 | L0 RAW EOProduct assembly (156-array Zarr) |
-| 3 | S3/S4/S5/S8/S9/S10 (framing, offset, binning, SWIR re-stagger, crosstalk, defects) |
+| 3 | S3/S4/S5/S8/S9/S10 (framing, offset, binning, SWIR re-arrangement (reverse), crosstalk, defects) |
 | 4 | S15 CCSDS ISP packet generation + SAD telemetry |
 | 5 | Real per-band noise model (α,β) + official ATBD raw model (`X=A·G·L+D`), DQR dark |
 | 6 | Real operational **GIPP** → per-pixel dark + relative response (`gipp.py`, `from_gipp`) |

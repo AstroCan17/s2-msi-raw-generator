@@ -135,7 +135,7 @@ def s5_unbin(img: np.ndarray, factor: int = 3, axis: int = 1) -> np.ndarray:
 
 
 def s8_restage_swir(img: np.ndarray, shifts: np.ndarray) -> np.ndarray:
-    """S8 — re-introduce the staggered SWIR readout: roll each detector column along-track.
+    """S8 — SWIR re-arrangement (reverse): re-introduce the staggered SWIR readout by rolling each detector column along-track.
 
     ``shifts[c]`` is the integer line shift for column ``c`` (PyRawS-style deterministic shift
     map). Exactly invertible by restaging with ``-shifts``.
@@ -194,7 +194,7 @@ def reverse_full(
     dead_cols: tuple[int, ...] = (),
     hot_pixels: tuple[tuple[int, int], ...] = (),
 ) -> tuple[np.ndarray, np.ndarray]:
-    """Extended per-band reverse chain (Inc 3): adds S8 (SWIR re-stagger) and S10 (defects).
+    """Extended per-band reverse chain (Inc 3): adds S8 (SWIR re-arrangement, reverse) and S10 (defects).
 
     S1 → S6 → S7 → [S8] → S13 → S11 → S12 → [S10] → S14. Noise (S13) is on the signal DN (before
     the dark pedestal); defects (S10) are applied last so dead columns stay 0 and hot pixels stay
