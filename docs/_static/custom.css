@@ -1,0 +1,15 @@
+/* Justified body text for a scientific-paper reading experience.
+ * Scoped to article prose only — headings, code blocks, tables, admonitions
+ * and display math keep their own alignment. Hyphenation reduces the ragged
+ * inter-word gaps ("rivers") that justification otherwise introduces. */
+article p,
+article li,
+article dd,
+.bd-article p,
+.bd-article li,
+.bd-article dd {
+    text-align: justify;
+    text-justify: inter-word;
+    -webkit-hyphens: auto;
+    hyphens: auto;
+}
