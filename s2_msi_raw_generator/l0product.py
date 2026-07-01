@@ -17,7 +17,7 @@ from pathlib import Path
 
 import numpy as np
 
-from . import __version__, isp, quality, quality_report, sensor
+from . import __version__, isp, quality, quality_report, sad, sensor
 from .adf import BandADF, synthesize
 from .datation import Datation
 from .reverse import reverse_mvp
@@ -85,6 +85,7 @@ def build_root_metadata(
     det_str = ",".join(f"{d:02d}" for d in sorted(active_detectors))
     unit = sensor.unit_from_platform(platform)
     start_iso, end_iso = datation.span_utc(n_lines)
+    eph_start, eph_stop = sad.orbit_ephemeris(datation, n_lines)
     return {
         "stac_discovery": {
             "type": "Feature",
@@ -111,6 +112,8 @@ def build_root_metadata(
             "NUC_table_ID": sensor.NUC_TABLE_ID,
             "onboard_compression_flag": True,
             "onboard_equalization_flag": True,
+            "orbit_ephemeris_start": eph_start,
+            "orbit_ephemeris_stop": eph_stop,
             "sensor_configuration": {
                 "acquisition_configuration": {
                     "active_detectors_list": det_str,
@@ -214,13 +217,13 @@ def write_l0_product(
             ih = mg.create_array("isp_header", shape=hdr.shape, dtype="uint8", chunks=hdr.shape)
             ih[:] = hdr
             mg.attrs["apid"] = apid
-            # SAD/housekeeping telemetry for this APID stream
-            sad, sad_len = isp.build_sad_packets(apid, max(dn.shape[0] // 8, 1),
-                                                 t0_seconds=datation.gps_epoch_s,
-                                                 period_s=line_period_s * 8)
+            # SAD telemetry for this APID: real AOCS quaternion + orbit ephemeris + thermal (not zeros)
+            n_sad = max(dn.shape[0] // 8, 1)
+            sad_times = datation.gps_epoch_s + np.arange(n_sad) * (line_period_s * 8)
+            sad_arr, sad_len = sad.pack_sad_isp(sad.synth_orbit_attitude(sad_times), apid)
             sg = cond.require_group(f"s{apid}")
-            si = sg.create_array("isp", shape=sad.shape, dtype="uint8", chunks=sad.shape)
-            si[:] = sad
+            si = sg.create_array("isp", shape=sad_arr.shape, dtype="uint8", chunks=sad_arr.shape)
+            si[:] = sad_arr
             sl = sg.create_array("packet_data_length", shape=sad_len.shape, dtype="uint16",
                                  chunks=sad_len.shape)
             sl[:] = sad_len
