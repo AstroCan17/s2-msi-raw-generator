@@ -5,6 +5,12 @@ All notable changes to the Sentinel-2 MSI reverse E2ES (`s2_msi_raw_generator`).
 ## [Unreleased]
 
 ### Added
+- **zarr v2/v3 write compatibility** (`s2_msi_raw_generator/_zarrio.py`) — the L0 + cal-DB writers now run under
+  **both** zarr 3 (local/CI) and **zarr 2.18** (the `eopf==2.8.1` SDE env; eopf pins zarr <3). Products stay in
+  the zarr **v2** on-disk format either way. Consequence: the full **L0→L1B E2E runs in a single venv** alongside
+  `msi-processor` (no separate zarr-3 venv). `scripts/run_e2e_l0_to_l1b.py::run_processor` rewritten to the real
+  eopf/msi_processor API — **validated on the SDE**: generator L0 + cal-DB → `l0_decode → radiometric → enhancement
+  → toa` → real **L1B TOA reflectance** for all bands (VNIR ~0.18, NIR ~0.27, SWIR ~0.05).
 - **Open-container L0 handoff + L0→L1B E2E** — `l0product.write_l0_opencontainer` writes the *decoded* L0
   (`measurements/detector/<band>` uint16 + `quality/l0_flags/<band>` QAFlag + per-line `conditions/*`) that
   `msi-processor`'s `l0_decode` ingests directly; `scripts/run_e2e_l0_to_l1b.py` drives the full

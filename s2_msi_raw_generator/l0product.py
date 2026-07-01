@@ -174,12 +174,13 @@ def write_l0_product(
     """
     if zarr is None:
         raise ImportError("zarr is required to write L0 products: `uv pip install zarr`")
+    from . import _zarrio
 
     if datation is None:
         datation = Datation(epoch_utc=datetime_iso) if datetime_iso else Datation()
     detectors = sorted({det for det, _ in frames})
     n_lines = max((dn.shape[0] for dn in frames.values()), default=1)
-    root = zarr.open_group(out_path, mode="w", zarr_format=2)
+    root = _zarrio.open_group_w(out_path)
     meta = build_root_metadata(
         platform=platform, datation=datation, n_lines=n_lines,
         active_detectors=detectors, footprint=footprint, orbit=orbit)
@@ -196,8 +197,7 @@ def write_l0_product(
         bkey = sensor.zarr_band_key(bname)
         bnum = sensor.band_number(bname)
         mg = m.require_group(f"d{det:02d}").require_group(bkey)
-        a = mg.create_array(f"band{bnum}", shape=dn.shape, dtype="uint16", chunks=dn.shape)
-        a[:] = dn
+        a = _zarrio.put_array(mg, f"band{bnum}", dn, dtype="uint16")
         a.attrs["short_name"] = f"band{bnum}"
 
         # Canonical L0 mask = S2 MSK_QUALIT (8 bit-planes), seeded from DN (saturation/no-data/lost)
@@ -207,26 +207,21 @@ def write_l0_product(
             qflags = qflags | quality.from_s10_qa(masks[(det, bname)])
         mk = quality.to_msk_qualit(qflags)
         qg = q.require_group(f"d{det:02d}").require_group(bkey)
-        qa = qg.create_array("mask", shape=mk.shape, dtype="uint8", chunks=mk.shape)
-        qa[:] = mk
+        _zarrio.put_array(qg, "mask", mk, dtype="uint8")
 
         if with_isp:
             apid = isp.apid_for(det, sensor.BANDS.index(bname))
             t0 = datation.line_time_gps(0, bname)  # real GPS/OBT epoch of this band's first line
             hdr, plen = isp.frame_isp_headers(dn, apid, t0_seconds=t0, line_period_s=line_period_s)
-            ih = mg.create_array("isp_header", shape=hdr.shape, dtype="uint8", chunks=hdr.shape)
-            ih[:] = hdr
+            _zarrio.put_array(mg, "isp_header", hdr, dtype="uint8")
             mg.attrs["apid"] = apid
             # SAD telemetry for this APID: real AOCS quaternion + orbit ephemeris + thermal (not zeros)
             n_sad = max(dn.shape[0] // 8, 1)
             sad_times = datation.gps_epoch_s + np.arange(n_sad) * (line_period_s * 8)
             sad_arr, sad_len = sad.pack_sad_isp(sad.synth_orbit_attitude(sad_times), apid)
             sg = cond.require_group(f"s{apid}")
-            si = sg.create_array("isp", shape=sad_arr.shape, dtype="uint8", chunks=sad_arr.shape)
-            si[:] = sad_arr
-            sl = sg.create_array("packet_data_length", shape=sad_len.shape, dtype="uint16",
-                                 chunks=sad_len.shape)
-            sl[:] = sad_len
+            _zarrio.put_array(sg, "isp", sad_arr, dtype="uint8")
+            _zarrio.put_array(sg, "packet_data_length", sad_len, dtype="uint16")
 
     # EOPF EOQC-style per-product quality report, embedded in the quality group (REQ-FUNC-041).
     if emit_qc:
@@ -265,10 +260,11 @@ def write_l0_opencontainer(
     """
     if zarr is None:
         raise ImportError("zarr is required to write L0 products: `uv pip install zarr`")
+    from . import _zarrio
     if datation is None:
         datation = Datation()
     n_lines = max((np.asarray(f).shape[0] for f in band_frames.values()), default=1)
-    root = zarr.open_group(out_path, mode="w", zarr_format=2)
+    root = _zarrio.open_group_w(out_path)
     meta = build_root_metadata(platform=platform, datation=datation, n_lines=n_lines,
                                active_detectors=[1], footprint=footprint, orbit=orbit)
     root.attrs.update(meta)
@@ -277,13 +273,11 @@ def write_l0_opencontainer(
     lf = root.create_group("quality").create_group("l0_flags")
     for bname, frame in sorted(band_frames.items()):
         dn = np.asarray(frame, dtype=np.uint16)
-        a = det.create_array(bname, shape=dn.shape, dtype="uint16", chunks=dn.shape)
-        a[:] = dn
+        _zarrio.put_array(det, bname, dn, dtype="uint16")
         qflags = quality.l0_flags(dn)
         if masks and bname in masks:
             qflags = qflags | quality.from_s10_qa(masks[bname])
-        qa = lf.create_array(bname, shape=qflags.shape, dtype="uint16", chunks=qflags.shape)
-        qa[:] = qflags
+        _zarrio.put_array(lf, bname, qflags, dtype="uint16")
 
     # per-line conditions (SAD-derived): line_time + orbit position/velocity + attitude quaternion
     line_times = datation.gps_epoch_s + np.arange(n_lines) * datation.line_period_s
@@ -291,9 +285,7 @@ def write_l0_opencontainer(
     cg = root.create_group("conditions")
     for path, arr in conds.items():
         grp_name, _, arr_name = path.partition("/")
-        c = cg.require_group(grp_name).create_array(arr_name, shape=arr.shape, dtype="float64",
-                                                    chunks=arr.shape)
-        c[:] = arr
+        _zarrio.put_array(cg.require_group(grp_name), arr_name, arr, dtype="float64")
 
     if emit_qc:
         root["quality"].attrs["qc"] = quality_report.build_qc_report(
