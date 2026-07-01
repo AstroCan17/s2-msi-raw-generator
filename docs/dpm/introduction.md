@@ -17,7 +17,7 @@
 # Introduction
 
 This Data Processing Model (DPM) describes the processing chain of the Sentinel-2 MSI Synthetic Raw Data Generator
-(`s2_e2es`) — the algorithmic flow that turns a Sentinel-2 **L1A/L1B** product into a synthetic
+(`s2_msi_raw_generator`) — the algorithmic flow that turns a Sentinel-2 **L1A/L1B** product into a synthetic
 **L0 RAW** product. It complements the ATBD (`docs/atbd/atbd.md`, the per-step physics) and the SDD
 (`docs/sdd/`, the software structure). DRD: ECSS-E-ST-40C Rev.1, tailored for an EOPF processor.
 

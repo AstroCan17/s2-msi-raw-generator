@@ -7,7 +7,7 @@ import pytest
 
 zarr = pytest.importorskip("zarr")
 
-from s2_e2es import l0product, sensor
+from s2_msi_raw_generator import l0product, sensor
 
 
 def _synthetic_l1b(detectors, bands, shape=(16, 8), seed=0):

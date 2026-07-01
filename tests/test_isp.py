@@ -5,7 +5,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from s2_e2es import isp, sensor
+from s2_msi_raw_generator import isp, sensor
 
 
 def test_primary_header_roundtrip():
@@ -76,7 +76,7 @@ def test_apid_for_is_deterministic_and_11bit():
 
 def test_l0_with_isp_writes_headers_and_telemetry(tmp_path):
     zarr = pytest.importorskip("zarr")
-    from s2_e2es import l0product
+    from s2_msi_raw_generator import l0product
     frames = {(4, "B03"): np.full((16, 8), 100.0)}
     l0 = l0product.reverse_to_l0_frames(frames, seed=1)
     out = str(tmp_path / "L0isp.zarr")

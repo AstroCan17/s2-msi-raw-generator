@@ -16,7 +16,7 @@
 
 # Software Requirements Specification (SRS)
 
-**Project:** Sentinel-2 MSI Synthetic Raw Data Generator (`s2_e2es`) · **DRD:** ECSS-E-ST-40C Rev.1 (SRS; SSS + IRD
+**Project:** Sentinel-2 MSI Synthetic Raw Data Generator (`s2_msi_raw_generator`) · **DRD:** ECSS-E-ST-40C Rev.1 (SRS; SSS + IRD
 folded in, tailored for a single-CSC E2ES). Verification methods: **T** test · **A** analysis · **I**
 inspection · **R** review.
 

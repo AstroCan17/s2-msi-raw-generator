@@ -2,7 +2,7 @@
 """Derive REAL per-detector PRNU + dark from matched Sentinel-2 products.
 
 This estimates per-detector PRNU + dark directly from the **real** products, as an alternative to the
-operational GIPP path (`s2_e2es.gipp` / `BandADF.from_gipp`) when only L1A/L1B products are at hand:
+operational GIPP path (`s2_msi_raw_generator.gipp` / `BandADF.from_gipp`) when only L1A/L1B products are at hand:
 
 * **PRNU relative response** — per-detector-column relative gain, from a L1A (deNUCed DN) or
   L1B granule: normalise each column's robust mean by the cross-track running mean, isolating the
@@ -13,7 +13,7 @@ operational GIPP path (`s2_e2es.gipp` / `BandADF.from_gipp`) when only L1A/L1B p
   lowest possible signal). Use a dark-calibration / night granule for best results.
 
 Output: an ``.npz`` with arrays ``prnu_gain`` and ``dark_dn`` keyed ``{det:02d}_{band}``, consumed
-by :meth:`s2_e2es.adf.BandADF.from_product`.
+by :meth:`s2_msi_raw_generator.adf.BandADF.from_product`.
 
 Run where the products live (e.g. the T7 archive), with the ``read`` extra (``zarr``):
 
@@ -29,7 +29,7 @@ import argparse
 
 import numpy as np
 
-from s2_e2es import io, sensor
+from s2_msi_raw_generator import io, sensor
 
 
 def _parse_detectors(spec: str) -> list[int]:

@@ -16,7 +16,7 @@
 
 # Interface control document
 
-**Project:** Sentinel-2 MSI Synthetic Raw Data Generator (`s2_e2es`) · **DRD:** ECSS-E-ST-40C Rev.1, Annex E (ICD).
+**Project:** Sentinel-2 MSI Synthetic Raw Data Generator (`s2_msi_raw_generator`) · **DRD:** ECSS-E-ST-40C Rev.1, Annex E (ICD).
 Companion to the SRS (`docs/srs.md`, interface requirements REQ-IF-001/002/003) and the ATBD
 (`docs/atbd/atbd.md`).
 
@@ -29,7 +29,7 @@ data interfaces are file-based (Zarr / XML); there is no network, hardware, or d
 
 ## Software overview
 
-`s2_e2es` is a pure-Python library (runtime deps `numpy`, plus `zarr` for product I/O). It reads a real
+`s2_msi_raw_generator` is a pure-Python library (runtime deps `numpy`, plus `zarr` for product I/O). It reads a real
 L1A/L1B granule, runs the radiometric reverse chain (ATBD §5, S1–S15), and assembles a 156-array L0 RAW
 EOProduct. Auxiliary inputs (PSF matrices, SRF, operational GIPP) areS2 data.
 
@@ -60,7 +60,7 @@ Dependency direction: `sensor` (leaf) → `adf`/`gipp` → `reverse`/`forward_ra
   `float64` DN (offset $\approx 48$, saturation sentinel 32768). Read by `io.read_l1a_raw`.
 - **IF-IN-GIPP** — operational S2A GIPP, directory of `S2A_OPER_GIP_<TYPE>_*.xml`
   (R2EQOG ×13, R2DEPI, BLINDP, R2PARA, R2CRCO). Read by `gipp.load_gipp_set`.
-- **IF-IN-ADF** — packaged PSF matrices (`s2_e2es/data/psf/{S2A,S2B,S2C}/*.csv`, 33×33 oversampled).
+- **IF-IN-ADF** — packaged PSF matrices (`s2_msi_raw_generator/data/psf/{S2A,S2B,S2C}/*.csv`, 33×33 oversampled).
 - **IF-OUT-L0** — synthetic **L0 RAW** EOProduct (Zarr v2) — see ICD-IF-L0 below.
 - **IF-MMI** — man-machine: command-line scripts (`scripts/*.py`); stdout reports.
 
@@ -97,7 +97,7 @@ A full product = **12 detectors × 13 bands = 156** `band{N}` arrays + 156 `mask
 | `other_metadata.NUC_table_ID` / `onboard_compression_flag` / `onboard_equalization_flag` | `3` / `true` / `true` | REQ-FUNC-034 |
 | `other_metadata.sensor_configuration.acquisition_configuration` | `active_detectors_list` (zero-padded sorted), `compress_mode`, `equalization_mode`, `nuc_table_id`, `spectral_band_info` (per band: `compression_rate`, `integration_time{unit:ms,value}`, `physical_gains`, `central_wavelength{nm}`, `bandwidth{nm}`, `equivalent_wavelength{nm}` — per-unit SRF), `tdi_configuration_list={"03":"APPLIED","04":"APPLIED","11":"APPLIED","12":"APPLIED"}` | REQ-FUNC-034 |
 | `other_metadata.sensor_configuration.time_stamp.line_period` | `1.5658736` (ms) | REQ-FUNC-034 |
-| `processing_history` | `processor="s2_e2es"`, `processor_version`, `adf_provenance{physical_gains, cal_gain, psf, spectral, noise, dark, equalization, prnu, defects}` | REQ-FUNC-045 |
+| `processing_history` | `processor="s2_msi_raw_generator"`, `processor_version`, `adf_provenance{physical_gains, cal_gain, psf, spectral, noise, dark, equalization, prnu, defects}` | REQ-FUNC-045 |
 
 `unit` (S2A/S2B/S2C) is derived from `platform` via `sensor.unit_from_platform`; APIDs from
 `isp.apid_for(detector, band_index)` (11-bit, base 1024).

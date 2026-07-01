@@ -1,18 +1,18 @@
 # Changelog
 
-All notable changes to the Sentinel-2 MSI reverse E2ES (`s2_e2es`).
+All notable changes to the Sentinel-2 MSI reverse E2ES (`s2_msi_raw_generator`).
 
 ## [Unreleased]
 
 ### Added
-- **Calibration sub-set** (`s2_e2es/calibration.py`) — the S2 two-reference radiometric calibration:
+- **Calibration sub-set** (`s2_msi_raw_generator/calibration.py`) — the S2 two-reference radiometric calibration:
   synthetic CSM sun-diffuser + dark acquisitions → derive dark `D`, relative response `g`, absolute
   coefficient `A` (public L1 ATBD §4.1.1.2.2). A processor uses the *derived* coefficients, not the
   truth — the inverse-crime cure. Verified on the GIPP (dark <0.05 DN, `g` corr >0.99, `A≈cal_gain`).
-- **Real operational GIPP reader** (`s2_e2es/gipp.py`) — original `xml.etree` parser of the S2A
+- **Real operational GIPP reader** (`s2_msi_raw_generator/gipp.py`) — original `xml.etree` parser of the S2A
   GIPP: R2EQOG (per-pixel dark `COEFF_D` + cubic/bilinear relative-response gains), R2DEPI, BLINDP,
   R2PARA, R2CRCO. `BandADF.from_gipp()` builds per-pixel dark + PRNU ADFs.
-- **Original ATBD forward + round-trip V&V** (`s2_e2es/forward_radiometric_atbd.py`) — forward
+- **Original ATBD forward + round-trip V&V** (`s2_msi_raw_generator/forward_radiometric_atbd.py`) — forward
   radiometric correction and its exact inverse from the public L1 ATBD; `scripts/roundtrip_real_l1a.py`
   validates forward∘reverse to ~1e-14 RMSE on a **L1A** with the GIPP.
 - L1A raw reader (`io.read_l1a_raw`), image export (`scripts/save_images.py`), demos
