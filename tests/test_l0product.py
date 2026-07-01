@@ -56,6 +56,36 @@ def test_write_and_reopen_l0_structure(tmp_path):
     assert "SentiWiki" in attrs["processing_history"]["adf_provenance"]["psf"]
 
 
+def test_stac_geometry_orbit_and_datation(tmp_path):
+    """REQ-FUNC-035/038: real datation span + STAC geometry/bbox/orbit + band time stamps."""
+    from s2_msi_raw_generator import datation as dm
+
+    detectors, bands = [4], ["B02", "B03"]
+    frames = l0product.reverse_to_l0_frames(_synthetic_l1b(detectors, bands, shape=(64, 8)), seed=5)
+    out = str(tmp_path / "L0meta.zarr")
+    d = dm.Datation(epoch_utc="2024-04-03T10:24:15Z")
+    l0product.write_l0_product(out, frames, datation=d)
+
+    props = dict(zarr.open_group(out, mode="r").attrs)["stac_discovery"]
+    # geometry / bbox
+    disc = props
+    assert len(disc["bbox"]) == 4
+    ring = disc["geometry"]["coordinates"][0]
+    assert disc["geometry"]["type"] == "Polygon" and ring[0] == ring[-1] and len(ring) >= 4
+    # orbit + product identity
+    p = disc["properties"]
+    assert p["sat:relative_orbit"] == 122 and p["sat:orbit_state"] == "descending"
+    assert p["constellation"] == "sentinel-2" and p["product:type"] == "S2MSIL0_"
+    assert p["eopf:datastrip_id"].startswith("S2A_OPER_MSI_L0__DS_2024")
+    # real datetime span (Zulu, ordered, not the old placeholder)
+    assert p["start_datetime"].endswith("Z") and p["start_datetime"] <= p["end_datetime"]
+    assert p["start_datetime"].startswith("2024-04-03T10:24:15")
+
+    tstamp = dict(zarr.open_group(out, mode="r").attrs)["other_metadata"]["sensor_configuration"]["time_stamp"]
+    assert tstamp["acquisition_epoch_gps_s"] > 1.30e9
+    assert set(tstamp["band_time_stamp"]) == {sensor.band_number(b) for b in sensor.BANDS}
+
+
 def test_full_156_array_contract(tmp_path):
     # 12 detectors × 13 bands = 156 measurement arrays + 156 masks (REQ-FUNC-031/032).
     detectors = list(range(1, 13))
