@@ -234,3 +234,68 @@ def write_l0_product(
             meta, product_name=Path(out_path).name, has_measurements=bool(frames))
 
     return out_path
+
+
+def frames_to_strip(frames: dict[FrameKey, np.ndarray]) -> dict[str, np.ndarray]:
+    """Reduce the 156-array ``{(det, band): frame}`` to one representative ``(line, detector)`` per band."""
+    by_band: dict[str, np.ndarray] = {}
+    for (_det, bname), arr in sorted(frames.items()):
+        by_band.setdefault(bname, np.asarray(arr))   # first (lowest-index) detector per band
+    return by_band
+
+
+def write_l0_opencontainer(
+    out_path: str,
+    band_frames: dict[str, np.ndarray],
+    *,
+    masks: dict[str, np.ndarray] | None = None,
+    datation: Datation | None = None,
+    platform: str = "Sentinel-2A",
+    footprint: dict | None = None,
+    orbit: dict | None = None,
+    emit_qc: bool = True,
+) -> str:
+    """Write the **open-container** L0 that ``msi-processor``'s ``l0_decode`` ingests (REQ-FUNC-042).
+
+    Layout (the *decoded* form the processor reads directly, distinct from the canonical 156-array
+    product): ``measurements/detector/<BAND>`` uint16 ``(line, detector)``, ``quality/l0_flags/<BAND>``
+    uint16 (``QAFlag`` seed), ``conditions/{time,orbit,attitude}`` per-line telemetry, + shared root
+    metadata. The hard invariant for the downstream ``nuc`` ADF: ``nuc.gain[band]`` length must equal
+    ``measurements/detector/<band>``'s detector-axis width — so build the cal-DB at the same ``n_det``.
+    """
+    if zarr is None:
+        raise ImportError("zarr is required to write L0 products: `uv pip install zarr`")
+    if datation is None:
+        datation = Datation()
+    n_lines = max((np.asarray(f).shape[0] for f in band_frames.values()), default=1)
+    root = zarr.open_group(out_path, mode="w", zarr_format=2)
+    meta = build_root_metadata(platform=platform, datation=datation, n_lines=n_lines,
+                               active_detectors=[1], footprint=footprint, orbit=orbit)
+    root.attrs.update(meta)
+
+    det = root.create_group("measurements").create_group("detector")
+    lf = root.create_group("quality").create_group("l0_flags")
+    for bname, frame in sorted(band_frames.items()):
+        dn = np.asarray(frame, dtype=np.uint16)
+        a = det.create_array(bname, shape=dn.shape, dtype="uint16", chunks=dn.shape)
+        a[:] = dn
+        qflags = quality.l0_flags(dn)
+        if masks and bname in masks:
+            qflags = qflags | quality.from_s10_qa(masks[bname])
+        qa = lf.create_array(bname, shape=qflags.shape, dtype="uint16", chunks=qflags.shape)
+        qa[:] = qflags
+
+    # per-line conditions (SAD-derived): line_time + orbit position/velocity + attitude quaternion
+    line_times = datation.gps_epoch_s + np.arange(n_lines) * datation.line_period_s
+    conds = sad.aocs_to_conditions(sad.synth_orbit_attitude(line_times))
+    cg = root.create_group("conditions")
+    for path, arr in conds.items():
+        grp_name, _, arr_name = path.partition("/")
+        c = cg.require_group(grp_name).create_array(arr_name, shape=arr.shape, dtype="float64",
+                                                    chunks=arr.shape)
+        c[:] = arr
+
+    if emit_qc:
+        root["quality"].attrs["qc"] = quality_report.build_qc_report(
+            meta, product_name=Path(out_path).name, has_measurements=bool(band_frames))
+    return out_path
