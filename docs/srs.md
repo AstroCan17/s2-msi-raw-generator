@@ -120,6 +120,12 @@ correct → reverse impress → raw′, residual $\approx 0$) on S2 data with th
   (`bbox` + closed `geometry` polygon), `sat:relative_orbit`/`sat:absolute_orbit`/`sat:orbit_state`,
   `eopf:datastrip_id`, and a real acquisition datetime span (start/end).* **V: T**
   (`l0product.build_root_metadata`, `test_l0product`). realized
+- **REQ-FUNC-036 — Orbit/attitude ephemeris metadata.** *The software shall record `orbit_ephemeris_start/stop`
+  (TAI/UTC/UT1 + ECEF position/velocity) in the L0 metadata from a synthesised Sentinel-2 orbit.* **V: T**
+  (`sad.orbit_ephemeris`, `test_sad`). realized
+- **REQ-FUNC-037 — SAD content.** *The software shall decode/synthesise the Satellite Ancillary Data — AOCS
+  attitude quaternion, orbit ephemeris and detector thermal — and pack it as real CCSDS ISP into
+  `conditions/anc_data/s{APID}/isp` (replacing the placeholder zero payload).* **V: T** (`sad`, `test_sad`). realized
 - **REQ-FUNC-045 — ADF provenance.** *The software shall record per-component ADF provenance in the output
   metadata.* **V: I** (`l0product` `adf_provenance`). realized
 
