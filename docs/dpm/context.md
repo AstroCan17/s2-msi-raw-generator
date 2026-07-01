@@ -45,3 +45,38 @@ optional CCSDS ISP telemetry, STAC + sensor-configuration metadata).
 
 **Verification context.** The radiometric round-trip (`raw → forward correct → reverse impress → raw′`)
 on a L1A with the GIPP confirms the forward and reverse are exact inverses (residual $\approx 0$).
+
+## Calibration database (ADF output)
+
+Besides the L0 RAW product, the generator also *derives* the radiometric calibration coefficients and
+writes them as a versioned set of EOPF **Auxiliary Data Files** — the **calibration database** — that
+the downstream processor (the L1PP blocks of `msi-processor`) consumes directly. This is the single
+shared sensor-model ADF of the E2ES ⇄ processor coupling: the generator produces the ADF; the
+processor keeps calibration internal. Coefficients are **derived** (synthetic diffuser + dark), not the
+truth ADF, so the round-trip is non-tautological.
+
+```mermaid
+flowchart LR
+    subgraph SRC["derived coefficients (per band)"]
+        PR["NUC gain g_d"]
+        OF["NUC offset o_d"]
+        DK["dark k"]
+        AA["abs gain (~1/A)"]
+        NO["noise alpha, beta"]
+    end
+    subgraph DB["cal-DB — EOPF ADFs (zarr v2)"]
+        NUC["nuc.zarr<br/>/gain, /offset"]
+        DARK["dark.zarr<br/>/dark_offset"]
+        RADO["radiometric.zarr<br/>/gain, /offset"]
+        NOI["noise.zarr<br/>/alpha, /beta"]
+    end
+    PR --> NUC
+    OF --> NUC
+    DK --> DARK
+    AA --> RADO
+    NO --> NOI
+```
+
+The NUC `gain`/`offset` follow the processor's two-point convention (`estimate_nuc`); the absolute
+`radiometric.gain` is diffuser-derived ($\approx 1/\mathrm{cal\_gain}$). Written by `s2_e2es.adf_writer`
+(`scripts/build_cal_db.py`); `noise.zarr` (RNOMO) is E2ES-side and not read by the processor.
