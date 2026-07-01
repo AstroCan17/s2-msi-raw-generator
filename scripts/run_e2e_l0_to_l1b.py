@@ -20,11 +20,13 @@ synthetic **open-container** L0 the way ``msi-processor``'s ``l0_decode`` ingest
 processor's ``radiometric`` (default) and ``toa`` (``emit_reflectance``) units to a real L1B
 TOA-reflectance product.
 
-Step (1) is pure ``numpy``/``zarr`` and is exercised in generator CI (``tests/test_e2e_l1b.py``). Step
-(2) needs ``eopf==2.8.1`` + ``msi_processor`` on the path and therefore runs on the **SDE** runner, not
-in generator CI.
+The generator writes zarr in a **v2/v3-compatible** way (``s2_msi_raw_generator._zarrio``), so step (1)
+runs in the same ``eopf==2.8.1`` (zarr 2.18) environment as step (2) — a **single venv**, no separate
+zarr-3 venv needed. Step (1)'s schema is also exercised in generator CI (``tests/test_e2e_l1b.py``,
+zarr 3); step (2) needs ``eopf`` + ``msi_processor`` so the CI test importorskips it (runs on the SDE).
+Wiring validated on the SDE against msi-processor ``tests/it/computing/test_full_chain.py``.
 
-    python scripts/run_e2e_l0_to_l1b.py [work_dir]     # requires eopf + msi_processor
+    python scripts/run_e2e_l0_to_l1b.py [work_dir]     # needs eopf==2.8.1 + msi_processor (the SDE)
 """
 
 from __future__ import annotations
@@ -75,51 +77,77 @@ def build_inputs(work_dir, *, n_det: int = N_DET, n_lines: int = N_LINES, bands=
     return l0_path, str(caldb), band_frames
 
 
-def run_processor(l0_path, caldb_dir, *, day_of_year: int = DAY_OF_YEAR, sun_zenith_deg: float = SUN_ZENITH_DEG):
-    """Run msi-processor ``l0_decode → radiometric → toa`` (emit_reflectance) → L1B. **SDE-only.**
+def run_processor(l0_path, caldb_dir, *, sun_zenith_deg: float = SUN_ZENITH_DEG,
+                  earth_sun_distance_au: float = 1.0):
+    """Run msi-processor ``l0_decode → radiometric → enhancement → toa`` (emit_reflectance) → L1B.
 
-    Imports ``eopf`` + ``msi_processor`` lazily so this file stays importable in generator CI.
+    **SDE-only** (needs ``eopf==2.8.1`` + ``msi_processor``); imported lazily so this file stays importable
+    in generator CI. Wiring validated against msi-processor ``tests/it/computing/test_full_chain.py``.
     """
     import zarr
-    from eopf.product import EOProduct, EOVariable  # noqa: F401  (SDE)
-    from eopf.product.conveyor.auxiliary_data_file import AuxiliaryDataFile  # noqa: F401  (SDE)
+    from eopf.computing.abstract import AuxiliaryDataFile
+    from eopf.product import EOProduct, EOVariable
+    from msi_processor.computing.enhancement.unit import EnhancementUnit
     from msi_processor.computing.l0_decode.unit import L0DecodeUnit
     from msi_processor.computing.radiometric.unit import RadiometricUnit
     from msi_processor.computing.toa.unit import ToaUnit
 
-    def _adf(name):
-        grp = zarr.open_group(f"{caldb_dir}/{name}.zarr", mode="r")
+    def _adf(name, data_ptr):
+        return AuxiliaryDataFile(name=name, path=f"{name}.zarr", data_ptr=data_ptr)
 
-        def _flatten(g, prefix=""):
-            out = {}
-            for k in g.array_keys():
-                out[f"{prefix}{k}"] = np.asarray(g[k])
-            for k in g.group_keys():
-                out.update(_flatten(g[k], f"{prefix}{k}/"))
-            return out
+    def _grp(name):
+        return zarr.open_group(f"{caldb_dir}/{name}.zarr", mode="r")
 
-        return AuxiliaryDataFile(data_ptr=_flatten(grp))
+    # open-container L0 (zarr v2 on disk) → EOProduct with EOVariable detector frames + conditions
+    g = zarr.open_group(l0_path, mode="r")
+    det = g["measurements/detector"]
+    bands = sorted(det.array_keys())
+    prod = EOProduct("L0C_E2E")
+    for b in bands:
+        prod[f"measurements/detector/{b}"] = EOVariable(data=np.asarray(det[b]), dims=("line", "detector"))
+    prod["conditions/time/line_time"] = EOVariable(
+        data=np.asarray(g["conditions/time/line_time"]), dims=("line",))
 
-    l0c = EOProduct.open(l0_path)   # SDE eopf reads the open-container zarr
-    l1a = L0DecodeUnit().run({"l0c": l0c})["l1a"]
-    rad = RadiometricUnit().run({"l1a": l1a}, adfs={"dark": _adf("dark"), "nuc": _adf("nuc")})["rad"]
-    l1b = ToaUnit().run({"enh": rad}, adfs={"radiometric": _adf("radiometric"), "spectral": _adf("spectral")},
-                        emit_reflectance=True, sun_zenith_deg=sun_zenith_deg, day_of_year=day_of_year)["l1b"]
+    # cal-DB zarr → ADFs in the processor's nested ``data_ptr`` convention
+    nz, dz, rz, sz = _grp("nuc"), _grp("dark"), _grp("radiometric"), _grp("spectral")
+    nuc = _adf("nuc", {"gain": {b: np.asarray(nz[f"gain/{b}"]) for b in bands},
+                       "offset": {b: np.asarray(nz[f"offset/{b}"]) for b in bands}})
+    dark = _adf("dark", {"dark_offset": {b: float(np.asarray(dz[f"dark_offset/{b}"])) for b in bands}})
+    radiom = _adf("radiometric", {"gain": {b: float(np.asarray(rz[f"gain/{b}"])) for b in bands},
+                                  "offset": {b: float(np.asarray(rz[f"offset/{b}"])) for b in bands}})
+    spec = _adf("spectral", {"esun": {b: float(np.asarray(sz[f"esun/{b}"])) for b in bands}})
+    psf = _adf("psf", {"kernel": {b: np.array([[1.0]], dtype=np.float32) for b in bands}})
+
+    # l0_decode → radiometric → enhancement (identity MTFC, no denoise) → toa (emit_reflectance)
+    l1a = L0DecodeUnit("l0").run({"l0c": prod})["l1a"]
+    rad = RadiometricUnit("rad").run({"l1a": l1a}, adfs={"dark": dark, "nuc": nuc})["rad"]
+    enh = EnhancementUnit("enh").run({"rad": rad}, adfs={"psf": psf}, denoise_method="none")["enh"]
+    l1b = ToaUnit("toa").run(
+        {"enh": enh},
+        adfs={"radiometric": radiom, "spectral": spec},
+        emit_reflectance=True, sun_zenith_deg=sun_zenith_deg, earth_sun_distance_au=earth_sun_distance_au,
+    )["l1b"]
     return l1b
 
 
 def main(argv=None) -> int:
     work = (argv or sys.argv[1:] or ["/tmp/claude-1000/s2_e2e_l1b"])[0]
     l0_path, caldb, band_frames = build_inputs(work)
-    print(f"built open-container L0 → {l0_path}\n      cal-DB (incl. spectral/ESUN) → {caldb}")
+    print(f"built open-container L0 → {l0_path}")
+    print(f"      cal-DB (incl. spectral/ESUN) → {caldb}")
     print(f"bands={list(band_frames)}  n_det={N_DET}  n_lines={N_LINES}")
     try:
         l1b = run_processor(l0_path, caldb)
     except ImportError as e:
-        print(f"\n[SDE step skipped] msi-processor / eopf not available here: {e}")
-        print("Run on the SDE (eopf==2.8.1 + msi_processor) to produce the real L1B reflectance.")
+        print(f"\n[processor step skipped] eopf / msi_processor not available here: {e}")
+        print("Install eopf==2.8.1 + msi_processor (the SDE) to produce the real L1B reflectance.")
         return 0
-    print(f"\nL1B reflectance product produced: {l1b}")
+    print("\n=== L1B TOA reflectance ===")
+    for b in sorted(band_frames):
+        r = np.asarray(l1b[f"measurements/reflectance/{b}"].data)
+        print(f"  {b}: shape={r.shape} min={float(np.nanmin(r)):.4f} "
+              f"max={float(np.nanmax(r)):.4f} mean={float(np.nanmean(r)):.4f}")
+    print("L1B reflectance product produced.")
     return 0
 
 

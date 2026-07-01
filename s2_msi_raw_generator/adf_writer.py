@@ -94,16 +94,15 @@ def nuc_two_point(
 
 
 def _write_vector(group, name: str, values: np.ndarray) -> None:
-    """Write a 1-D ``(detector,)`` float32 array under ``group/name``."""
-    v = np.asarray(values, dtype=np.float32)
-    a = group.create_array(name, shape=v.shape, dtype="float32", chunks=v.shape)
-    a[:] = v
+    """Write a 1-D ``(detector,)`` float32 array under ``group/name`` (zarr v2/v3 compatible)."""
+    from . import _zarrio
+    _zarrio.put_array(group, name, values, dtype="float32")
 
 
 def _write_scalar(group, name: str, value: float) -> None:
     """Write a 0-d float32 scalar under ``group/name`` (``float(...)``-able by the processor)."""
-    a = group.create_array(name, shape=(), dtype="float32", chunks=())
-    a[()] = np.float32(value)
+    from . import _zarrio
+    _zarrio.put_array(group, name, np.float32(value), dtype="float32")
 
 
 def _provenance(unit: str, adf_key: str, content: str, source: str) -> dict:
@@ -134,6 +133,7 @@ def write_calibration_db(
     """
     if zarr is None:
         raise ImportError("zarr is required to write the calibration database: `uv pip install zarr`")
+    from . import _zarrio
 
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
@@ -142,7 +142,7 @@ def write_calibration_db(
 
     # nuc.zarr — per-detector NUC correction (default-mode mandatory ADF).
     nuc_path = out / "nuc.zarr"
-    root = zarr.open_group(str(nuc_path), mode="w", zarr_format=2)
+    root = _zarrio.open_group_w(nuc_path)
     root.attrs.update(_provenance(unit, "nuc", "per-detector NUC gain g_d and offset o_d", source))
     g_grp, o_grp = root.create_group("gain"), root.create_group("offset")
     for c in cals:
@@ -152,7 +152,7 @@ def write_calibration_db(
 
     # dark.zarr — per-band dark offset k (mandatory ADF).
     dark_path = out / "dark.zarr"
-    root = zarr.open_group(str(dark_path), mode="w", zarr_format=2)
+    root = _zarrio.open_group_w(dark_path)
     root.attrs.update(_provenance(unit, "dark", "per-band dark offset k = mean dark", source))
     do_grp = root.create_group("dark_offset")
     for c in cals:
@@ -161,7 +161,7 @@ def write_calibration_db(
 
     # radiometric.zarr — absolute DN→radiance gain/offset (TOA-unit mandatory ADF).
     rad_path = out / "radiometric.zarr"
-    root = zarr.open_group(str(rad_path), mode="w", zarr_format=2)
+    root = _zarrio.open_group_w(rad_path)
     root.attrs.update(_provenance(unit, "radiometric", "absolute DN->radiance gain (1/cal_gain), offset", source))
     g_grp, o_grp = root.create_group("gain"), root.create_group("offset")
     for c in cals:
@@ -172,7 +172,7 @@ def write_calibration_db(
     # spectral.zarr — per-band ESUN (toa-unit reflectance ADF; mandatory when emit_reflectance).
     if include_spectral:
         spec_path = out / "spectral.zarr"
-        root = zarr.open_group(str(spec_path), mode="w", zarr_format=2)
+        root = _zarrio.open_group_w(spec_path)
         root.attrs.update(_provenance(
             unit, "spectral",
             "per-band ESUN (solar irradiance, W m-2 um-1); operationally within ADF_RABCA / L1C SOLAR_IRRADIANCE",
@@ -185,7 +185,7 @@ def write_calibration_db(
     # noise.zarr — E2ES-side noise model (RNOMO); msi-processor does not read it.
     if include_noise:
         noise_path = out / "noise.zarr"
-        root = zarr.open_group(str(noise_path), mode="w", zarr_format=2)
+        root = _zarrio.open_group_w(noise_path)
         root.attrs.update(_provenance(unit, "noise", "noise model sigma=sqrt(alpha^2 + beta*DN); E2ES-side", source))
         a_grp, b_grp = root.create_group("alpha"), root.create_group("beta")
         for c in cals:
