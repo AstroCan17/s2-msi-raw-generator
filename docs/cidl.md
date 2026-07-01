@@ -23,7 +23,7 @@ items of the Sentinel-2 MSI Synthetic Raw Data Generator (`s2_e2es`) deliverable
 
 The configuration items are the deliverable documentation, the online project files, and the software
 configuration items (the `s2_e2es` package, its packaged calibration data, the scripts, and the tests).
-All items are version-controlled in the project git repository (`gitlab.eopf` `e2es/s2-e2es`); the
+All items are version-controlled in the project git repository (`gitlab.eopf` `e2es/s2-msi-raw-generator`); the
 authoritative baseline is the `main` branch tip.
 
 ## Applicable and reference documents
