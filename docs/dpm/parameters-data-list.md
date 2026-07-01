@@ -26,7 +26,7 @@ All values areS2-sourced.
 | S1 | radiance → equalized DN, $X = A \cdot L$ | $A$ = `Band.cal_gain` (per band) | derived from noise $\alpha,\beta$ + $\mathrm{SNR}@L_\mathrm{ref}$ (`sensor`) |
 | S4 | remove radiometric offset (−100 L1B) | `RADIO_ADD_OFFSET` | GIPP **R2PARA** (`sensor.RADIO_ADD_OFFSET_L1B`) |
 | S5 | un-bin 60 m (B01/B09/B10) | binning factor / kernel | GIPP **R2BINN** (3×7, factor 3) |
-| S6 | PSF re-blur | per-band/unit 33×33 PSF (oversampling 5) | **ESA PSF** matrices (`s2_e2es/data/psf/`); B10 = identity |
+| S6 | PSF re-blur | per-band/unit 33×33 PSF (oversampling 5) | **ESA PSF** matrices (`s2_msi_raw_generator/data/psf/`); B10 = identity |
 | S7 | impress relative response (PRNU) | cubic $A,B,C$ (VNIR) / bilinear $A_1,A_2,Z_s$ (SWIR) | GIPP **R2EQOG** (`adf.from_gipp`) |
 | S8 | re-stagger SWIR (B10/B11/B12) | per-column shift map | detector layout (`reverse.s8_restage_swir`) |
 | S9 | re-apply crosstalk | per-band OPTICAL+ELECTRICAL row (≈0 for S2A) | GIPP **R2CRCO** |

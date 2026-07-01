@@ -17,7 +17,7 @@
 # Introduction
 
 ## Purpose
-This Software Design Document (SDD) describes the architecture and detailed design of the **Sentinel-2 MSI Synthetic Raw Data Generator** (`s2_e2es`). It is the design counterpart of the Software Requirements Specification
+This Software Design Document (SDD) describes the architecture and detailed design of the **Sentinel-2 MSI Synthetic Raw Data Generator** (`s2_msi_raw_generator`). It is the design counterpart of the Software Requirements Specification
 (`docs/srs.md`) and the Algorithm Theoretical Basis Document (`docs/atbd/atbd.md`), authored per
 **ECSS-E-ST-40C Rev.1** (SDD DRD), tailored for a single Configuration Software Component (CSC).
 
@@ -28,7 +28,7 @@ the SRS are met and verifiable. The design also supports the radiometric **round
 correct ∘ reverse impress) and the in-flight **calibration sub-set** (inverse-crime cure).
 
 ## Scope
-Covers the static architecture (the `s2_e2es` Python package and its modules), the dynamic data flow of
+Covers the static architecture (the `s2_msi_raw_generator` Python package and its modules), the dynamic data flow of
 the reverse chain, the key design decisions, and the internal interfaces between components. Geometry
 inversion (L1C entry / de-orthorectification) is **out of scope** — cancelled per Issue #17, because
 L1A/L1B are already in per-detector sensor geometry. External-processor integration is out of scope by

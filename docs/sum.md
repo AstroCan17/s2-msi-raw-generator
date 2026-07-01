@@ -16,7 +16,7 @@
 
 # Software user manual
 
-**Project:** Sentinel-2 MSI Synthetic Raw Data Generator (`s2_e2es`) · **DRD:** ECSS-E-ST-40C Rev.1 (SUM). The E2ES
+**Project:** Sentinel-2 MSI Synthetic Raw Data Generator (`s2_msi_raw_generator`) · **DRD:** ECSS-E-ST-40C Rev.1 (SUM). The E2ES
 degrades a Sentinel-2 L1A/L1B product back to a synthetic L0 RAW product and provides real-data
 verification & calibration tooling.
 
@@ -39,7 +39,7 @@ Optional, only to render preview PNGs with `save_images.py`: `pip install pillow
 pytest                        # 104 tests (2 real-data tests skip without env vars)
 ```
 
-The packagedS2 PSF matrices live under `s2_e2es/data/psf/`; no external data is needed for the unit
+The packagedS2 PSF matrices live under `s2_msi_raw_generator/data/psf/`; no external data is needed for the unit
 tests. Real-data runs need an EOPF L1A/L1B `.zarr` and the operational GIPP folder (see §4).
 
 ## 3. Reverse chain → L0 RAW

@@ -1,4 +1,4 @@
-# Minimal CI for s2_e2es. Lean and portable (public python image) so a freshly-registered
+# Minimal CI for s2_msi_raw_generator. Lean and portable (public python image) so a freshly-registered
 # runner can pull it without EOPF registry credentials. Swap `image:` to
 # registry.eopf.copernicus.eu/sde/cpm-build-environment:latest once the SDE runner is wired,
 # and add quality/build/docs stages (cf. ipf/msi-processor) as the project matures.

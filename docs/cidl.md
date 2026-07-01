@@ -17,12 +17,12 @@
 # Configuration item data list
 
 ECSS-E-ST-40C Rev.1 (with ECSS-Q-ST-80C for product assurance). This CIDL enumerates the configuration
-items of the Sentinel-2 MSI Synthetic Raw Data Generator (`s2_e2es`) deliverable.
+items of the Sentinel-2 MSI Synthetic Raw Data Generator (`s2_msi_raw_generator`) deliverable.
 
 ## Introduction
 
 The configuration items are the deliverable documentation, the online project files, and the software
-configuration items (the `s2_e2es` package, its packaged calibration data, the scripts, and the tests).
+configuration items (the `s2_msi_raw_generator` package, its packaged calibration data, the scripts, and the tests).
 All items are version-controlled in the project git repository (`gitlab.eopf` `e2es/s2-msi-raw-generator`); the
 authoritative baseline is the `main` branch tip.
 
@@ -67,21 +67,21 @@ authoritative baseline is the `main` branch tip.
 | Project overview | `README.md` |
 | Change log | `CHANGELOG.md` |
 | License | `LICENSE` (Apache-2.0) |
-| Calibration-data provenance | `s2_e2es/data/psf/PROVENANCE.md` |
+| Calibration-data provenance | `s2_msi_raw_generator/data/psf/PROVENANCE.md` |
 
 ### Software configuration items
 | Item | Path |
 |------|------|
-| Sensor model | `s2_e2es/sensor.py` |
-| ADF assembly | `s2_e2es/adf.py` |
-| Operational-GIPP reader | `s2_e2es/gipp.py` |
-| ATBD forward/inverse radiometric model | `s2_e2es/forward_radiometric_atbd.py` |
-| Reverse chain (S1–S15) | `s2_e2es/reverse.py` |
-| Calibration sub-set | `s2_e2es/calibration.py` |
-| ISP / telemetry | `s2_e2es/isp.py` |
-| EOPF product reader | `s2_e2es/io.py` |
-| L0 RAW product assembly | `s2_e2es/l0product.py` |
-|S2 PSF matrices | `s2_e2es/data/psf/{S2A,S2B,S2C}/*.csv` |
+| Sensor model | `s2_msi_raw_generator/sensor.py` |
+| ADF assembly | `s2_msi_raw_generator/adf.py` |
+| Operational-GIPP reader | `s2_msi_raw_generator/gipp.py` |
+| ATBD forward/inverse radiometric model | `s2_msi_raw_generator/forward_radiometric_atbd.py` |
+| Reverse chain (S1–S15) | `s2_msi_raw_generator/reverse.py` |
+| Calibration sub-set | `s2_msi_raw_generator/calibration.py` |
+| ISP / telemetry | `s2_msi_raw_generator/isp.py` |
+| EOPF product reader | `s2_msi_raw_generator/io.py` |
+| L0 RAW product assembly | `s2_msi_raw_generator/l0product.py` |
+|S2 PSF matrices | `s2_msi_raw_generator/data/psf/{S2A,S2B,S2C}/*.csv` |
 | Demonstration & V&V scripts | `scripts/*.py` |
 | Test suite | `tests/test_*.py` |
 | Build / packaging | `pyproject.toml` |

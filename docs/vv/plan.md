@@ -16,7 +16,7 @@
 
 # Software verification & validation plan
 
-**Project:** Sentinel-2 MSI Synthetic Raw Data Generator (`s2_e2es`) · **DRD:** ECSS-E-ST-40C Rev.1 (Software verification
+**Project:** Sentinel-2 MSI Synthetic Raw Data Generator (`s2_msi_raw_generator`) · **DRD:** ECSS-E-ST-40C Rev.1 (Software verification
 plan + Software validation plan, SVerP + SValP, combined for a single-CSC E2ES). Companion: the SVR
 (`report.md`). Requirements baseline: `../srs.md`.
 
@@ -54,7 +54,7 @@ Each requirement in `../srs.md` carries its method and the implementing test; th
 - **Continuous integration:** GitLab CI, single `test` stage, image `python:3.12-slim`,
   `pip install numpy pytest zarr` then `pytest tests/ -q --junitxml=report.xml`.
 - **Synthetic-fixture tests** run with no external data (tiny inline GIPP fixtures; packaged PSF CSVs under
-  `s2_e2es/data/psf/`).
+  `s2_msi_raw_generator/data/psf/`).
 - **Real-data tests** are environment-gated and skip unless `S2_E2ES_GIPP_DIR` (operational GIPP folder)
   and `S2_E2ES_L1A` (a L1A `.zarr`) are set.
 

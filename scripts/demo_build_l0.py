@@ -13,7 +13,7 @@ import sys
 import numpy as np
 import zarr
 
-from s2_e2es import io, l0product, sensor
+from s2_msi_raw_generator import io, l0product, sensor
 
 L1B = (
     "/media/cando/T7/01_cdk/59_gitlab_repos/Copernicus/raw-data-gen/data/"

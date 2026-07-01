@@ -1,4 +1,4 @@
-"""Tests for the original GIPP parser (``s2_e2es.gipp``) and ``BandADF.from_gipp``.
+"""Tests for the original GIPP parser (``s2_msi_raw_generator.gipp``) and ``BandADF.from_gipp``.
 
 Structurally-faithful but tiny GIPP XML fixtures are generated inline (no large vendored files). An
 optional test runs against the operational GIPP when ``S2_E2ES_GIPP_DIR`` points at it.
@@ -11,7 +11,7 @@ import os
 import numpy as np
 import pytest
 
-from s2_e2es import adf, gipp, sensor
+from s2_msi_raw_generator import adf, gipp, sensor
 
 
 # --- tiny inline GIPP fixtures -----------------------------------------------

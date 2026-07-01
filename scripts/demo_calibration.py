@@ -15,14 +15,14 @@ import sys
 
 import numpy as np
 
-from s2_e2es import adf, calibration as cal, sensor
+from s2_msi_raw_generator import adf, calibration as cal, sensor
 
 
 def main() -> int:
     gipp_dir = sys.argv[1] if len(sys.argv) > 1 else None
     gs = None
     if gipp_dir:
-        from s2_e2es import gipp
+        from s2_msi_raw_generator import gipp
         gs = gipp.load_gipp_set(gipp_dir)
         print(f"ADF source: operational GIPP ({gipp_dir.split('/')[-1]})")
     else:

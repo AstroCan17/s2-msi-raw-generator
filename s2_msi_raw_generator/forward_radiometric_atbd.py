@@ -1,6 +1,6 @@
 """Original implementation of the Sentinel-2 on-ground radiometric model (public L1 ATBD §4.1.1).
 
-Given the per-pixel GIPP coefficients (``s2_e2es.gipp.DetectorEq``), this provides the **forward**
+Given the per-pixel GIPP coefficients (``s2_msi_raw_generator.gipp.DetectorEq``), this provides the **forward**
 radiometric correction (raw L1A → corrected L1B) and its exact **inverse** (the reverse-E2ES impress
 step). The model is the published one::
 

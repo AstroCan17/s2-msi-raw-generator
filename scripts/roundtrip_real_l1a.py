@@ -17,8 +17,8 @@ import argparse
 
 import numpy as np
 
-from s2_e2es import forward_radiometric_atbd as fwd
-from s2_e2es import gipp, io, sensor
+from s2_msi_raw_generator import forward_radiometric_atbd as fwd
+from s2_msi_raw_generator import gipp, io, sensor
 
 
 def main() -> int:

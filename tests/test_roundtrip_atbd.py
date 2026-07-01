@@ -13,8 +13,8 @@ import os
 import numpy as np
 import pytest
 
-from s2_e2es import forward_radiometric_atbd as fwd
-from s2_e2es.gipp import DetectorEq
+from s2_msi_raw_generator import forward_radiometric_atbd as fwd
+from s2_msi_raw_generator.gipp import DetectorEq
 
 
 def _cubic_eq(width=64, seed=1):
@@ -62,7 +62,7 @@ def test_real_l1a_roundtrip_exact():
     if not (l1a and gipp_dir and os.path.isdir(gipp_dir)):
         pytest.skip("set S2_E2ES_L1A + S2_E2ES_GIPP_DIR to run on the product")
     zarr = pytest.importorskip("zarr")  # noqa: F841
-    from s2_e2es import gipp, io
+    from s2_msi_raw_generator import gipp, io
     gs = gipp.load_gipp_set(gipp_dir)
     for b in ("B03", "B11"):
         eq = gs.band(b).detectors[1]

@@ -12,7 +12,7 @@ import pytest
 
 zarr = pytest.importorskip("zarr")
 
-from s2_e2es import adf, isp, l0product, reverse, sensor
+from s2_msi_raw_generator import adf, isp, l0product, reverse, sensor
 
 
 def test_full_pipeline_l1b_to_l0_with_isp(tmp_path):

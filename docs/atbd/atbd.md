@@ -169,7 +169,7 @@ The processor's forward flow, reversed. Two sub-flows:
 
 **Main reverse chain:** S1→S3→S4→S5→S6→S7→S8→S9→S10→S11→S12→S13→S14→S15 (§5) — radiometric-only.
 
-**Calibration sub-set (`s2_e2es/calibration.py`, Increment 3):** the S2 **two-reference** radiometric
+**Calibration sub-set (`s2_msi_raw_generator/calibration.py`, Increment 3):** the S2 **two-reference** radiometric
 calibration in the reflective domain. The high-signal reference is the on-board **CSM sun-diffuser**
 (uniform full-field), the zero reference is
 a **dark** (CSM closed / night). The sub-set synthesises both L0 acquisitions by impressing the *true*
@@ -221,7 +221,7 @@ exact inverse). Far-field straylight has no S2 inverse (Risk 4).
 **Forward:** impress the **true per-pixel relative response** by inverting the on-ground equalization
 $Y = G(Z)$ — VNIR cubic $A\,Z^3 + B\,Z^2 + C\,Z$ / SWIR bilinear (knee at `Zs`). **Real values:** the
 per-pixel gains come straight from the **operational S2A GIPP `R2EQOG`** (`COEFF_A/B/C` cubic /
-`COEFF_A1/A2/Zs` bilinear; C≈1.0–1.2 dominant), parsed by `s2_e2es.gipp` and applied via the analytic
+`COEFF_A1/A2/Zs` bilinear; C≈1.0–1.2 dominant), parsed by `s2_msi_raw_generator.gipp` and applied via the analytic
 inverse `G⁻¹` in `forward_radiometric_atbd.inverse_equalize` (`BandADF.from_gipp`). **ADF:** `ADF_REQOG`.
 **Conjugate:** the forward radiometric correction `radiometric.apply_nuc`.
 
@@ -241,7 +241,7 @@ B03, B04, B11, B12** (`tdi_configuration_list`). **ADF:** `ADF_RSWIR`. **Method:
 
 ## 5.S11 Re-apply dark signal `[INDEP, Inc 1]`
 **Forward:** `DN += dark[pixel]`. **Real values:** the **per-pixel** dark signal `D(j)` comes from the
-operational S2A GIPP **`R2EQOG` `COEFF_D`** (`s2_e2es.gipp`, `BandADF.from_gipp`) — mean 440–522 LSB per
+operational S2A GIPP **`R2EQOG` `COEFF_D`** (`s2_msi_raw_generator.gipp`, `BandADF.from_gipp`) — mean 440–522 LSB per
 band, matching the DQR (OMPC.CS.DQR.01.02-2023) range but now resolved per pixel. (Fallback when no GIPP:
 `DARK_PEDESTAL_LSB` 440–520 + per-pixel DSNU `< 0.5/1.0 LSB`, `Band.dark_dsnu`.) Applied *after* S13 so
 the noise model sees the dark-subtracted signal. **ADF:** `ADF_REOB2`/`ADF_REQOG`.
@@ -267,7 +267,7 @@ L1A product** (`quality_indicators_info/.../noise_model`, `sensor.NOISE_ALPHA/NO
 **Forward:** package into CCSDS ISP; timestamps from `line_period = 1.5658736 ms`; SAD packets per APID.
 **ADF:** `ADF_SADMP`, `ADF_DATAT`. **Conjugate:** `l0_decode`. **Output:** the 156-frame L0 (Annex A.9).
 
-**Calibration sub-set (Inc 3, inverse-crime cure — implemented `s2_e2es/calibration.py`):** synthetic
+**Calibration sub-set (Inc 3, inverse-crime cure — implemented `s2_msi_raw_generator/calibration.py`):** synthetic
 CSM sun-diffuser + dark acquisitions → derive `D`, `g`, `A` (L1 ATBD §4.1.1.2.2) → *estimated* ADF
 (`estimated_adf`) handed to the processor, not the truth impressed in S7/S11.
 
@@ -307,7 +307,7 @@ previously-modelled **per-pixel PRNU + dark** are now the **operational S2A GIPP
 carries, per detector and per across-track pixel, the dark signal `COEFF_D` (≈440–522 LSB, matching
 the DQR) and the relative-response gains (VNIR cubic `A/B/C`, SWIR bilinear `A1/A2/Zs`); `R2DEPI` the
 defective/blind columns; `R2PARA` the −100/−1000 offsets; `R2CRCO`≈0. These GIPP **data** files are
-parsed by `s2_e2es.gipp` (an original reader) into per-pixel arrays (`BandADF.from_gipp`).
+parsed by `s2_msi_raw_generator.gipp` (an original reader) into per-pixel arrays (`BandADF.from_gipp`).
 
 ---
 
@@ -402,7 +402,7 @@ unverified/derived flags. Values to be migrated into the sensor-model ADF v0 (§
   **>0.15 and <0.30**; 60 m → **<0.45**. (Phrasing discrepancy: SentiWiki/eoPortal place the
   20 m bands in the <0.45 bracket; the 10/20 m → 0.15–0.30 framing matches Drusch 2012.)
 - **Official PSF matrices ARE published** (SentiWiki `S2{A,B,C}_PSF.zip`, packaged in
-  `s2_e2es/data/psf/`): per-band, per-unit **33×33** matrices, **oversampling 5**, centre at
+  `s2_msi_raw_generator/data/psf/`): per-band, per-unit **33×33** matrices, **oversampling 5**, centre at
   (17, 17), normalised ($\Sigma = 1$), for **L1B focal-plane geometry (after binning)**. Computed from
   measured Nyquist MTF (along-track + across-track), Gaussian-modelled — S2A/S2C from 2024, S2B from
   2023 — for all bands **except B10** (water-vapour, does not see the ground). The E2ES S6 step
