@@ -79,6 +79,8 @@ html_theme_options = {
     "logo": {"text": "s2-msi-raw-generator"},
 }
 html_last_updated_fmt = "%d/%m/%Y %H:%M"
+html_static_path = ["_static"]
+html_css_files = ["custom.css"]  # justified body text (scientific-paper style)
 
 # -- Mermaid ------------------------------------------------------------------
 mermaid_version = "10.9.1"
