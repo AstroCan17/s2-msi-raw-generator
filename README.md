@@ -33,7 +33,7 @@ flowchart LR
         ADFW["adf_writer.py"]
     end
     L0[("L0 RAW<br/>zarr EOProduct")]
-    CALDB[("cal-DB - EOPF ADFs<br/>nuc / dark / radiometric<br/>+ noise (E2ES-side)")]
+    CALDB[("cal-DB - EOPF ADFs<br/>nuc / dark / radiometric / spectral<br/>+ noise (E2ES-side)")]
     subgraph PROC["msi-processor / L1PP blocks - CONSUMER"]
         direction TB
         RAD["radiometric unit"]
@@ -69,7 +69,7 @@ ADF, so the round-trip is non-tautological.
 | `s2_msi_raw_generator/isp.py` | **S15** — CCSDS ISP packet generation + SAD telemetry |
 | `s2_msi_raw_generator/io.py` | Real EOPF L1A/L1B Zarr reader (`zarr`) |
 | `s2_msi_raw_generator/l0product.py` | L0 RAW EOProduct assembly (156-array Zarr + STAC/sensor-config + ISP) |
-| `s2_msi_raw_generator/adf_writer.py` | **Calibration database** — writes derived coeffs as EOPF ADFs (`nuc`/`dark`/`radiometric`/`noise`) for the downstream L1PP processor |
+| `s2_msi_raw_generator/adf_writer.py` | **Calibration database** — writes derived coeffs as EOPF ADFs (`nuc`/`dark`/`radiometric`/`spectral`/`noise`) for the downstream L1PP processor |
 
 ## Documentation
 
@@ -82,7 +82,7 @@ Full **ECSS-E-ST-40C Rev.1** software documentation set under `docs/` (tailored 
 | SDD | `docs/sdd/` | Software design — architecture, module design, REQ→code→test traceability |
 | ICD | `docs/icd.md` | Interfaces — L1A/L1B + GIPP inputs, the L0 RAW output (ICD-IF-L0) |
 | DPM | `docs/dpm/` | Data processing model — the reverse chain blocks + parameter/data list |
-| V&V | `docs/vv/` | Verification & validation plan + report (108 tests, RMSE ~1e-14) |
+| V&V | `docs/vv/` | Verification & validation plan + report (111 tests, RMSE ~1e-14) |
 | SUM | `docs/sum.md` | User manual — install, usage, CLI |
 | SRN | `docs/srn.md` | Release note |
 | CIDL / SCF / SRF / SDP | `docs/{cidl,scf,srf,sdp}.md` | Config item list, config file, reuse file, development plan |
@@ -95,7 +95,7 @@ implemented from public references only.
 
 ```bash
 pip install -e ".[read]"                 # numpy + zarr (eopf not required)
-pytest                                   # 108 tests
+pytest                                   # 111 tests
 ```
 
 **Reverse chain → L0 RAW** (on a  L1B granule):
@@ -115,7 +115,7 @@ python scripts/roundtrip_real_l1a.py <L1A.zarr> <GIPP_dir> B02 B03 B11 B12
 python scripts/demo_calibration.py <GIPP_dir>
 
 # calibration database (EOPF ADFs) for the downstream L1PP processor (Option Y coupling)
-python scripts/build_cal_db.py caldb        # writes nuc/dark/radiometric/noise .zarr + PROVENANCE.md
+python scripts/build_cal_db.py caldb        # writes nuc/dark/radiometric/spectral/noise .zarr + PROVENANCE.md
 
 # save viewable images (bit-exact .npy + uint8 .png) of raw / corrected / residual / calib
 python scripts/save_images.py <L1A.zarr> <GIPP_dir> B03 --out images
@@ -128,7 +128,7 @@ are set.
 
 ## Status
 
-**Complete — full S1–S15 reverse chain, all- ADFs, original round-trip V&V; 108 tests, CI green.**
+**Complete — full S1–S15 reverse chain, all- ADFs, original round-trip V&V; 111 tests, CI green.**
 
 | Increment | Content |
 |---|---|
