@@ -59,7 +59,7 @@ set is tailored as follows:
 
 ## Configuration management
 
-Version control: git, repository `gitlab.eopf` `e2es/s2-e2es`. Branching: short-lived feature branches
+Version control: git, repository `gitlab.eopf` `e2es/s2-msi-raw-generator`. Branching: short-lived feature branches
 (`feat/*`, `docs/*`) merged to `main` via merge request after CI passes; `main` is the controlled baseline.
 Continuous integration: `.gitlab-ci.yml` runs the test suite on a public Python image (no credentials).
 Configuration items and baseline are listed in the CIDL and SCF.
