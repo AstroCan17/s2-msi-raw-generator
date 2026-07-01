@@ -17,7 +17,7 @@
 # License
 
 `s2_e2es` is released under the **Apache License, Version 2.0**. The full text is in the
-[`LICENSE`](https://gitlab.eopf.copernicus.eu/e2es/s2-e2es/-/blob/main/LICENSE) file at the
+[`LICENSE`](https://gitlab.eopf.copernicus.eu/e2es/s2-msi-raw-generator/-/blob/main/LICENSE) file at the
 repository root.
 
     Copyright 2026 Can Deniz Kaya
