@@ -26,7 +26,7 @@ All notable changes to the Sentinel-2 MSI reverse E2ES (`s2_msi_raw_generator`).
 
 ## [0.3.0] — Increments 0–4
 
-- Full S1–S15 reverse chain (radiance→DN, PSF re-blur, PRNU, SWIR re-stagger, defects, dark, onboard
+- Full S1–S15 reverse chain (radiance→DN, PSF re-blur, PRNU, SWIR re-arrangement (reverse), defects, dark, onboard
   equalization, noise, 12-bit quantize, CCSDS ISP packets).
 - L0 RAW EOProduct assembly (156-array Zarr + STAC/sensor-config).
 - S2 PSF matrices (SentiWiki) + SRF spectral characterisation.

@@ -28,7 +28,7 @@ All values areS2-sourced.
 | S5 | un-bin 60 m (B01/B09/B10) | binning factor / kernel | GIPP **R2BINN** (3×7, factor 3) |
 | S6 | PSF re-blur | per-band/unit 33×33 PSF (oversampling 5) | **ESA PSF** matrices (`s2_msi_raw_generator/data/psf/`); B10 = identity |
 | S7 | impress relative response (PRNU) | cubic $A,B,C$ (VNIR) / bilinear $A_1,A_2,Z_s$ (SWIR) | GIPP **R2EQOG** (`adf.from_gipp`) |
-| S8 | re-stagger SWIR (B10/B11/B12) | per-column shift map | detector layout (`reverse.s8_restage_swir`) |
+| S8 | SWIR re-arrangement, reverse (B10/B11/B12) | per-column shift map | detector layout (`reverse.s8_restage_swir`) |
 | S9 | re-apply crosstalk | per-band OPTICAL+ELECTRICAL row (≈0 for S2A) | GIPP **R2CRCO** |
 | S10 | re-insert blind/defective pixels | saturated/blind column indices | GIPP **R2DEPI** / **BLINDP** |
 | S11 | re-apply dark signal | per-pixel dark $D$ (`COEFF_D`) $\approx$ 440–522 LSB | GIPP **R2EQOG**; DQR fallback `DARK_PEDESTAL_LSB` |

@@ -1,7 +1,7 @@
 """End-to-end integration: synthetic L1B radiance → full reverse chain → complete L0 RAW product.
 
 Exercises the whole pipeline (reverse_full = S1,S6,S7,S8,S10,S11–S14 + l0product S15 ISP) across
-multiple detectors and bands (incl. SWIR re-stagger + injected defects), then validates the L0 RAW
+multiple detectors and bands (incl. reverse SWIR re-arrangement + injected defects), then validates the L0 RAW
 EOProduct structure, quality masks, ISP telemetry, and sensor-config metadata.
 """
 
@@ -30,7 +30,7 @@ def test_full_pipeline_l1b_to_l0_with_isp(tmp_path):
             a = adf.synthesize(b, n_det=width, seed=det * 13 + len(bn))
 
             kwargs: dict = {}
-            if bn in sensor.SWIR_BANDS:                       # S8 SWIR re-stagger
+            if bn in sensor.SWIR_BANDS:                       # S8 SWIR re-arrangement (reverse)
                 shifts = np.zeros(width, dtype=int)
                 shifts[::2] = 1
                 kwargs["swir_shifts"] = shifts

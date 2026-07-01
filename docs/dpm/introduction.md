@@ -37,7 +37,7 @@ flowchart TD
     S5["S5 · un-bin 60 m bands (B01/B09/B10)"]
     S6["S6 · PSF re-blur (ESA per-band/unit matrices; B10 = identity)"]
     S7["S7 · impress relative response / PRNU (GIPP R2EQOG, cubic VNIR / bilinear SWIR)"]
-    S8["S8 · re-stagger SWIR readout (B10/B11/B12)"]
+    S8["S8 · SWIR re-arrangement, reverse (B10/B11/B12)"]
     S9["S9 · re-apply inter-band crosstalk (GIPP R2CRCO ≈ 0 for S2A)"]
     S10["S10 · re-insert blind/defective pixels (GIPP R2DEPI / BLINDP)"]
     S11["S11 · re-apply per-pixel dark signal (GIPP R2EQOG COEFF_D)"]
@@ -50,6 +50,6 @@ flowchart TD
 
 **Realized execution order.** `reverse.reverse_mvp` runs `S1 → S6 → S7 → S13 → S11 → S12 → S14`: the
 sensor noise (S13) is impressed on the *signal* DN **before** the S11 dark pedestal, so $\sigma = \sqrt{\alpha^2 + \beta \cdot \mathrm{DN}}$
-reproduces the spec $\mathrm{SNR}@L_\mathrm{ref}$ exactly. `reverse.reverse_full` additionally inserts S8 (SWIR re-stagger)
+reproduces the spec $\mathrm{SNR}@L_\mathrm{ref}$ exactly. `reverse.reverse_full` additionally inserts S8 (SWIR re-arrangement, reverse)
 and S10 (defects). The exactly-invertible bridge `reverse_radiometric`/`forward_radiometric` uses only
 S1, S7, S11, S12 (no PSF, noise, or quantization) for the round-trip V&V.
