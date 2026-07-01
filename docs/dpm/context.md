@@ -62,21 +62,26 @@ flowchart LR
         OF["NUC offset o_d"]
         DK["dark k"]
         AA["abs gain (~1/A)"]
+        ES["ESUN (solar irradiance)"]
         NO["noise alpha, beta"]
     end
     subgraph DB["cal-DB — EOPF ADFs (zarr v2)"]
         NUC["nuc.zarr<br/>/gain, /offset"]
         DARK["dark.zarr<br/>/dark_offset"]
         RADO["radiometric.zarr<br/>/gain, /offset"]
+        SPECT["spectral.zarr<br/>/esun"]
         NOI["noise.zarr<br/>/alpha, /beta"]
     end
     PR --> NUC
     OF --> NUC
     DK --> DARK
     AA --> RADO
+    ES --> SPECT
     NO --> NOI
 ```
 
 The NUC `gain`/`offset` follow the processor's two-point convention (`estimate_nuc`); the absolute
-`radiometric.gain` is diffuser-derived ($\approx 1/\mathrm{cal\_gain}$). Written by `s2_msi_raw_generator.adf_writer`
-(`scripts/build_cal_db.py`); `noise.zarr` (RNOMO) is E2ES-side and not read by the processor.
+`radiometric.gain` is diffuser-derived ($\approx 1/\mathrm{cal\_gain}$); `spectral.zarr` carries the per-band
+**ESUN** (Thuillier 2003, S2A — ATBD §A.3) the processor's `toa` unit needs for TOA reflectance. Written by
+`s2_msi_raw_generator.adf_writer` (`scripts/build_cal_db.py`); `noise.zarr` (RNOMO) is E2ES-side and not read
+by the processor.

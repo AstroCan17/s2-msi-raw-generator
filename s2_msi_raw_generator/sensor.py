@@ -108,6 +108,20 @@ EQUIV_WAVELENGTH_NM: dict[str, dict[str, float]] = {
             "B10": 1372.177, "B11": 1612.004, "B12": 2191.270},
 }
 
+# --- Per-band ESUN — extraterrestrial solar irradiance (W·m⁻²·µm⁻¹), Thuillier 2003 (ATBD §A.3) ---
+# = the `SOLAR_IRRADIANCE` stored per band in every L1C product's metadata; consumed by the processor's
+# `toa` unit (the `spectral` ADF) for TOA reflectance ρ = π·L·d²/(ESUN·cosθ). S2A ≠ S2B (distinct SRFs);
+# Sentinel-2C has no published ESUN set yet (needs its own SRF-specific values after cal/val).
+ESUN_UNIT: str = "W m-2 um-1"
+ESUN: dict[str, dict[str, float]] = {
+    "S2A": {"B01": 1884.69, "B02": 1959.66, "B03": 1823.24, "B04": 1512.06, "B05": 1424.64,
+            "B06": 1287.61, "B07": 1162.08, "B08": 1041.63, "B8A": 955.32, "B09": 812.92,
+            "B10": 367.15, "B11": 245.59, "B12": 85.25},
+    "S2B": {"B01": 1874.30, "B02": 1959.75, "B03": 1824.93, "B04": 1512.79, "B05": 1425.78,
+            "B06": 1291.13, "B07": 1175.57, "B08": 1041.28, "B8A": 953.93, "B09": 817.58,
+            "B10": 365.41, "B11": 247.08, "B12": 87.75},
+}
+
 # REAL per-band noise model — the S2-RUT model σ = √(α² + β·DN) (Gorroño & Gascon), coefficients
 # straight from the L1A product metadata (`quality_indicators_info/radiometric_info/.../noise_model`).
 # Verified: reproduces the spec SNR@Lref exactly for every band. No fitting. (S02MSIL1A_20240403, S2A.)
@@ -245,3 +259,16 @@ def spectral_band_info(unit: str = DEFAULT_UNIT) -> dict[str, dict]:
         }
         for n in BANDS
     }
+
+
+def esun(name: str, unit: str = DEFAULT_UNIT) -> float:
+    """Per-band ESUN (extraterrestrial solar irradiance, W·m⁻²·µm⁻¹) for ``unit`` — Thuillier 2003.
+
+    The value the processor's ``toa`` unit consumes as the ``spectral`` ADF for TOA reflectance.
+    Only S2A/S2B are published (ATBD §A.3); Sentinel-2C raises until its SRF-specific set exists.
+    """
+    if unit not in ESUN:
+        raise KeyError(f"no ESUN for unit {unit!r} (available: {sorted(ESUN)}; S2C not yet published)")
+    if name not in ESUN[unit]:
+        raise KeyError(f"unknown Sentinel-2 band: {name!r}")
+    return ESUN[unit][name]

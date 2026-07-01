@@ -49,6 +49,7 @@ method (T/A/I/R) and status. Verification details and quantitative results are i
 | REQ-FUNC-045 | ADF provenance | l0product | `build_root_metadata` (`adf_provenance`) | `test_l0product`, `test_integration` | I | realized |
 | REQ-FUNC-046 | Operational GIPP ingest | gipp, adf | `gipp.load_gipp_set`, `adf.from_gipp` | `test_gipp` | T | realized |
 | REQ-FUNC-047 | Calibration sub-set | calibration | `calibration.calibrate`, `estimated_adf` | `test_calibration` | T | realized |
+| REQ-FUNC-039 | ESUN spectral ADF | sensor, adf_writer | `sensor.esun`, `adf_writer.write_calibration_db` (spectral.zarr) | `test_adf_writer` | T | realized |
 | REQ-FUNC-043 | Credentialed ADF API | — | — | — | — | deferred |
 | REQ-FUNC-053 | Configurable PU orchestration | — | — | — | — | deferred |
 | REQ-FUNC-062 | Dask distribution | — | — | — | — | deferred |
