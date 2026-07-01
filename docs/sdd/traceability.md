@@ -54,6 +54,8 @@ method (T/A/I/R) and status. Verification details and quantitative results are i
 | REQ-FUNC-038 | STAC geometry & orbit | l0product | `build_root_metadata` (bbox/geometry/sat:orbit/datastrip) | `test_l0product` | T | realized |
 | REQ-FUNC-040 | Quality-flag taxonomy | quality, l0product | `quality.l0_flags`, `to_msk_qualit`, `from_s10_qa` | `test_quality`, `test_integration` | T | realized |
 | REQ-FUNC-041 | EOQC quality report | quality_report, l0product | `quality_report.build_qc_report`, `write_qc_report` | `test_quality_report` | T | realized |
+| REQ-FUNC-036 | Orbit/attitude ephemeris | sad, l0product | `sad.orbit_ephemeris`, `synth_orbit_attitude` | `test_sad` | T | realized |
+| REQ-FUNC-037 | SAD content (real ISP) | sad, l0product | `sad.synth_orbit_attitude`, `pack_sad_isp`, `scan_ccsds_packets` | `test_sad` | T | realized |
 | REQ-FUNC-043 | Credentialed ADF API | — | — | — | — | deferred |
 | REQ-FUNC-053 | Configurable PU orchestration | — | — | — | — | deferred |
 | REQ-FUNC-062 | Dask distribution | — | — | — | — | deferred |
