@@ -15,6 +15,47 @@ L1A/L1B, already in per-detector sensor geometry, so there is no geometry invers
 An L1C entry + geometry reverse was considered and **cancelled** — with an L1A/L1B entry there is
 no orthorectification to undo.
 
+## Workflow
+
+The generator is the **producer** in an end-to-end loop: it degrades a real L1A/L1B into a synthetic
+**L0 RAW** product *and* derives a **calibration database** (EOPF ADFs) that the downstream
+`msi-processor` (its L1PP blocks) consumes to invert the chain. Who produces/consumes what, the
+input/output data, and where it is stored:
+
+```mermaid
+flowchart LR
+    IN[("Real S2 L1A/L1B<br/>EOPF product")]
+    ADFsrc[("ADF sources<br/>GIPP - PSF - SRF")]
+    subgraph GEN["s2_e2es — Synthetic Raw Data Generator - PRODUCER"]
+        direction TB
+        REV["reverse chain S1-S15<br/>(reverse.py)"]
+        CAL["calibration.py<br/>derive D, g, A"]
+        ADFW["adf_writer.py"]
+    end
+    L0[("L0 RAW<br/>zarr EOProduct")]
+    CALDB[("cal-DB - EOPF ADFs<br/>nuc / dark / radiometric<br/>+ noise (E2ES-side)")]
+    subgraph PROC["msi-processor / L1PP blocks - CONSUMER"]
+        direction TB
+        RAD["radiometric unit"]
+        TOA["toa unit"]
+    end
+    L1[("L1B / L1C<br/>product")]
+    IN --> REV
+    ADFsrc --> REV
+    ADFsrc --> CAL
+    REV -->|"produces: synthetic RAW"| L0
+    CAL --> ADFW -->|"stores: EOPF zarr ADFs"| CALDB
+    L0 -->|"consumes"| RAD
+    CALDB -->|"consumes: nuc, dark"| RAD
+    CALDB -->|"consumes: radiometric"| TOA
+    RAD --> TOA --> L1
+```
+
+The processor keeps calibration *internal* (a mode of its radiometric unit); the generator only
+supplies the ADF — a single shared sensor-model ADF, one source of truth. Build it with
+`scripts/build_cal_db.py` (see Usage). Coefficients are **derived** (diffuser + dark), not the truth
+ADF, so the round-trip is non-tautological.
+
 ## Package
 
 | Module | Responsibility |
@@ -28,6 +69,7 @@ no orthorectification to undo.
 | `s2_e2es/isp.py` | **S15** — CCSDS ISP packet generation + SAD telemetry |
 | `s2_e2es/io.py` | Real EOPF L1A/L1B Zarr reader (`zarr`) |
 | `s2_e2es/l0product.py` | L0 RAW EOProduct assembly (156-array Zarr + STAC/sensor-config + ISP) |
+| `s2_e2es/adf_writer.py` | **Calibration database** — writes derived coeffs as EOPF ADFs (`nuc`/`dark`/`radiometric`/`noise`) for the downstream L1PP processor |
 
 ## Documentation
 
@@ -40,7 +82,7 @@ Full **ECSS-E-ST-40C Rev.1** software documentation set under `docs/` (tailored 
 | SDD | `docs/sdd/` | Software design — architecture, module design, REQ→code→test traceability |
 | ICD | `docs/icd.md` | Interfaces — L1A/L1B + GIPP inputs, the L0 RAW output (ICD-IF-L0) |
 | DPM | `docs/dpm/` | Data processing model — the reverse chain blocks + parameter/data list |
-| V&V | `docs/vv/` | Verification & validation plan + report (104 tests, RMSE ~1e-14) |
+| V&V | `docs/vv/` | Verification & validation plan + report (108 tests, RMSE ~1e-14) |
 | SUM | `docs/sum.md` | User manual — install, usage, CLI |
 | SRN | `docs/srn.md` | Release note |
 | CIDL / SCF / SRF / SDP | `docs/{cidl,scf,srf,sdp}.md` | Config item list, config file, reuse file, development plan |
@@ -53,7 +95,7 @@ implemented from public references only.
 
 ```bash
 pip install -e ".[read]"                 # numpy + zarr (eopf not required)
-pytest                                   # 104 tests
+pytest                                   # 108 tests
 ```
 
 **Reverse chain → L0 RAW** (on a  L1B granule):
@@ -72,6 +114,9 @@ python scripts/roundtrip_real_l1a.py <L1A.zarr> <GIPP_dir> B02 B03 B11 B12
 # calibration sub-set: synthetic diffuser + dark → derived dark/gain (inverse-crime cure)
 python scripts/demo_calibration.py <GIPP_dir>
 
+# calibration database (EOPF ADFs) for the downstream L1PP processor (Option Y coupling)
+python scripts/build_cal_db.py caldb        # writes nuc/dark/radiometric/noise .zarr + PROVENANCE.md
+
 # save viewable images (bit-exact .npy + uint8 .png) of raw / corrected / residual / calib
 python scripts/save_images.py <L1A.zarr> <GIPP_dir> B03 --out images
 ```
@@ -83,7 +128,7 @@ are set.
 
 ## Status
 
-**Complete — full S1–S15 reverse chain, all- ADFs, original round-trip V&V; 104 tests, CI green.**
+**Complete — full S1–S15 reverse chain, all- ADFs, original round-trip V&V; 108 tests, CI green.**
 
 | Increment | Content |
 |---|---|
