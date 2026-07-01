@@ -69,6 +69,13 @@ def cuc_time(t_seconds: float) -> bytes:
     ])
 
 
+def parse_cuc_time(b: bytes) -> float:
+    """Inverse of :func:`cuc_time` — 6 octets → seconds (4-octet coarse + 2-octet fine / 65536)."""
+    coarse = (b[0] << 24) | (b[1] << 16) | (b[2] << 8) | b[3]
+    fine = (b[4] << 8) | b[5]
+    return coarse + fine / 65536.0
+
+
 def apid_for(detector: int, band_index: int, base: int = 1024) -> int:
     """Deterministic 11-bit APID for a (detector, band) science stream."""
     return (base + detector * 16 + band_index) & 0x7FF
