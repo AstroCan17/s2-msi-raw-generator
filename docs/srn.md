@@ -16,19 +16,19 @@
 
 # Software release note
 
-**Project:** Sentinel-2 MSI Synthetic Raw Data Generator (`s2_e2es`) · **DRD:** ECSS-E-ST-40C Rev.1 (Software release
+**Project:** Sentinel-2 MSI Synthetic Raw Data Generator (`s2_msi_raw_generator`) · **DRD:** ECSS-E-ST-40C Rev.1 (Software release
 document, SRelD). Full history: `../CHANGELOG.md`.
 
 ## 1. Release
 
-- **Package:** `s2_e2es` · **version:** `0.3.0.dev0` · **date:** 2026-06-30.
+- **Package:** `s2_msi_raw_generator` · **version:** `0.3.0.dev0` · **date:** 2026-06-30.
 - **Status:** all-real-data reverse E2ES; 104 tests pass; GitLab CI green on `main`.
 - **License:** Apache-2.0.
 
 ## 2. Contents
 
 - Reverse radiometric chain S1–S15 (`reverse.py`, `isp.py`) and L0 RAW EOProduct assembly (`l0product.py`).
-- Real-data ADFs: official ESA PSF matrices (`s2_e2es/data/psf/`), per-unit SRF spectral characterisation
+- Real-data ADFs: official ESA PSF matrices (`s2_msi_raw_generator/data/psf/`), per-unit SRF spectral characterisation
   and product noise model (`sensor.py`), and the original operational-GIPP reader (`gipp.py`).
 - Forward radiometric model + exact inverse (`forward_radiometric_atbd.py`) and the calibration sub-set
   (`calibration.py`).

@@ -21,7 +21,7 @@
 | Symbol | Meaning |
 |---|---|
 | **S#** | A reverse-chain processing step (S1–S15), one per ATBD §5 block. |
-| rounded box | A processing step (a function in `s2_e2es.reverse` / `forward_radiometric_atbd`). |
+| rounded box | A processing step (a function in `s2_msi_raw_generator.reverse` / `forward_radiometric_atbd`). |
 | cylinder | A data store — input product, ADF, or output product. |
 | solid arrow | Data flow between steps (a 2-D `(lines, detector_columns)` array). |
 | $X$ | raw focal-plane digital number (L0 domain). |

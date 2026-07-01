@@ -51,7 +51,7 @@ myst_heading_anchors = 3
 myst_fence_as_directive = ["mermaid"]
 
 # -- API docs (sphinxcontrib.apidoc) -----------------------------------------
-apidoc_module_dir = "../s2_e2es"
+apidoc_module_dir = "../s2_msi_raw_generator"
 apidoc_output_dir = "api"
 apidoc_module_first = True
 apidoc_toc_file = False

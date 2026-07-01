@@ -10,7 +10,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from s2_e2es import adf, reverse, sensor
+from s2_msi_raw_generator import adf, reverse, sensor
 
 
 # --- sensor model -------------------------------------------------------------

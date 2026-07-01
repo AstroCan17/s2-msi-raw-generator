@@ -1,5 +1,5 @@
 [project]
-name = "s2_e2es"
+name = "s2_msi_raw_generator"
 version = "0.3.0.dev0"
 description = "Sentinel-2 MSI Synthetic Raw Data Generator — a reverse E2ES degrading L1A/L1B back to synthetic L0 RAW"
 readme = "README.md"

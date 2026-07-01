@@ -19,8 +19,8 @@ import os
 
 import numpy as np
 
-from s2_e2es import adf, calibration as cal, gipp, io, sensor
-from s2_e2es import forward_radiometric_atbd as fwd
+from s2_msi_raw_generator import adf, calibration as cal, gipp, io, sensor
+from s2_msi_raw_generator import forward_radiometric_atbd as fwd
 
 
 def _norm_u8(x: np.ndarray) -> np.ndarray:

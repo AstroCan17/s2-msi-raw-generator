@@ -109,7 +109,7 @@ def s3_undo_framing(img: np.ndarray) -> np.ndarray:
     """S3 — undo scene framing & round/clamp.
 
     Framing (cutting the continuous detector strip into scenes) is a product-assembly concern,
-    handled in :mod:`s2_e2es.l0product`; on a single full-strip granule array this is identity.
+    handled in :mod:`s2_msi_raw_generator.l0product`; on a single full-strip granule array this is identity.
     """
     return np.asarray(img, dtype=np.float64)
 

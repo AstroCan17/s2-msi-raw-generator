@@ -16,7 +16,7 @@
 Software Design Document
 ========================
 
-Architecture and detailed design of the Sentinel-2 MSI Synthetic Raw Data Generator (`s2_e2es`), per ECSS-E-ST-40C Rev.1.
+Architecture and detailed design of the Sentinel-2 MSI Synthetic Raw Data Generator (`s2_msi_raw_generator`), per ECSS-E-ST-40C Rev.1.
 
 .. toctree::
    :maxdepth: 1

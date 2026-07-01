@@ -15,6 +15,6 @@ replace the earlier synthetic Gaussian-from-MTF kernels.
 - PSFs correspond to **L1B products** (focal-plane geometry, after binning), all bands **except
   B10** (water-vapour band — does not see the ground).
 
-At load time `s2_e2es.adf` integrates each 33×33 oversampled matrix by 5×5 to the detector-pixel
+At load time `s2_msi_raw_generator.adf` integrates each 33×33 oversampled matrix by 5×5 to the detector-pixel
 grid (a ~7×7 kernel, re-normalised to Σ = 1) before convolution. **B10** has no published PSF, so
 the chain applies an identity (delta) kernel for it.

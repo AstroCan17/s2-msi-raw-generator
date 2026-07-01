@@ -5,7 +5,7 @@ Derives the radiometric calibration coefficients for all 13 bands via the two-re
 (CSM sun-diffuser + dark) inverse-crime cure — in the ``msi-processor`` NUC convention — and writes
 them as EOPF zarr ADFs (``nuc`` / ``dark`` / ``radiometric`` [+ ``noise``]) with a ``PROVENANCE.md``.
 This is Option Y of the generator ⇄ processor coupling: the generator *produces* the ADF; the
-processor keeps calibration internal. See :mod:`s2_e2es.adf_writer`.
+processor keeps calibration internal. See :mod:`s2_msi_raw_generator.adf_writer`.
 
     python scripts/build_cal_db.py OUT_DIR [--unit S2A] [--n-det 400] [--seed 0] [--no-noise]
 """
@@ -17,7 +17,7 @@ from pathlib import Path
 
 import numpy as np
 
-from s2_e2es import adf as adfmod, adf_writer, calibration, sensor
+from s2_msi_raw_generator import adf as adfmod, adf_writer, calibration, sensor
 
 
 def derive_band_cal(

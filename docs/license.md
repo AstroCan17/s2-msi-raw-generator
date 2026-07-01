@@ -16,7 +16,7 @@
 
 # License
 
-`s2_e2es` is released under the **Apache License, Version 2.0**. The full text is in the
+`s2_msi_raw_generator` is released under the **Apache License, Version 2.0**. The full text is in the
 [`LICENSE`](https://gitlab.eopf.copernicus.eu/e2es/s2-msi-raw-generator/-/blob/main/LICENSE) file at the
 repository root.
 
@@ -35,5 +35,5 @@ repository root.
     limitations under the License.
 
 The bundledS2/Copernicus reference **data** (official PSF matrices under
-`s2_e2es/data/psf/`, SRF and GIPP-derived values) is Copernicus open data, used per its own
+`s2_msi_raw_generator/data/psf/`, SRF and GIPP-derived values) is Copernicus open data, used per its own
 terms; see `docs/srf.md` for provenance.
