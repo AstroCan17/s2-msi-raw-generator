@@ -33,6 +33,11 @@ def test_cuc_time_encodes_coarse_and_fine():
     assert fine == 32768  # 0.5 * 65536
 
 
+def test_parse_cuc_time_roundtrips():
+    for t in (0.0, 5.5, 1.39e9 + 0.25):  # incl. a real 2024 GPS second-of-epoch
+        assert isp.parse_cuc_time(isp.cuc_time(t)) == pytest.approx(t, abs=1.0 / 65536)
+
+
 def test_frame_isp_headers_shape_seq_and_length():
     frame = np.zeros((20, 100), dtype=np.uint16)
     hdr, plen = isp.frame_isp_headers(frame, apid=1040, t0_seconds=0.0, line_period_s=1.5658736e-3)
@@ -90,3 +95,19 @@ def test_l0_with_isp_writes_headers_and_telemetry(tmp_path):
     # conditions/anc_data/s{APID}/isp + packet_data_length present
     assert g[f"conditions/anc_data/s{apid}/isp"].dtype == np.uint8
     assert g[f"conditions/anc_data/s{apid}/packet_data_length"].dtype == np.uint16
+
+
+def test_l0_isp_timestamps_use_real_gps_epoch(tmp_path):
+    """REQ-FUNC-035: the CUC time in the written ISP headers is the real GPS OBT, not t0=0."""
+    zarr = pytest.importorskip("zarr")
+    from s2_msi_raw_generator import datation, l0product
+    frames = {(4, "B03"): np.full((16, 8), 100.0)}
+    l0 = l0product.reverse_to_l0_frames(frames, seed=1)
+    out = str(tmp_path / "L0isp_epoch.zarr")
+    d = datation.Datation(epoch_utc="2024-04-03T10:24:15Z")
+    l0product.write_l0_product(out, l0, datation=d, with_isp=True)
+
+    ih = np.asarray(zarr.open_group(out, mode="r")["measurements/d04/b03/isp_header"])
+    t0 = isp.parse_cuc_time(bytes(ih[0, 6:12]))          # first-line CUC time
+    assert t0 == pytest.approx(d.line_time_gps(0, "B03"), abs=1.0 / 65536)
+    assert t0 > 1.30e9                                    # real GPS second-of-epoch, not zero

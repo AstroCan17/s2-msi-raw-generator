@@ -50,6 +50,8 @@ method (T/A/I/R) and status. Verification details and quantitative results are i
 | REQ-FUNC-046 | Operational GIPP ingest | gipp, adf | `gipp.load_gipp_set`, `adf.from_gipp` | `test_gipp` | T | realized |
 | REQ-FUNC-047 | Calibration sub-set | calibration | `calibration.calibrate`, `estimated_adf` | `test_calibration` | T | realized |
 | REQ-FUNC-039 | ESUN spectral ADF | sensor, adf_writer | `sensor.esun`, `adf_writer.write_calibration_db` (spectral.zarr) | `test_adf_writer` | T | realized |
+| REQ-FUNC-035 | Real line datation | datation, isp, l0product | `datation.Datation`, `isp.parse_cuc_time`, `build_root_metadata` (band_time_stamp) | `test_datation`, `test_isp` | T | realized |
+| REQ-FUNC-038 | STAC geometry & orbit | l0product | `build_root_metadata` (bbox/geometry/sat:orbit/datastrip) | `test_l0product` | T | realized |
 | REQ-FUNC-043 | Credentialed ADF API | — | — | — | — | deferred |
 | REQ-FUNC-053 | Configurable PU orchestration | — | — | — | — | deferred |
 | REQ-FUNC-062 | Dask distribution | — | — | — | — | deferred |
