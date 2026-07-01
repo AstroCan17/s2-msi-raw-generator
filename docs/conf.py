@@ -20,7 +20,7 @@ import sys
 sys.path.insert(0, os.path.abspath(".."))
 
 # -- Project information ------------------------------------------------------
-project = "s2-e2es"
+project = "s2-msi-raw-generator"
 copyright = "2026 Can Deniz Kaya"
 author = "Can Deniz Kaya"
 # Set by the CI pipeline (`SPHINX_RELEASE`); falls back to the package version.
@@ -70,13 +70,13 @@ napoleon_numpy_docstring = True
 html_theme = "sphinx_book_theme"
 html_title = "Sentinel-2 MSI Synthetic Raw Data Generator"
 html_theme_options = {
-    "repository_url": "https://gitlab.eopf.copernicus.eu/e2es/s2-e2es",
+    "repository_url": "https://gitlab.eopf.copernicus.eu/e2es/s2-msi-raw-generator",
     "repository_branch": "main",
     "path_to_docs": "docs",
     "use_repository_button": True,
     "use_issues_button": True,
     "home_page_in_toc": False,
-    "logo": {"text": "s2-e2es"},
+    "logo": {"text": "s2-msi-raw-generator"},
 }
 html_last_updated_fmt = "%d/%m/%Y %H:%M"
 
