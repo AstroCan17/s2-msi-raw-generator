@@ -107,6 +107,13 @@ correct → reverse impress → raw′, residual $\approx 0$) on S2 data with th
   (`l0product.build_root_metadata`). realized
 - **REQ-FUNC-034 — Sensor-configuration metadata.** *…spectral_band_info, tdi_configuration_list,
   line_period, per-unit SRF values.* **V: T** (`test_l0product`, `test_integration`). realized
+- **REQ-FUNC-035 — Real line datation.** *The software shall stamp each ISP line with a real GPS/OBT time
+  from an acquisition epoch (`datation.Datation`, ADF_DATAT model), and record per-band `band_time_stamp`
+  + the acquisition epoch in the L0 metadata.* **V: T** (`datation`, `test_datation`, `test_isp`). realized
+- **REQ-FUNC-038 — STAC geometry & orbit metadata.** *The software shall write the STAC footprint
+  (`bbox` + closed `geometry` polygon), `sat:relative_orbit`/`sat:absolute_orbit`/`sat:orbit_state`,
+  `eopf:datastrip_id`, and a real acquisition datetime span (start/end).* **V: T**
+  (`l0product.build_root_metadata`, `test_l0product`). realized
 - **REQ-FUNC-045 — ADF provenance.** *The software shall record per-component ADF provenance in the output
   metadata.* **V: I** (`l0product` `adf_provenance`). realized
 
