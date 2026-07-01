@@ -56,6 +56,7 @@ method (T/A/I/R) and status. Verification details and quantitative results are i
 | REQ-FUNC-041 | EOQC quality report | quality_report, l0product | `quality_report.build_qc_report`, `write_qc_report` | `test_quality_report` | T | realized |
 | REQ-FUNC-036 | Orbit/attitude ephemeris | sad, l0product | `sad.orbit_ephemeris`, `synth_orbit_attitude` | `test_sad` | T | realized |
 | REQ-FUNC-037 | SAD content (real ISP) | sad, l0product | `sad.synth_orbit_attitude`, `pack_sad_isp`, `scan_ccsds_packets` | `test_sad` | T | realized |
+| REQ-FUNC-042 | Open-container L0 + L0→L1B E2E | l0product, scripts | `l0product.write_l0_opencontainer`, `scripts/run_e2e_l0_to_l1b.py` | `test_e2e_l1b` | T/I | realized |
 | REQ-FUNC-043 | Credentialed ADF API | — | — | — | — | deferred |
 | REQ-FUNC-053 | Configurable PU orchestration | — | — | — | — | deferred |
 | REQ-FUNC-062 | Dask distribution | — | — | — | — | deferred |
