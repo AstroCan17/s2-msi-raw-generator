@@ -126,6 +126,11 @@ correct → reverse impress → raw′, residual $\approx 0$) on S2 data with th
 - **REQ-FUNC-037 — SAD content.** *The software shall decode/synthesise the Satellite Ancillary Data — AOCS
   attitude quaternion, orbit ephemeris and detector thermal — and pack it as real CCSDS ISP into
   `conditions/anc_data/s{APID}/isp` (replacing the placeholder zero payload).* **V: T** (`sad`, `test_sad`). realized
+- **REQ-FUNC-042 — Open-container L0 handoff + L0→L1B E2E.** *The software shall additionally emit an
+  open-container L0 (`measurements/detector/<band>` + `quality/l0_flags/<band>` + `conditions/*`) that the
+  `msi-processor` `l0_decode` unit ingests, and provide an L0→L1B driver (radiometric + toa reflectance),
+  with `nuc.gain[band]` length matching the detector-axis width.* **V: T** (CI: schema, `test_e2e_l1b`),
+  **V: I** (SDE real run, `scripts/run_e2e_l0_to_l1b.py`). realized
 - **REQ-FUNC-045 — ADF provenance.** *The software shall record per-component ADF provenance in the output
   metadata.* **V: I** (`l0product` `adf_provenance`). realized
 

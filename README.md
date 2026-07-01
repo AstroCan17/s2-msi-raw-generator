@@ -82,7 +82,7 @@ Full **ECSS-E-ST-40C Rev.1** software documentation set under `docs/` (tailored 
 | SDD | `docs/sdd/` | Software design — architecture, module design, REQ→code→test traceability |
 | ICD | `docs/icd.md` | Interfaces — L1A/L1B + GIPP inputs, the L0 RAW output (ICD-IF-L0) |
 | DPM | `docs/dpm/` | Data processing model — the reverse chain blocks + parameter/data list |
-| V&V | `docs/vv/` | Verification & validation plan + report (133 tests, RMSE ~1e-14) |
+| V&V | `docs/vv/` | Verification & validation plan + report (136 tests, RMSE ~1e-14) |
 | SUM | `docs/sum.md` | User manual — install, usage, CLI |
 | SRN | `docs/srn.md` | Release note |
 | CIDL / SCF / SRF / SDP | `docs/{cidl,scf,srf,sdp}.md` | Config item list, config file, reuse file, development plan |
@@ -95,7 +95,7 @@ implemented from public references only.
 
 ```bash
 pip install -e ".[read]"                 # numpy + zarr (eopf not required)
-pytest                                   # 133 tests
+pytest                                   # 136 tests
 ```
 
 **Reverse chain → L0 RAW** (on a  L1B granule):
@@ -128,7 +128,7 @@ are set.
 
 ## Status
 
-**Complete — full S1–S15 reverse chain, all- ADFs, original round-trip V&V; 133 tests, CI green.**
+**Complete — full S1–S15 reverse chain, all- ADFs, original round-trip V&V; 136 tests, CI green.**
 
 | Increment | Content |
 |---|---|
@@ -141,6 +141,7 @@ are set.
 | 6 | Real operational **GIPP** → per-pixel dark + relative response (`gipp.py`, `from_gipp`) |
 | 7 | Original ATBD forward + **round-trip V&V on L1A** (RMSE ~1e-14) |
 | 8 | S2 **calibration sub-set** — CSM diffuser + dark → derived coeffs (inverse-crime cure) |
+| 9 | **L0 completion → L0→L1B E2E** — ESUN spectral ADF, real datation, STAC geometry/orbit + orbit-ephemeris, real SAD (AOCS/orbit/thermal), QAFlag/MSK_QUALIT quality + EOQC report, open-container handoff to `msi-processor` |
 
 **All radiometric ADFs are real** (official ESA PSF, SRF, product noise model, operational GIPP) —
 nothing fitted or synthetic. Runs end-to-end on S2 L1A/L1B with `numpy` + `zarr` only.
