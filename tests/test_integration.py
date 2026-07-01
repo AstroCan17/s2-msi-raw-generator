@@ -60,9 +60,10 @@ def test_full_pipeline_l1b_to_l0_with_isp(tmp_path):
             ih = g[f"measurements/d{det:02d}/{bkey}/isp_header"]
             assert ih.shape == (40, isp.ISP_HEADER_LEN)
 
-    # --- quality masks reflect injected defects ---
-    assert np.all(g["quality/d04/b11/mask"][:][:, [2, 5, 9]] & 1)   # B11 dead columns flagged
-    assert g["quality/d04/b12/mask"][4, 3] & 2                       # B12 hot pixel flagged
+    # --- quality masks reflect injected defects (S2 MSK_QUALIT bit-planes) ---
+    from s2_msi_raw_generator import quality
+    assert np.all(g["quality/d04/b11/mask"][:][:, [2, 5, 9]] & quality.MSK_DEFECTIVE)  # B11 dead columns
+    assert g["quality/d04/b12/mask"][4, 3] & quality.MSK_SATURATED                      # B12 hot pixel
 
     # --- conditions/anc_data SAD telemetry present for each APID ---
     apid = dict(g["measurements/d04/b03"].attrs)["apid"]
