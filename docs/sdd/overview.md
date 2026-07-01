@@ -45,7 +45,7 @@ flowchart TD
     S5["S5 · undo 60 m binning"]
     S6["S6 · PSF re-blur (ESA matrices; B10 = identity)"]
     S7["S7 · impress relative response"]
-    S8["S8 · SWIR re-stagger"]
+    S8["S8 · SWIR re-arrangement (reverse)"]
     S9["S9 · crosstalk"]
     S10["S10 · blind/defective"]
     S11["S11 · re-apply dark (+D)"]
@@ -58,7 +58,7 @@ flowchart TD
 
 The **implemented MVP execution order** (`reverse.reverse_mvp`) is `S1 → S6 → S7 → S13 → S11 → S12 →
 S14`: noise (S13) is impressed on the **signal** DN *before* the S11 dark pedestal, so $\sigma = \sqrt{\alpha^2 + \beta \cdot \mathrm{DN}_\mathrm{signal}}$
-reproduces the spec SNR@Lref exactly. `reverse_full` adds S8 (SWIR re-stagger) and S10 (defects):
+reproduces the spec SNR@Lref exactly. `reverse_full` adds S8 (SWIR re-arrangement, reverse) and S10 (defects):
 `S1 → S6 → S7 → [S8] → S13 → S11 → S12 → [S10] → S14`. The exact-inverse bridge `reverse_radiometric`
 applies only `S1 → S7 → S11 → S12` (no PSF/noise/quantize) so it is algebraically invertible.
 

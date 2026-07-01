@@ -33,7 +33,7 @@ specifications (the ATBD and the Sentinel-2 L1 ATBD) and validated againstS2 dat
 | 0 | Scaffold, CI, ATBD + Annex A datasheet |
 | 1 | MVP radiometric core (S1, S6, S7, S11–S14) + sensor model +S2 PSF / SRF ADFs |
 | 2 | L0 RAW EOProduct assembly (156-array Zarr + STAC / sensor configuration) |
-| 3 | Remaining chain steps S3/S4/S5/S8/S9/S10 (framing, offset, binning, SWIR re-stagger, crosstalk, defects) |
+| 3 | Remaining chain steps S3/S4/S5/S8/S9/S10 (framing, offset, binning, SWIR re-arrangement (reverse), crosstalk, defects) |
 | 4 | S15 CCSDS ISP packet generation + SAD telemetry |
 | 5 | Real per-band noise model ($\alpha, \beta$) + official ATBD raw model $X = A\cdot G\cdot L + D$, dark |
 | 6 | Real operational GIPP → per-pixel dark + relative response (`gipp.py`, `BandADF.from_gipp`) |

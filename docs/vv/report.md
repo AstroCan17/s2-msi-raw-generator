@@ -37,8 +37,8 @@ L1A). All *realized* requirements in the SRS are verified.
 | `test_l0product.py` | 3 | `reverse_to_l0_frames` uint16 in range; L0 write+reopen structure (band/mask, B8A→b8a, STAC `eopf:type=S2MSIL0_`, TDI list, `physical_gains`, `line_period`, provenance); **full 156-array contract (12×13)** |
 | `test_gipp.py` | 5 | R2EQOG cubic + bilinear parse (dark, gains); R2DEPI/BLINDP/R2PARA (−100/−1000)/R2CRCO (≈0); `from_gipp` builds ADF + blind-column width alignment; optional real-GIPP dark in DQR range |
 | `test_isp.py` | 8 | CCSDS primary-header round-trip; APID > 2047 rejected; CUC time coarse/fine; frame ISP header shape/seq/length; timestamps step by `line_period`; SAD packets; deterministic 11-bit APID; L0 `with_isp` writes ISP + telemetry |
-| `test_integration.py` | 1 | **End-to-end: synthetic L1B → `reverse_full` (S1,S6,S7,S8,S10,S11–S14) + S15 ISP → full L0**, 2 det × 6 bands incl. SWIR re-stagger + injected defects; validates arrays, ISP, masks reflect defects, telemetry,  sensor config |
-| `test_inc3_steps.py` | 6 | S4 offset; S5 un-bin (shape+mean); S8 SWIR re-stagger invertible; S9 crosstalk (coeff 0 = identity); S10 defects (dead→0/bit0, hot→4095/bit1); `reverse_full` SWIR+defects contract |
+| `test_integration.py` | 1 | **End-to-end: synthetic L1B → `reverse_full` (S1,S6,S7,S8,S10,S11–S14) + S15 ISP → full L0**, 2 det × 6 bands incl. SWIR re-arrangement (reverse) + injected defects; validates arrays, ISP, masks reflect defects, telemetry,  sensor config |
+| `test_inc3_steps.py` | 6 | S4 offset; S5 un-bin (shape+mean); S8 SWIR re-arrangement (reverse) invertible; S9 crosstalk (coeff 0 = identity); S10 defects (dead→0/bit0, hot→4095/bit1); `reverse_full` SWIR+defects contract |
 
 ## 3. Quantitative results
 
