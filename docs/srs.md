@@ -120,6 +120,10 @@ correct → reverse impress → raw′, residual $\approx 0$) on S2 data with th
   response and absolute coefficient from synthetic CSM sun-diffuser + dark acquisitions, and supply the
   derived (not truth) coefficients to the processor.* **V: T** (`calibration.calibrate`/`estimated_adf`,
   `test_calibration`). realized
+- **REQ-FUNC-039 — ESUN spectral ADF.** *The software shall emit a `spectral.zarr` calibration-database ADF
+  holding the per-band ESUN (extraterrestrial solar irradiance, Thuillier 2003; S2A/S2B) as `/esun/<band>`
+  float32 scalars, in the schema the processor's `toa` unit consumes for TOA reflectance.* **V: T**
+  (`sensor.esun`, `adf_writer.write_calibration_db`, `test_adf_writer`). realized
 - **REQ-FUNC-015 ADF source** PSF (SentiWiki), SRF (RD 3), noise model (product), per-pixel
   dark/PRNU (GIPP). **V: I/T**. realized
 
