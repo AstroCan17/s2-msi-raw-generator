@@ -90,6 +90,20 @@ S2_E2ES_GIPP_DIR=data/gipp S2_E2ES_L1A=data/PDI_MSI_S2_L1A.zarr pytest tests/ -q
 | `demo_calibration.py` | `[GIPP_dir]` (GIPP if given, else synthetic ADFs) |
 | `save_images.py` | `<L1A.zarr> <GIPP_dir> [band=B03] [--detector 1] [--lines 1024] [--out images]` |
 | `derive_prnu_dark.py` | `--l1a <L1A/L1B.zarr> [--dark <dark.zarr>] [--bands …] [--detectors 1-12] [--out *.npz]` |
+| `run_e2e_l0_to_l1b.py` | `[work_dir]` (synthetic demo; the data-store default is `data/output/`) |
+| `run_e2e_real_l1a.py` | `<store_root> [--phases …] [--l1a PATH] [--gipp DIR] [--bands …] [--lines N] [--band-groups N] [--max-payload N] [--jobs N] [--store-decoded yes\|no]` |
+
+### Real-L1A E2E walkthrough (SDE)
+
+```console
+$ python scripts/run_e2e_real_l1a.py ~/validation-data/e2e-real \
+      --gipp <GIPP_dir>            # all phases: fetch → package → decode → validate → report
+```
+
+Phases are idempotent and re-runnable individually (`--phases preflight,package,ground-decode`);
+each writes its JSON under `<store>/report/` and the final `report` phase assembles
+`e2e_report.md`. `l0-decode`/`validate` need `eopf==2.8.1` + `msi_processor`; every other phase
+runs in the plain generator environment. See `docs/vv/real_e2e.md` for the acceptance criteria.
 
 ## 6. Outputs
 

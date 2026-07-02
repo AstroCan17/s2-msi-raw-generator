@@ -5,6 +5,17 @@ All notable changes to the Sentinel-2 MSI reverse E2ES (`s2_msi_raw_generator`).
 ## [Unreleased]
 
 ### Added
+- **Real-L1A E2E driver + PSFD naming + bucket fetch** — `scripts/run_e2e_real_l1a.py`
+  (phase-structured, idempotent: fetch-l1a/fetch-l0/preflight/package/ground-decode/l0-decode/
+  validate/radiometric-vv/scan-l0/quicklook/report; REQ-FUNC-093): packages the real bucket
+  L1A into the compressed-ISP canonical L0 + open-container form under **EOPF PSFD §3 names**
+  (new `naming.py`, ICD-IF-NAME — the ECSS-M-ST-40C identification coding system), runs
+  msi-processor `l0_decode` to L1A′ and validates bit-identity, line-loss accounting, the GIPP
+  radiometric round-trip, EOQC, and a **structural scan of a real PSD L0 SAFE** (packet-tiling
+  criterion on its ISP `.bin` files). New stdlib-only `s3fetch.py` (anonymous S3 listing +
+  verified parallel GET). New manual CI job **`e2e-real-l1a`** (windowed, artifacts:
+  report+quicklooks). Docs: ICD-IF-NAME, SRS REQ-FUNC-091/092/093, CIDL rows,
+  `docs/vv/real_e2e.md`, README/DPM diagrams updated to the real-data flow.
 - **Compressed ISP payloads + ground decode (real downlink shape)** — the canonical L0's
   `with_isp` branch now CCSDS-122-compresses each band and carries it as **real CCSDS space
   packets**: `isp.packetize_stream` (segment groups = codec segments = 8 image lines,
