@@ -130,6 +130,40 @@ byte-aligned header fields carrying the Part 1A/3/4 content; byte-aligned sectio
 Segments default to one block row = 8 image lines. Verified by `tests/test_ccsds122.py`
 (bit-exact `compress_frame`∘`decompress_frame` identity). (REQ-FUNC-092)
 
+### ICD-IF-NAME — product identification & file naming (normative)
+
+ECSS-M-ST-40C Rev.1 requires every configuration item to carry a **unique identification code
+under a defined coding system** (it prescribes the *system*, not a concrete string format —
+that is mission-specification territory). This project's coding system for data products is
+the **EOPF PSFD §3** file-naming rule, implemented by `s2_msi_raw_generator.naming` and
+recorded in the CIDL:
+
+```
+TTTTTTTTT_YYYYMMDDTHHMMSS_DDDD_URRR_XVVV[_Z…][.zarr|.zarr.zip]
+```
+
+| Field | Content | Source |
+|---|---|---|
+| `TTTTTTTTT` | 9-char product type (`S02MSIL0_`, `S02MSIL1A`, `S02MSIL1B`, `S02MSIISP`, `S02SADISP`; `_`-padded) | PSFD §3 type codes |
+| `YYYYMMDDTHHMMSS` | acquisition start (UTC) | product STAC `datetime` |
+| `DDDD` | duration, seconds (round-half-up, min 1, ≤ 9999) | `n_lines × line_period` |
+| `U` | platform unit letter (A/B/C) | STAC `platform` |
+| `RRR` | relative orbit 001–143 | STAC `sat:relative_orbit` |
+| `X` | consolidation: `T` NRT · `_` STC · `S` NTC | run configuration |
+| `VVV` | 3-hex discriminator (deterministic CRC of the other fields when not given) | `naming.psfd_name` |
+| `_Z…` | optional type-specific suffix (e.g. `_OC` for the open-container form) | caller |
+
+Example: `S02MSIL0__20220803T113642_0033_A123_T5C1.zarr`. `naming.parse_psfd_name` is the
+exact inverse; every emitted name must round-trip (REQ-FUNC-091). Fields not derivable from
+the source product's metadata fall back to documented defaults and are flagged in the run
+report (`derived_from_defaults`).
+
+**Legacy-PSD crosswalk** (S2 PSD `S2-PDGS-TAS-DI-PSD`; kept in *metadata*, not file names):
+`eopf:datastrip_id` = `S2A_OPER_MSI_L0__DS_<sensing>_A<orbit>` (PSD datastrip id, written by
+`l0product.build_root_metadata`); real bucket products use the PSD forms
+`S2A_OPER_PRD_MSIL0P_…​.SAFE`, `S2A_OPER_MSI_L0__GR_…_D<dd>` — the structural-comparison
+phase of `scripts/run_e2e_real_l1a.py` maps these to our PSFD names in its report.
+
 ## Validation requirements
 The output structure is verified by `tests/test_l0product.py` (156-array contract, dtypes, root metadata,
 `eopf:type`, `tdi_configuration_list`, `physical_gains`, `line_period`, `adf_provenance`) and

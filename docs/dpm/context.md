@@ -18,17 +18,24 @@
 
 ```mermaid
 flowchart LR
+    BKT[("public S3 bucket dpr-common:<br/>real L1A · real PSD L0 SAFE · GIPP")]
     L1["L1A / L1B<br/>Sentinel-2 product<br/>(EOPF Zarr, radiance / raw counts)"]
     GIPP["operational S2A GIPP<br/>R2EQOG / R2DEPI / BLINDP /<br/>R2PARA / R2CRCO (XML)"]
     ADF["ADF<br/>PSF matrices (CSV), SRF,<br/>product noise model"]
-    E2ES["s2_msi_raw_generator reverse E2ES<br/>(S1–S15, radiometric)"]
-    L0["L0 RAW EOProduct<br/>(Zarr, 156 arrays + ISP + STAC)"]
+    E2ES["s2_msi_raw_generator reverse E2ES<br/>(S1–S15 incl. CCSDS-122 + packetize)"]
+    L0["L0 RAW EOProduct<br/>(Zarr, compressed-ISP streams + STAC,<br/>PSFD names — ICD-IF-NAME)"]
     CAL["calibration sub-set:<br/>synth diffuser + dark →<br/>derived ADF (inverse-crime)"]
+    MSI["msi-processor l0_decode<br/>→ L1A′"]
+    REP["validation & report:<br/>bit-identity · GIPP round-trip ·<br/>real-L0 structural scan (data-store report/)"]
+    BKT -->|"s3fetch"| L1
+    BKT -.->|"real L0 (structural ref)"| REP
     L1 --> E2ES
     GIPP --> E2ES
     ADF --> E2ES
     E2ES --> L0
     E2ES -.-> CAL
+    L0 --> MSI --> REP
+    L1 -.-> REP
 ```
 
 **Inputs.** A Sentinel-2 **L1A** (raw DN) or **L1B** (radiance) EOPF Zarr granule; the operational
