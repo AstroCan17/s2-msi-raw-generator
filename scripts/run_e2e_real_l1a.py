@@ -49,10 +49,20 @@ from s2_msi_raw_generator import ccsds122, datation, io as gio, isp, l0product, 
 
 ENDPOINT = "https://dpr-common.s3.sbg.io.cloud.ovh.net"
 L1A_PREFIX = "s2-msi-l1-example/PDI_MSI_S2_L1A.zarr/"
-REAL_L0_PREFIX = ("S2AMSIdataset/S2A_OPER_PRD_MSIL0P_PDMC_20220803T144026_"
-                  "R123_V20220803T113642_20220803T113704.SAFE/")
-REAL_SAD_KEY = ("S2AMSIdataset/S2A_OPER_AUX_SADATA_2APS_20221111T235959_"
-                "V20221111T060714_20221111T074849_A049565_WP_LN.tar")
+# The unpacked PSD L0 SAFE mirror (incl. per-band ISP .bin files) is LISTable but its objects
+# return **HTTP 403 on GET** (verified 2026-07-02) — the bucket grants read only on selected
+# archives. The accessible real-L0 references are the datastrip PDI tar (metadata + QI) and the
+# real **SADATA** tars, whose members are genuine downlinked CCSDS packets — exactly what the
+# structural scan needs.
+REAL_L0_SAFE_PREFIX = ("S2AMSIdataset/S2A_OPER_PRD_MSIL0P_PDMC_20220803T144026_"
+                       "R123_V20220803T113642_20220803T113704.SAFE/")
+REAL_L0_KEYS = [
+    "S2AMSIdataset/S2A_OPER_MSI_L0__DS_ATOS_20221111T083024_S20221111T082158_N04.00.tar",
+    "S2AMSIdataset/S2A_OPER_AUX_SADATA_2APS_20241218T042947_"
+    "V20241218T034819_20241218T041652_A049565_WP_LN.tar",
+    "S2AMSIdataset/S2A_OPER_AUX_SADATA_2APS_20241218T074251_"
+    "V20241218T070943_20241218T072345_A049567_WP_LN.tar",
+]
 DETECTOR = 1                       # the example PDI L1A carries DD01 only
 PHASES = ["fetch-l1a", "fetch-l0", "preflight", "package", "ground-decode", "l0-decode",
           "validate", "radiometric-vv", "scan-l0", "quicklook", "report"]
@@ -110,15 +120,22 @@ def phase_fetch_l1a(store: dict[str, Path], args) -> None:
 
 
 def phase_fetch_l0(store: dict[str, Path], args) -> None:
-    dest = store["inputs"] / Path(REAL_L0_PREFIX.rstrip("/")).name
-    man = s3fetch.fetch_prefix(ENDPOINT, REAL_L0_PREFIX, dest,
-                               strip_prefix=REAL_L0_PREFIX, jobs=args.jobs)
-    s3fetch.save_manifest(man, store["report"] / "fetch_l0_manifest.json")
-    man2 = s3fetch.fetch_prefix(ENDPOINT, REAL_SAD_KEY, store["inputs"] / "sad",
-                                strip_prefix="S2AMSIdataset/", jobs=1)
-    s3fetch.save_manifest(man2, store["report"] / "fetch_sad_manifest.json")
-    print(f"[fetch-l0] SAFE {man['n_objects']} objects {man['total_bytes']/1e6:.1f} MB "
-          f"+ SAD tar {man2['total_bytes']/1e6:.1f} MB")
+    """Fetch the accessible real-L0 references (DS + SADATA tars; the SAFE mirror is GET-403)."""
+    dest = store["inputs"] / "real_l0"
+    results, total = [], 0
+    for key in REAL_L0_KEYS:
+        try:
+            man = s3fetch.fetch_prefix(ENDPOINT, key, dest, strip_prefix="S2AMSIdataset/",
+                                       jobs=1)
+            results.append(man)
+            total += man["total_bytes"]
+        except RuntimeError as exc:                        # keep going; report what failed
+            results.append({"prefix": key, "error": str(exc)})
+    s3fetch.save_manifest({"targets": results, "safe_prefix_status":
+                           f"{REAL_L0_SAFE_PREFIX} objects return HTTP 403 on GET "
+                           "(bucket policy; verified 2026-07-02)"},
+                          store["report"] / "fetch_l0_manifest.json")
+    print(f"[fetch-l0] {len(REAL_L0_KEYS)} real-L0 references, {total/1e6:.1f} MB → {dest}")
 
 
 def _l1a_path(store: dict[str, Path], args) -> str:
@@ -324,54 +341,110 @@ def phase_radiometric_vv(store: dict[str, Path], args) -> None:
     _jdump(out, store["report"] / "radiometric_vv.json")
 
 
+def _scan_member(name: str, buf: bytes) -> dict:
+    """Header-walk one binary member with the same walker used on our own streams."""
+    from s2_msi_raw_generator import sad as sad_mod
+
+    pkts = sad_mod.scan_ccsds_packets(buf)
+    covered = 0
+    apids: dict[int, int] = {}
+    flags: dict[int, int] = {}
+    dlens: list[int] = []
+    seq_ok = True
+    last_seq: dict[int, int] = {}
+    for p in pkts:
+        dlen = p["data_len"] + 1
+        covered = p["offset"] + isp.PRIMARY_HEADER_LEN + dlen
+        apids[p["apid"]] = apids.get(p["apid"], 0) + 1
+        flags[p["seq_flags"]] = flags.get(p["seq_flags"], 0) + 1
+        dlens.append(dlen)
+        prev = last_seq.get(p["apid"])
+        if prev is not None and p["seq_count"] != (prev + 1) % isp.SEQ_COUNT_MOD:
+            seq_ok = False
+        last_seq[p["apid"]] = p["seq_count"]
+    return {
+        "member": name, "bytes": len(buf), "packets": len(pkts),
+        "tiles_exactly": covered == len(buf), "coverage_bytes": covered,
+        "seq_continuous_per_apid": seq_ok,
+        "apids": {str(k): v for k, v in sorted(apids.items())},
+        "seq_flags": {str(k): v for k, v in sorted(flags.items())},
+        "dlen_min": min(dlens) if dlens else None, "dlen_max": max(dlens) if dlens else None,
+    }
+
+
 def phase_scan_l0(store: dict[str, Path], args) -> None:
-    safe = store["inputs"] / Path(REAL_L0_PREFIX.rstrip("/")).name
-    bins = sorted(safe.glob("GRANULE/*/IMG_DATA/*.bin"))
-    if not bins:
-        _jdump({"skipped": f"no .bin under {safe}"}, store["report"] / "isp_structural.json")
-        print("[scan-l0] skipped (real SAFE not fetched)")
+    """Structural scan of the accessible real-L0 references (REQ-FUNC-093).
+
+    The real **SADATA** tar members are genuine downlinked CCSDS packet streams — our packet
+    walker must tile them; the **DS** tar gives the real PSD datastrip identifiers for the
+    naming crosswalk.  (The SAFE image-ISP ``.bin`` files are GET-403 on the bucket; that
+    limitation is recorded in the report.)
+    """
+    import re
+    import tarfile
+
+    dest = store["inputs"] / "real_l0"
+    tars = sorted(dest.glob("*.tar"))
+    if not tars:
+        _jdump({"skipped": f"no real-L0 tars under {dest}"},
+               store["report"] / "isp_structural.json")
+        print("[scan-l0] skipped (real-L0 references not fetched)")
         return
-    per_band: dict[str, dict] = {}
-    n_bad = 0
-    for f in bins:
-        band = f.stem.rsplit("_", 1)[-1]           # ..._B07 → B07
-        buf = np.fromfile(f, dtype=np.uint8)
-        st = per_band.setdefault(band, {"files": 0, "packets": 0, "bytes": 0,
-                                        "apids": set(), "seq_flags": {}, "dlen_min": 1 << 30,
-                                        "dlen_max": 0, "tiles_exactly": 0})
-        st["files"] += 1
-        st["bytes"] += int(buf.size)
-        try:
-            n = 0
-            for hdr, _t, _body in isp.iter_packets(buf):
-                n += 1
-                st["apids"].add(hdr["apid"])
-                st["seq_flags"][hdr["seq_flags"]] = st["seq_flags"].get(hdr["seq_flags"], 0) + 1
-                st["dlen_min"] = min(st["dlen_min"], hdr["data_len"] + 1)
-                st["dlen_max"] = max(st["dlen_max"], hdr["data_len"] + 1)
-            st["packets"] += n
-            st["tiles_exactly"] += 1
-        except ValueError:
-            n_bad += 1
-    for st in per_band.values():
-        st["apids"] = sorted(st["apids"])
-    # our own product self-parse accounting
+    sad_scans, ds_info = [], {}
+    for t in tars:
+        with tarfile.open(t, "r:*") as tf:
+            members = [m for m in tf.getmembers() if m.isfile()]
+            if "SADATA" in t.name:
+                for m in members:
+                    f = tf.extractfile(m)
+                    if f is None:
+                        continue
+                    sad_scans.append(_scan_member(f"{t.name}::{m.name}", f.read()))
+            elif "_MSI_L0__DS_" in t.name:
+                ds_info["tar"] = t.name
+                ds_info["members"] = [{"name": m.name, "bytes": m.size} for m in members]
+                for m in members:                       # datastrip metadata → PSD identifiers
+                    if m.name.upper().endswith(".XML") and "MTD" in m.name.upper():
+                        xml = tf.extractfile(m).read().decode("utf-8", "replace")
+                        ds_info["mtd_member"] = m.name
+                        ids = sorted(set(re.findall(r"S2A_OPER_MSI_L0__DS_[A-Z0-9_]+", xml)))
+                        times = sorted(set(re.findall(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}", xml)))
+                        ds_info["psd_datastrip_ids"] = ids[:5]
+                        ds_info["sensing_times"] = times[:6]
+    # naming crosswalk: our PSD-style metadata id + PSFD file names vs the real PSD forms
     pre = _jload(store["report"] / "preflight.json")
-    ours = {}
+    crosswalk = {"ours_psfd_l0": pre["product_names"]["l0"],
+                 "real_psd_ds_tar": ds_info.get("tar"),
+                 "real_psd_datastrip_ids": ds_info.get("psd_datastrip_ids", [])}
     canon = store["l0"] / pre["product_names"]["l0"]
     if canon.exists():
         import zarr
         g = zarr.open_group(str(canon), mode="r")
+        crosswalk["ours_psd_datastrip_id"] = dict(g.attrs)["stac_discovery"]["properties"].get(
+            "eopf:datastrip_id")
+        crosswalk["psd_pattern_match"] = bool(
+            crosswalk["ours_psd_datastrip_id"] and
+            re.fullmatch(r"S2[ABC]_OPER_MSI_L0__DS_\d{8}T\d{6}_A\d{6}",
+                         crosswalk["ours_psd_datastrip_id"]))
+        ours = {}
         for bn in pre["bands"]:
             mg = g[f"measurements/d{DETECTOR:02d}/{sensor.zarr_band_key(bn)}"]
             stream = np.asarray(mg["isp"])
             ours[bn] = {"packets": sum(1 for _ in isp.iter_packets(stream)),
                         "bytes": int(stream.size),
                         "ratio": dict(mg.attrs)["compression"]["ratio"]}
-    _jdump({"real_safe": {k: v for k, v in sorted(per_band.items())},
-            "files_failing_tiling": n_bad, "ours": ours},
+    else:
+        ours = {}
+    n_tiled = sum(1 for s in sad_scans if s["tiles_exactly"])
+    _jdump({"safe_limitation": "PSD L0 SAFE image-ISP .bin objects are HTTP 403 on GET "
+                               "(bucket policy) — image-packet accounting not possible; "
+                               "structural ISP validation done on real SADATA packet streams",
+            "real_sadata": sad_scans, "real_ds": ds_info,
+            "naming_crosswalk": crosswalk, "ours": ours,
+            "sadata_members_tiling": f"{n_tiled}/{len(sad_scans)}"},
            store["report"] / "isp_structural.json")
-    print(f"[scan-l0] {len(bins)} real .bin files, {n_bad} failed the tiling criterion")
+    print(f"[scan-l0] SADATA members tiling exactly: {n_tiled}/{len(sad_scans)}; "
+          f"DS ids: {ds_info.get('psd_datastrip_ids', [])[:2]}")
 
 
 def phase_quicklook(store: dict[str, Path], args) -> None:
@@ -450,11 +523,24 @@ def phase_report(store: dict[str, Path], args) -> None:
     st = sections["isp_structural"]
     if not st.get("missing") and not st.get("skipped"):
         lines += ["## Real-L0 ISP structural scan", "",
-                  f"- Files failing the packet-tiling criterion: {st['files_failing_tiling']}",
-                  "", "| band | files | packets | data-len min..max |", "|---|---|---|---|"]
-        lines += [f"| {b} | {v['files']} | {v['packets']} | {v['dlen_min']}..{v['dlen_max']} |"
-                  for b, v in sorted(st["real_safe"].items())]
-        lines.append("")
+                  f"- {st.get('safe_limitation', '')}",
+                  f"- Real SADATA members tiling exactly: {st.get('sadata_members_tiling')}",
+                  ""]
+        if st.get("real_sadata"):
+            lines += ["| member | packets | tiles | seq continuous | data-len min..max |",
+                      "|---|---|---|---|---|"]
+            lines += [f"| {s['member']} | {s['packets']} | {s['tiles_exactly']} | "
+                      f"{s['seq_continuous_per_apid']} | {s['dlen_min']}..{s['dlen_max']} |"
+                      for s in st["real_sadata"]]
+            lines.append("")
+        cw = st.get("naming_crosswalk", {})
+        if cw:
+            lines += ["### Naming crosswalk (PSD ↔ PSFD)", "",
+                      f"- ours (PSFD file): `{cw.get('ours_psfd_l0')}`",
+                      f"- ours (PSD datastrip id in metadata): `{cw.get('ours_psd_datastrip_id')}` "
+                      f"(pattern match: {cw.get('psd_pattern_match')})",
+                      f"- real (PSD DS tar): `{cw.get('real_psd_ds_tar')}`",
+                      f"- real datastrip ids: {cw.get('real_psd_datastrip_ids')}", ""]
     (rep / "e2e_report.md").write_text("\n".join(lines) + "\n")
     _jdump(sections, rep / "summary.json")
     print(f"[report] {rep/'e2e_report.md'}")
