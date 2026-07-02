@@ -87,28 +87,22 @@ e2e-real-l1a:
 # Publish the authoritative real-data E2E results from the SDE store (the runner shares the
 # Studio filesystem): products → Generic Package Registry (CI_JOB_TOKEN, PSFD .zarr.zip names),
 # report + quicklooks → job artifacts. Manual; set PUBLISH_STORE if the store moved.
-publish-e2e-real:
+# Publish the SDE store to the shared ipf/data-store registry (manual). PKG/VER are
+# job variables (set them when triggering); the phase zips products, uploads them with
+# the job token (allowlisted on ipf/data-store) and refreshes the manifest.
+publish-datastore:
   stage: docs
   variables:
     PUBLISH_STORE: /home/jovyan/data-store
-    PKG: s2-msi-e2e-real
+    PKG: e2e-real
     VER: 0.3.0
+    LAYER: products
   script:
     - test -d "$PUBLISH_STORE/report" || { echo "store not found - $PUBLISH_STORE"; exit 1; }
-    - mkdir -p publish out
-    - cp -r "$PUBLISH_STORE/report" out/report
-    - cp -r "$PUBLISH_STORE/quicklook" out/quicklook
-    - cd "$PUBLISH_STORE/l0" && for z in *.zarr; do zip -qr "$CI_PROJECT_DIR/publish/$z.zip" "$z"; done; cd "$CI_PROJECT_DIR"
-    - cd "$PUBLISH_STORE/l1a_prime" && for z in *.zarr; do zip -qr "$CI_PROJECT_DIR/publish/$z.zip" "$z"; done; cd "$CI_PROJECT_DIR"
-    - cp out/report/e2e_report.md out/report/summary.json publish/ || true
-    - ls -la publish/
-    - for f in publish/*; do n=$(basename "$f"); echo "uploading $n"; curl -sf --header "JOB-TOKEN:$CI_JOB_TOKEN" --upload-file "$f" "$CI_API_V4_URL/projects/$CI_PROJECT_ID/packages/generic/$PKG/$VER/$n" || echo "UPLOAD FAILED - $n"; done
-  artifacts:
-    when: always
-    paths:
-      - out/report/
-      - out/quicklook/
-    expire_in: 4 weeks
+    - >-
+      python scripts/run_pipeline.py "$PUBLISH_STORE" --phases publish-store
+      --publish-name "$PKG" --publish-version "$VER" --publish-layer "$LAYER"
+      --publish-source "SDE store publish ($CI_JOB_URL)"
   rules:
     - when: manual
       allow_failure: true

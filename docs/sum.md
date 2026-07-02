@@ -52,8 +52,12 @@ figures/ report/`). Every product file name follows the EOPF PSFD §3 convention
 | **Real chain** (default; REQ-FUNC-093) | `fetch-l1a fetch-l0 preflight package ground-decode l0-decode validate radiometric-vv scan-l0 quicklook report` | numpy+zarr; `l0-decode`/`validate` need `eopf==2.8.1` + `msi_processor` |
 | **Synthetic chain** (`--synthetic`; REQ-FUNC-042) | `build-l0-synth l0-to-l1b` | numpy+zarr; `l0-to-l1b` needs the eopf env |
 | **On demand** | `build-caldb` · `derive-adf` · `figures` | numpy+zarr only |
+| **Data-store sync** | `fetch-store` (pull, anonymous) · `publish-store` (push, job/`glab` token) | numpy+stdlib; DB = the [ipf/data-store](https://gitlab.eopf.copernicus.eu/ipf/data-store) registry |
 
 ```bash
+# pull the shared data-store into a local working directory
+python scripts/run_pipeline.py <store> --phases fetch-store
+
 # real chain, all phases (fetch → package → decode → validate → report)
 python scripts/run_pipeline.py ~/data-store --gipp <GIPP_dir>
 

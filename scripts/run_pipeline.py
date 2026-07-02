@@ -92,9 +92,9 @@ RES_GROUPS = {
     "r20m": ["B05", "B06", "B07", "B8A", "B11", "B12"],
     "r60m": ["B01", "B09", "B10"],
 }
-PHASES = ["fetch-l1a", "fetch-l0", "preflight", "build-caldb", "build-l0-synth", "package",
-          "ground-decode", "l0-decode", "validate", "l0-to-l1b", "radiometric-vv",
-          "derive-adf", "scan-l0", "quicklook", "figures", "report"]
+PHASES = ["fetch-store", "fetch-l1a", "fetch-l0", "preflight", "build-caldb", "build-l0-synth",
+          "package", "ground-decode", "l0-decode", "validate", "l0-to-l1b", "radiometric-vv",
+          "derive-adf", "scan-l0", "quicklook", "figures", "report", "publish-store"]
 #: Default phase sets: the real-data chain and the --synthetic flat-field chain.
 REAL_PHASES = ["fetch-l1a", "fetch-l0", "preflight", "package", "ground-decode", "l0-decode",
                "validate", "radiometric-vv", "scan-l0", "quicklook", "report"]
@@ -378,6 +378,155 @@ def phase_validate(store: dict[str, Path], args) -> None:
     _jdump(res, store["report"] / "validate.json")
     n_ok = sum(1 for r in res.values() if r["bit_identical_kept"])
     print(f"[validate] bit-identical bands: {n_ok}/{len(res)}")
+
+
+# ---------------------------------------------------------------------------
+# data-store sync (ipf/data-store: registry = DB, local store = working copy)
+# ---------------------------------------------------------------------------
+
+DATASTORE_API = ("https://gitlab.eopf.copernicus.eu/api/v4/projects/ipf%2Fdata-store"
+                 "/packages/generic")
+DATASTORE_PACKAGES_API = ("https://gitlab.eopf.copernicus.eu/api/v4/projects/ipf%2Fdata-store"
+                          "/packages")
+
+
+def _store_auth_headers() -> dict[str, str]:
+    """Registry write auth: CI job token (allowlisted) or a personal token from the env."""
+    if os.environ.get("CI_JOB_TOKEN"):
+        return {"JOB-TOKEN": os.environ["CI_JOB_TOKEN"]}
+    tok = os.environ.get("DATASTORE_TOKEN") or os.environ.get("GITLAB_TOKEN")
+    if tok:
+        return {"PRIVATE-TOKEN": tok}
+    raise SystemExit("[publish-store] needs CI_JOB_TOKEN (CI) or DATASTORE_TOKEN/GITLAB_TOKEN")
+
+
+def _http(url: str, *, headers: dict | None = None, method: str = "GET", data=None) -> bytes:
+    import urllib.request
+
+    req = urllib.request.Request(url, data=data, method=method, headers=headers or {})
+    with urllib.request.urlopen(req, timeout=300) as r:
+        return r.read()
+
+
+def _sha256_file(path: Path) -> str:
+    import hashlib
+
+    h = hashlib.sha256()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(1 << 20), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def _zip_dir(src: Path, dest_zip: Path) -> None:
+    import zipfile
+
+    with zipfile.ZipFile(dest_zip, "w", zipfile.ZIP_DEFLATED) as zf:
+        for p in sorted(src.rglob("*")):
+            if p.is_file():
+                zf.write(p, p.relative_to(src.parent))
+
+
+def phase_fetch_store(store: dict[str, Path], args) -> None:
+    """Pull the shared data-store (manifest → missing packages → sha256 → unpack).
+
+    Anonymous read (the ipf/data-store project is public); idempotent — files already
+    present in the local store are skipped. The "git pull" of the data DB.
+    """
+    import hashlib
+    import io as _io
+    import zipfile
+
+    root = store["report"].parent
+    manifest = json.loads(_http(f"{DATASTORE_API}/manifest/latest/manifest.json").decode())
+    fetched = skipped = 0
+    for pkg in manifest.get("packages", []):
+        for f in pkg["files"]:
+            target = root / (f["path"][:-4] if f["path"].endswith(".zip") else f["path"])
+            # _store_paths pre-creates the standard dirs, so "present" means non-empty
+            if target.is_file() or (target.is_dir() and any(target.iterdir())):
+                skipped += 1
+                continue
+            blob = _http(f"{DATASTORE_API}/{pkg['name']}/{pkg['version']}/{f['file']}")
+            got = hashlib.sha256(blob).hexdigest()
+            if got != f["sha256"]:
+                raise SystemExit(f"[fetch-store] sha256 mismatch for {f['file']}: {got}")
+            if f["path"].endswith(".zip"):
+                (root / f["path"]).parent.mkdir(parents=True, exist_ok=True)
+                with zipfile.ZipFile(_io.BytesIO(blob)) as zf:
+                    zf.extractall((root / f["path"]).parent)
+            else:
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_bytes(blob)
+            fetched += 1
+            print(f"[fetch-store] {pkg['name']}/{pkg['version']}: {f['file']} → {target}")
+    print(f"[fetch-store] done — {fetched} fetched, {skipped} already present")
+
+
+def phase_publish_store(store: dict[str, Path], args) -> None:
+    """Publish the local store's products to the shared registry + refresh the manifest.
+
+    Packages are immutable versions (``--publish-name/--publish-version``); only the
+    ``manifest/latest`` entry is replaced in place. The "git push" of the data DB.
+    """
+    if not args.publish_version:
+        raise SystemExit("[publish-store] needs --publish-version (immutable package version)")
+    name, version = args.publish_name, args.publish_version
+    headers = _store_auth_headers()
+    root = store["report"].parent
+    stage = root / ".publish-stage"
+    stage.mkdir(exist_ok=True)
+
+    entries = []
+    if args.publish_layer == "inputs":
+        # auxiliary inputs (e.g. the operational GIPP) live under inputs/
+        for d in sorted((root / "inputs").iterdir()) if (root / "inputs").is_dir() else []:
+            if d.is_dir() and any(d.iterdir()):
+                zp = stage / f"{d.name}.zip"
+                _zip_dir(d, zp)
+                entries.append((zp, f"inputs/{d.name}.zip"))
+    else:
+        # product zarr dirs → PSFD .zarr.zip; plain dirs (caldb/quicklook/…) → dir.zip
+        for sub in ("l0", "l1a_prime", "l1b"):
+            for z in sorted((root / sub).glob("*.zarr")):
+                zp = stage / f"{z.name}.zip"
+                _zip_dir(z, zp)
+                entries.append((zp, f"{sub}/{z.name}.zip"))
+        for sub in ("caldb", "quicklook", "report", "figures"):
+            d = root / sub
+            if d.is_dir() and any(d.iterdir()):
+                zp = stage / f"{sub}.zip"
+                _zip_dir(d, zp)
+                entries.append((zp, f"{sub}.zip"))
+    if not entries:
+        raise SystemExit(f"[publish-store] nothing to publish under {root}")
+
+    files = []
+    for zp, rel in entries:
+        flat = rel.replace("/", "__")
+        _http(f"{DATASTORE_API}/{name}/{version}/{flat}", headers=headers, method="PUT",
+              data=zp.read_bytes())
+        files.append({"file": flat, "path": rel, "sha256": _sha256_file(zp),
+                      "bytes": zp.stat().st_size})
+        print(f"[publish-store] {name}/{version}: {flat} ({zp.stat().st_size/1e6:.1f} MB)")
+
+    # merge into the manifest and replace manifest/latest atomically (delete old package first)
+    try:
+        manifest = json.loads(_http(f"{DATASTORE_API}/manifest/latest/manifest.json").decode())
+    except Exception:  # noqa: BLE001 - first publish ever
+        manifest = {"schema": 1, "packages": [], "external": []}
+    manifest["packages"] = [p for p in manifest["packages"]
+                            if not (p["name"] == name and p["version"] == version)]
+    manifest["packages"].append({"name": name, "version": version, "layer": args.publish_layer,
+                                 "files": files, "source": args.publish_source})
+    pkgs = json.loads(_http(f"{DATASTORE_PACKAGES_API}?package_name=manifest",
+                            headers=headers).decode())
+    for p in pkgs:
+        if p.get("version") == "latest":
+            _http(f"{DATASTORE_PACKAGES_API}/{p['id']}", headers=headers, method="DELETE")
+    _http(f"{DATASTORE_API}/manifest/latest/manifest.json", headers=headers, method="PUT",
+          data=json.dumps(manifest, indent=2).encode())
+    print(f"[publish-store] manifest updated — {len(manifest['packages'])} packages")
 
 
 # ---------------------------------------------------------------------------
@@ -977,6 +1126,14 @@ def main(argv=None) -> int:
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--caldb-n-det", type=int, default=400, dest="caldb_n_det")
     ap.add_argument("--store-decoded", default="yes", choices=("yes", "no"), dest="store_decoded_s")
+    # data-store sync (ipf/data-store registry)
+    ap.add_argument("--publish-name", default="products", dest="publish_name")
+    ap.add_argument("--publish-version", default=None, dest="publish_version",
+                    help="immutable package version for publish-store (required by the phase)")
+    ap.add_argument("--publish-layer", default="products", choices=("products", "inputs"),
+                    dest="publish_layer")
+    ap.add_argument("--publish-source", default="run_pipeline publish-store",
+                    dest="publish_source")
     # figures phase
     ap.add_argument("--fig-l1b", default=None, dest="fig_l1b",
                     help="real L1B .zarr[.zip] for the figures phase (or $S2_E2ES_L1B)")
@@ -1002,6 +1159,7 @@ def main(argv=None) -> int:
     if unknown:
         ap.error(f"unknown phases: {unknown} (choose from {PHASES})")
     fns = {
+        "fetch-store": phase_fetch_store, "publish-store": phase_publish_store,
         "fetch-l1a": phase_fetch_l1a, "fetch-l0": phase_fetch_l0, "preflight": phase_preflight,
         "build-caldb": phase_build_caldb, "build-l0-synth": phase_build_l0_synth,
         "package": phase_package, "ground-decode": phase_ground_decode,
