@@ -73,7 +73,7 @@ supplies the ADF — a single shared sensor-model ADF, one source of truth. Buil
 `scripts/build_cal_db.py` (see Usage). Coefficients are **derived** (diffuser + dark), not the truth
 ADF, so the round-trip is non-tautological.
 
-## Showcase — real E2E products
+## Result
 
 **Real-data run (SDE, 2026-07-02):** the public-bucket **real L1A** packaged as a
 CCSDS-122-compressed, real-space-packet **L0** (lossless ratio **3.66×**, 30 642 CCSDS
