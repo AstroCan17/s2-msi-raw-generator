@@ -4,6 +4,20 @@ All notable changes to the Sentinel-2 MSI reverse E2ES (`s2_msi_raw_generator`).
 
 ## [Unreleased]
 
+### Changed
+- **Single pipeline driver** — the ten `scripts/` entry points are consolidated into one
+  phase-structured `scripts/run_pipeline.py` (real chain = the former `run_e2e_real_l1a.py`
+  phases; `--synthetic` = the former `run_e2e_l0_to_l1b.py` chain; on-demand phases
+  `build-caldb` / `derive-adf` / `figures` absorb `build_cal_db.py` (now
+  `s2_msi_raw_generator.caldb`), `derive_prnu_dark.py` and `result_band_stages.py`; the
+  demo/roundtrip/save-images scripts are deleted — `roundtrip_real_l1a.py` was already
+  duplicated as the `radiometric-vv` phase). **Every product name now comes from
+  `naming.py` (PSFD §3)**: the synthetic open container is `S02MSIL0__…_OC.zarr`
+  (was `L0c_opencontainer.zarr`) and the L1B is `S02MSIL1B_….zarr` (was `L1B_TOA.zarr`).
+- **`data/` E2E store tracked in git** — the `data/input` + `data/output` gitignore rules
+  (and the global `*.zarr/` ignores) are removed; the synthetic products (PSFD-named OC L0,
+  cal-DB, quicklooks, phase reports) are committed and sync with the repository.
+
 ### Added
 - **Single-band stage-by-stage result figures** — new `scripts/result_band_stages.py`
   (numpy+zarr only): renders, for one band/detector of the real L1B, the ideal-DN image, the

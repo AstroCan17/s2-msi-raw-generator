@@ -85,7 +85,7 @@ authoritative baseline is the `main` branch tip.
 | CCSDS-122 lossless codec (stream: ICD-IF-C122) | `s2_msi_raw_generator/ccsds122.py` |
 | Product naming system (ECSS-M-ST-40C identification coding; rule: ICD-IF-NAME / EOPF PSFD §3) | `s2_msi_raw_generator/naming.py` |
 | Anonymous S3 fetch (bucket inputs) | `s2_msi_raw_generator/s3fetch.py` |
-| Real-L1A E2E driver (V&V: `docs/vv/real_e2e.md`) | `scripts/run_e2e_real_l1a.py` |
+| Pipeline driver (real + synthetic chains; V&V: `docs/vv/real_e2e.md`) | `scripts/run_pipeline.py` |
 | Demonstration & V&V scripts | `scripts/*.py` |
 | Test suite | `tests/test_*.py` |
 | Build / packaging | `pyproject.toml` |

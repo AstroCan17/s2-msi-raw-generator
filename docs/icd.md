@@ -70,7 +70,7 @@ Dependency direction: `sensor` (leaf) → `adf`/`gipp` → `reverse`/`forward_ra
 |---|---|
 | SW-to-SW | EOPF Zarr in (L1A/L1B) and out (L0 RAW), zarr v2 for processor interoperability; GIPP XML in. Realizes **REQ-IF-001**, **REQ-IF-002**, **REQ-IF-003**. |
 | SW-to-HW | Not applicable — pure software, no hardware interface. |
-| Man-machine | CLI scripts (`roundtrip_real_l1a.py`, `demo_calibration.py`, `save_images.py`, `demo_*`); plain-text stdout. |
+| Man-machine | the single CLI driver `scripts/run_pipeline.py` (phase-structured); plain-text stdout + JSON phase reports. |
 | Database | Not applicable — file-based products only. |
 | Error behaviour | Unknown band/unit → `KeyError`; frame not `uint16`/out-of-range → `TypeError`; missing GIPP file → `FileNotFoundError`. |
 
@@ -162,7 +162,7 @@ report (`derived_from_defaults`).
 `eopf:datastrip_id` = `S2A_OPER_MSI_L0__DS_<sensing>_A<orbit>` (PSD datastrip id, written by
 `l0product.build_root_metadata`); real bucket products use the PSD forms
 `S2A_OPER_PRD_MSIL0P_…​.SAFE`, `S2A_OPER_MSI_L0__GR_…_D<dd>` — the structural-comparison
-phase of `scripts/run_e2e_real_l1a.py` maps these to our PSFD names in its report.
+phase of `scripts/run_pipeline.py` maps these to our PSFD names in its report.
 
 ## Validation requirements
 The output structure is verified by `tests/test_l0product.py` (156-array contract, dtypes, root metadata,

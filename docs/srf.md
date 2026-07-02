@@ -33,7 +33,7 @@ implementations from public specifications.
 | `zarr` | EOPF L1A/L1B read + L0 RAW write (optional `read` extra) | MIT |
 | Python stdlib `xml.etree.ElementTree` | original GIPP XML parser | PSF |
 | `pytest` | test runner (dev only) | MIT |
-| `pillow` / `imageio` / `matplotlib` | optional PNG export for `save_images.py` only | permissive |
+
 
 No EOPF CPM, no geometry library, and no credentialed package is required for the realized path.
 

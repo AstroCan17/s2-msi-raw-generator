@@ -27,8 +27,8 @@ zarr = pytest.importorskip("zarr")
 
 from s2_msi_raw_generator import _zarrio, naming
 
-_SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "run_e2e_real_l1a.py"
-_spec = importlib.util.spec_from_file_location("run_e2e_real_l1a", _SCRIPT)
+_SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "run_pipeline.py"
+_spec = importlib.util.spec_from_file_location("run_pipeline", _SCRIPT)
 drv = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(drv)
 

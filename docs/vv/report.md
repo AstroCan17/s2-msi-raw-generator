@@ -45,7 +45,7 @@ L1A). All *realized* requirements in the SRS are verified.
 | Quantity | Verified bound (test) | Typical observed | Source |
 |---|---|---|---|
 | Radiometric round-trip RMSE (synthetic) | < 1e-9 | ~1e-14 | `test_roundtrip_atbd::test_forward_inverse_exact` |
-| Radiometric round-trip RMSE (L1A DN) | < 1e-6 | ~1e-14 | `roundtrip_real_l1a.py`, `test_real_l1a_roundtrip_exact` |
+| Radiometric round-trip RMSE (L1A DN) | < 1e-6 | ~1e-14 | pipeline `radiometric-vv` phase, `test_real_l1a_roundtrip_exact` |
 | Calibration dark recovery | ≤ 0.5 DN | ~0.05 DN | `test_calibration` (bound); ATBD §4 (typical) |
 | Calibration relative-response correlation | > 0.9 | > 0.99 | `test_calibration` (bound); ATBD §4 (typical) |
 | Calibration absolute coefficient `A` | ±5 % of `cal_gain` | ≈ `cal_gain` | `test_calibration` |
@@ -54,7 +54,7 @@ L1A). All *realized* requirements in the SRS are verified.
 | FPN flattening by equalization | corrected < 0.3× raw | ~0 (flat recovered) | `test_roundtrip_atbd` |
 
 The round-trip and FPN results were also confirmed visually on the L1A (B03 cloud imagery; the
-residual image is featureless ⇒ exact inverse) via `scripts/save_images.py`.
+residual image is featureless ⇒ exact inverse) via the pipeline's `figures` phase.
 
 ## 4. Requirements verification status
 

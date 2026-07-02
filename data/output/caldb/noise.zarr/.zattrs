@@ -1,0 +1,9 @@
+{
+  "processor": "s2_msi_raw_generator",
+  "processor_version": "0.3.0",
+  "unit": "S2A",
+  "adf_type": "ADF_RNOMO",
+  "content": "noise model sigma=sqrt(alpha^2 + beta*DN); E2ES-side",
+  "source": "derived (CSM diffuser + dark calibration)",
+  "convention": "processor two-point NUC (estimate_nuc); radiometric gain diffuser-derived (~1/cal_gain)"
+}
