@@ -8,10 +8,10 @@ venv/
 .mypy_cache/
 .ruff_cache/
 
-# Local sample-data archive only; the data/ E2E store (input + output products, quicklooks)
-# IS tracked and synced through git. Mind the push size before dropping large real inputs
-# (e.g. the ~500 MB bucket L1A) into data/input/.
-data/s2_dataset/
+# The data/ working store is NOT tracked — products/inputs live in the shared
+# ipf/data-store registry (fetch-store/publish-store pipeline phases sync it).
+data/*
+!data/README.md
 
 # Build / docs
 build/

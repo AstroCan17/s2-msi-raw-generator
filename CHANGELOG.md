@@ -5,6 +5,13 @@ All notable changes to the Sentinel-2 MSI reverse E2ES (`s2_msi_raw_generator`).
 ## [Unreleased]
 
 ### Changed
+- **Shared data-store** — products and inputs move to the `ipf/data-store` project's
+  generic package registry (registry = versioned DB, local store = working copy). New
+  pipeline phases `fetch-store` (anonymous pull, sha256-verified manifest) and
+  `publish-store` (job-token/`glab`-token push + `manifest/latest` refresh); the
+  `publish-e2e-real` CI job becomes `publish-datastore` (parameterised PKG/VER/LAYER).
+  The repo's `data/` tracking is removed again in favour of the store (`data/` is
+  gitignored; pull with `--phases fetch-store`).
 - **Single pipeline driver** — the ten `scripts/` entry points are consolidated into one
   phase-structured `scripts/run_pipeline.py` (real chain = the former `run_e2e_real_l1a.py`
   phases; `--synthetic` = the former `run_e2e_l0_to_l1b.py` chain; on-demand phases
