@@ -173,7 +173,7 @@ Everything runs through the **single pipeline driver** `scripts/run_pipeline.py`
 
 ```bash
 # real-data chain (fetch → package → ground-decode → l0_decode → validate → report)
-python scripts/run_pipeline.py ~/validation-data/e2e-real --gipp <GIPP_dir>
+python scripts/run_pipeline.py ~/data-store --gipp $S2_E2ES_GIPP_DIR
 
 # synthetic flat-field chain into the repo's tracked data store (L0 + cal-DB, then L1B in an eopf env)
 python scripts/run_pipeline.py data/output --synthetic
