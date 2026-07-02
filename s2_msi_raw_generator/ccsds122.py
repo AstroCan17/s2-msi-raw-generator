@@ -516,6 +516,21 @@ def decompress_frame(payload: bytes | memoryview) -> np.ndarray:
     return frame.astype(np.uint16)
 
 
+def segment_byte_bounds(payload: bytes | memoryview) -> list[int]:
+    """Byte offsets of packetization groups: ``[0, seg1_off, …]``.
+
+    The frame header is folded into the first group, so joining the groups reproduces the
+    exact stream — the property :func:`decompress_frame` needs after packet reassembly.
+    """
+    hdr = parse_segment_headers(payload)
+    bounds = [0]
+    off = _FRAME_HDR.size
+    for seg in hdr["segments"][:-1]:
+        off += _SEG_HDR.size + seg["dc_bytes"] + seg["bitdepth_ac_bytes"] + seg["ac_bytes"]
+        bounds.append(off)
+    return bounds
+
+
 def parse_segment_headers(payload: bytes | memoryview) -> dict:
     """Header inventory of a compressed stream (frame fields + per-segment Part-1A content)."""
     buf = memoryview(payload)

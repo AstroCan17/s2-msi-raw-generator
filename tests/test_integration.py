@@ -56,9 +56,11 @@ def test_full_pipeline_l1b_to_l0_with_isp(tmp_path):
             assert arr.dtype == np.uint16
             data = arr[:]
             assert data.min() >= 0 and data.max() <= sensor.DN_MAX
-            # ISP header per band (S15)
-            ih = g[f"measurements/d{det:02d}/{bkey}/isp_header"]
-            assert ih.shape == (40, isp.ISP_HEADER_LEN)
+            # Compressed ISP stream per band (S15): packets tile it and ground decode is bit-exact
+            mg = g[f"measurements/d{det:02d}/{bkey}"]
+            stream = np.asarray(mg["isp"])
+            assert sum(1 for _ in isp.iter_packets(stream)) == dict(mg.attrs)["n_packets"]
+            assert np.array_equal(l0product.read_l0_isp_dn(out, det, bn), data)
 
     # --- quality masks reflect injected defects (S2 MSK_QUALIT bit-planes) ---
     from s2_msi_raw_generator import quality

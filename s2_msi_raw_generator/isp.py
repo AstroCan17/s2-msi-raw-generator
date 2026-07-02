@@ -18,7 +18,13 @@ CUC_TIME_LEN = 6         # secondary header: 4-octet coarse + 2-octet fine (CUC)
 ISP_HEADER_LEN = PRIMARY_HEADER_LEN + CUC_TIME_LEN  # 12
 
 SEQ_STANDALONE = 0b11    # unsegmented (standalone) packet
+SEQ_FIRST = 0b01         # first packet of a segmented group
+SEQ_CONT = 0b00          # continuation packet
+SEQ_LAST = 0b10          # last packet of a segmented group
 SEQ_COUNT_MOD = 1 << 14  # 14-bit sequence counter
+
+#: Default maximum packet-data-field payload (octets, excl. the CUC secondary header).
+DEFAULT_MAX_PAYLOAD = 8192
 
 
 def build_primary_header(
@@ -129,3 +135,126 @@ def build_sad_packets(
         rec = build_primary_header(apid, i, data_field_len - 1) + cuc_time(t) + payload
         isp[i] = np.frombuffer(rec, dtype=np.uint8)
     return isp, lengths
+
+
+def packetize_stream(
+    payload: bytes,
+    apid: int,
+    *,
+    segment_bounds: list[int],
+    segment_times_gps: np.ndarray,
+    max_payload: int = DEFAULT_MAX_PAYLOAD,
+    seq_start: int = 0,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Carry a byte stream in CCSDS space packets, honouring segment grouping.
+
+    ``segment_bounds`` are the byte offsets of segment starts within ``payload`` (ascending,
+    ``segment_bounds[0] == 0``); each segment is sliced into packets of at most ``max_payload``
+    data octets and flagged ``SEQ_FIRST``/``SEQ_CONT``/``SEQ_LAST`` (``SEQ_STANDALONE`` when a
+    segment fits in one packet).  Every packet carries a CUC secondary header stamped with its
+    segment's GPS time (``segment_times_gps``, seconds, one per segment).  The 14-bit sequence
+    counter starts at ``seq_start`` and is continuous across the whole stream.
+
+    Returns ``(isp, offsets, lengths)``: the concatenated packet stream (uint8 1-D), the byte
+    offset of each packet within it (uint64), and each packet's CCSDS *Packet Data Length*
+    field value + 1 = data-field octet count (uint32).
+    """
+    if not segment_bounds or segment_bounds[0] != 0:
+        raise ValueError("segment_bounds must start at 0")
+    if len(segment_times_gps) != len(segment_bounds):
+        raise ValueError("one GPS time per segment required")
+    if max_payload < 1 or max_payload + CUC_TIME_LEN > 0x10000:
+        raise ValueError("max_payload out of range for the 16-bit Packet Data Length field")
+    bounds = list(segment_bounds) + [len(payload)]
+    chunks: list[bytes] = []
+    offsets: list[int] = []
+    lengths: list[int] = []
+    pos = 0
+    seq = seq_start
+    for si in range(len(segment_bounds)):
+        s0, s1 = bounds[si], bounds[si + 1]
+        if s1 < s0:
+            raise ValueError("segment_bounds must be ascending")
+        cuc = cuc_time(float(segment_times_gps[si]))
+        n_pkts = max(1, -(-(s1 - s0) // max_payload))
+        for pi in range(n_pkts):
+            p0 = s0 + pi * max_payload
+            body = payload[p0:min(p0 + max_payload, s1)]
+            if n_pkts == 1:
+                flags = SEQ_STANDALONE
+            elif pi == 0:
+                flags = SEQ_FIRST
+            elif pi == n_pkts - 1:
+                flags = SEQ_LAST
+            else:
+                flags = SEQ_CONT
+            data_field = cuc + body
+            rec = build_primary_header(apid, seq, len(data_field) - 1, seq_flags=flags) + data_field
+            offsets.append(pos)
+            lengths.append(len(data_field))
+            chunks.append(rec)
+            pos += len(rec)
+            seq += 1
+    stream = np.frombuffer(b"".join(chunks), dtype=np.uint8).copy()
+    return stream, np.asarray(offsets, dtype=np.uint64), np.asarray(lengths, dtype=np.uint32)
+
+
+def iter_packets(buf: bytes | np.ndarray):
+    """Iterate CCSDS packets in a concatenated stream → ``(header dict, cuc_seconds, body bytes)``.
+
+    Shared by our reassembly and by structural scans of real ISP files: the primary header's
+    *Packet Data Length* field walks the stream; a stream is well-formed iff packets tile it
+    exactly.  ``body`` excludes the CUC secondary header.
+    """
+    data = bytes(bytearray(np.asarray(buf, dtype=np.uint8))) if not isinstance(buf, (bytes, memoryview)) else bytes(buf)
+    pos = 0
+    while pos < len(data):
+        if pos + PRIMARY_HEADER_LEN > len(data):
+            raise ValueError(f"truncated primary header at offset {pos}")
+        hdr = parse_primary_header(data[pos:pos + PRIMARY_HEADER_LEN])
+        dlen = hdr["data_len"] + 1
+        end = pos + PRIMARY_HEADER_LEN + dlen
+        if end > len(data):
+            raise ValueError(f"packet at offset {pos} overruns the stream")
+        field = data[pos + PRIMARY_HEADER_LEN:end]
+        cuc = parse_cuc_time(field[:CUC_TIME_LEN]) if hdr["sec_hdr_flag"] and dlen >= CUC_TIME_LEN else None
+        body = field[CUC_TIME_LEN:] if hdr["sec_hdr_flag"] and dlen >= CUC_TIME_LEN else field
+        yield hdr, cuc, body
+        pos = end
+
+
+def reassemble_segments(buf: bytes | np.ndarray) -> list[bytes]:
+    """Inverse of :func:`packetize_stream`: packets → per-segment byte streams.
+
+    Enforces seq_flags grammar (FIRST → CONT* → LAST, or STANDALONE) and 14-bit sequence-counter
+    continuity; raises ``ValueError`` on gaps or malformed flag sequences.
+    """
+    segments: list[bytes] = []
+    current: list[bytes] | None = None
+    prev_seq: int | None = None
+    for hdr, _cuc, body in iter_packets(buf):
+        if prev_seq is not None and hdr["seq_count"] != (prev_seq + 1) % SEQ_COUNT_MOD:
+            raise ValueError(f"sequence gap: {prev_seq} → {hdr['seq_count']}")
+        prev_seq = hdr["seq_count"]
+        flags = hdr["seq_flags"]
+        if flags == SEQ_STANDALONE:
+            if current is not None:
+                raise ValueError("STANDALONE inside an open segmented group")
+            segments.append(body)
+        elif flags == SEQ_FIRST:
+            if current is not None:
+                raise ValueError("FIRST inside an open segmented group")
+            current = [body]
+        elif flags == SEQ_CONT:
+            if current is None:
+                raise ValueError("CONTINUATION without FIRST")
+            current.append(body)
+        elif flags == SEQ_LAST:
+            if current is None:
+                raise ValueError("LAST without FIRST")
+            current.append(body)
+            segments.append(b"".join(current))
+            current = None
+    if current is not None:
+        raise ValueError("stream ended inside a segmented group")
+    return segments
