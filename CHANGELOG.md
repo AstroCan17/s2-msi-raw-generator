@@ -2,6 +2,15 @@
 
 All notable changes to the Sentinel-2 MSI reverse E2ES (`s2_msi_raw_generator`).
 
+## [Unreleased]
+
+### Changed
+- **Docs landing page** — the real-data E2E showcase (quicklooks + headline numbers + source
+  repository link) moved onto the documentation front page (`docs/index.md`); the separate
+  `showcase` page and its synthetic-demo section were removed (superseded by the real-data
+  run, REQ-FUNC-093 — the synthetic L0→L1B chain itself is unchanged and stays documented in
+  the V&V plan / SUM / `e2e-l1b` CI job).
+
 ## [0.3.0] — 2026-07-02
 
 Real-data E2E release: the reverse E2ES now packages a **real bucket L1A** into a
