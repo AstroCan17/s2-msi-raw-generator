@@ -65,8 +65,10 @@ applies only `S1 → S7 → S11 → S12` (no PSF/noise/quantize) so it is algebr
 ### Dependency graph
 `sensor` is the foundational leaf (no intra-package imports). `adf` and `gipp` depend on `sensor`;
 `forward_radiometric_atbd` depends on `gipp` (`DetectorEq`); `reverse` depends on `adf` (`BandADF`);
-`calibration` depends on `adf` + `reverse`; `isp` and `io` are leaves (numpy / zarr only); `l0product`
-is the top integrator (imports `sensor`, `adf`, `reverse`, `isp`, and the package version).
+`calibration` depends on `adf` + `reverse`; `isp`, `io` and `ccsds122` (CCSDS 122.0-B lossless
+image-compression codec, pure numpy) are leaves; `l0product` is the top integrator (imports
+`sensor`, `adf`, `reverse`, `isp` — and `ccsds122` once the compressed-ISP payload schema of
+ICD-IF-ISP is wired — plus the package version).
 
 ```mermaid
 flowchart LR
@@ -77,6 +79,7 @@ flowchart LR
     reverse[reverse]
     calibration[calibration]
     isp[isp]
+    c122["ccsds122 (DWT 9/7-M + BPE)"]
     io[io]
     l0["l0product (integrator)"]
     sensor --> adf
@@ -86,6 +89,7 @@ flowchart LR
     gipp --> fwd
     reverse --> calibration
     isp --> l0
+    c122 --> l0
     io --> l0
 ```
 
