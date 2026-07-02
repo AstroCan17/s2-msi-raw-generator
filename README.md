@@ -56,6 +56,23 @@ supplies the ADF — a single shared sensor-model ADF, one source of truth. Buil
 `scripts/build_cal_db.py` (see Usage). Coefficients are **derived** (diffuser + dark), not the truth
 ADF, so the round-trip is non-tautological.
 
+## Showcase — real E2E products
+
+Products of the full **L0→L1B** run: generator open-container L0 + cal-DB →
+`msi-processor` `l0_decode → radiometric → enhancement → toa` (`eopf==2.8.1`) → persisted
+**L1B TOA reflectance** (`EOZarrStore`). RGB = B04/B03/B02, per-channel 2–98 % percentile
+stretch (`quicklook.py`, stdlib-only PNG writer).
+
+| Synthetic L0 RAW (DN) | L1B TOA reflectance |
+|---|---|
+| ![L0 quicklook — synthetic RAW DN](data/output/quicklook/l0_rgb.png) | ![L1B quicklook — TOA reflectance](data/output/quicklook/l1b_rgb.png) |
+
+The demo scene is a **flat field** (per-band uniform radiance, reflectance ≈ 0.04–0.27 by band),
+so the aggressive stretch deliberately reveals the *texture* instead of a landscape: per-column
+striping is the impressed **PRNU** pattern, the speckle is shot/read noise. Reproduce with
+`python scripts/run_e2e_l0_to_l1b.py <data-store>` in an eopf environment (e.g. the SDE), or run
+the manual **`e2e-l1b`** CI job — its artifacts carry the L1B product and these PNGs.
+
 ## Package
 
 | Module | Responsibility |
