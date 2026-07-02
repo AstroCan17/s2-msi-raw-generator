@@ -5,6 +5,14 @@ All notable changes to the Sentinel-2 MSI reverse E2ES (`s2_msi_raw_generator`).
 ## [Unreleased]
 
 ### Added
+- **CCSDS 122.0-B lossless image compression** (`s2_msi_raw_generator/ccsds122.py`, pure numpy) —
+  the documented alternative to Sentinel-2's proprietary onboard MRCPB wavelet scheme: 3-level
+  integer DWT 9/7-M, 8×8 block/family + 16-block gaggle structure, self-describing segment
+  headers, DC/BitDepthAC DPCM + per-gaggle Rice coding; §4.5 AC stages with raw-packed planes
+  (documented divergence from §4.5.3 VLC word mapping — see ICD-IF-C122). Encoder **and**
+  decoder; `compress_frame`∘`decompress_frame` is bit-exact (14 unit tests + env-gated real-L1A
+  window). Full 21384×2592 band ≈ 19 s each way. Groundwork for compressed ISP payloads
+  (REQ-FUNC-092; ATBD §5.S15 rewritten to the real two-step onboard chain).
 - **Showcase (real E2E products) + `e2e-l1b` CI job** — README + docs `showcase` page with the
   committed L0 DN / L1B reflectance quicklooks from a real chain run; new **manual CI job**
   `e2e-l1b` builds the full `eopf==2.8.1` + `msi_processor` environment (job-token clone of
