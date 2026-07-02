@@ -415,8 +415,13 @@ Per-stage error-budget table, **reflective-domain terms**. Populate numerically 
   doc (COPE-GSEG-EOPG-TN-15-0007) are in `sensor.py`.
 - PSF: **DONE** — official ESA per-band, per-unit matrices (`data/psf/`).
 - Noise: **DONE** — per-band α, β from the L1A product (S2-RUT $\sigma=\sqrt{\alpha^2+\beta\cdot\mathrm{DN}}$).
-- PRNU: derive from the L1B product (`scripts/derive_prnu_dark.py`). Dark: needs a real
-  dark-calibration granule (none in this dataset); per-pixel NUC GIPP credentialed (#36).
+- PRNU/dark per-pixel GIPP — **RESOLVED** (supersedes the early "credentialed GIPP" blocker #36):
+  the operational `S2A_OPER_GIP_R2EQOG` (per-pixel dark `COEFF_D` + relative response) is read
+  directly by `gipp.py` / `BandADF.from_gipp` and is publicly fetchable (bucket `GIP_*` TGZs are
+  anonymous-GET; verified 2026-07-02). The real-L1A round-trip runs on it at RMSE ≈ 1e-14
+  (`docs/vv/real_e2e.md`). Still open in the narrow sense: a real **dark-calibration granule**
+  (night-over-ocean) is not in this dataset — per-pixel dark therefore comes from the GIPP, not
+  from a dark acquisition. L1B-derived PRNU remains available via `scripts/derive_prnu_dark.py`.
 
 ---
 
