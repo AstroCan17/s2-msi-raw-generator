@@ -84,20 +84,47 @@ RMSE ≈ 1e-14. Numbers & criteria: `docs/vv/real_e2e.md`; products: GitLab pack
 
 ![Real L1A scene — B04/B03/B02, raw per-detector geometry (band misregistration is real; co-registration happens at L1B/L1C)](docs/_static/showcase/real_l1a_rgb.png)
 
-**Synthetic demo chain (L0→L1B):** generator open-container L0 + cal-DB →
-`msi-processor` `l0_decode → radiometric → enhancement → toa` (`eopf==2.8.1`) → persisted
-**L1B TOA reflectance** (`EOZarrStore`). RGB = B04/B03/B02, per-channel 2–98 % percentile
-stretch (`quicklook.py`, stdlib-only PNG writer).
+### Single band, stage by stage — B04, real product
 
-| Synthetic L0 RAW (DN) | L1B TOA reflectance |
+What the generator actually *does* to one band (B04, detector d07, 650 lines of the real
+Sentinel-2 L1B granule): the ideal DN image, the same image after the instrument effects are
+impressed (PSF re-blur → PRNU → noise → dark → onboard equalization, chain steps S6–S13),
+and the generated 12-bit RAW L0. Zoomed crops (256×256 cloud edge, 2×) show the texture
+changes; each panel is independently 2–98 % percentile-stretched, so what changes between
+panels is the texture, not the display range.
+
+| original — ideal DN (S1) | effects impressed (S6–S13) | RAW L0 DN (S14, uint16) |
+|---|---|---|
+| ![B04 original zoom](docs/_static/showcase/result_b04_original_zoom.png) | ![B04 effects zoom](docs/_static/showcase/result_b04_effects_zoom.png) | ![B04 raw zoom](docs/_static/showcase/result_b04_raw_zoom.png) |
+
+Full 2552 × 650 strips: [original](docs/_static/showcase/result_b04_original.png) ·
+[effects](docs/_static/showcase/result_b04_effects.png) ·
+[raw](docs/_static/showcase/result_b04_raw.png) ·
+[impressed-noise field](docs/_static/showcase/result_b04_delta.png) (the S13 noise alone —
+its brightness follows the signal, σ=√(α²+β·DN)).
+
+| Stage | DN min | DN max | mean | std | SNR (dB) | entropy (bits/px) |
+|---|---|---|---|---|---|---|
+| original — ideal DN (S1) | 1103.5 | 10486.9 | 1362.8 | 645.03 | 6.5 | 5.36 |
+| effects impressed (S6–S13) | 1577.3 | 10880.9 | 1843.1 | 642.19 | 9.2 | 8.14 |
+| RAW L0 DN (S14, uint16) | 1577.0 | 4095.0 | 1807.5 | 356.23 | 14.1 | 7.95 |
+
+| Quality figure | Value |
 |---|---|
-| ![L0 quicklook — synthetic RAW DN](data/output/quicklook/l0_rgb.png) | ![L1B quicklook — TOA reflectance](data/output/quicklook/l1b_rgb.png) |
+| PSF re-blur RMSE vs ideal DN (S6) | 25.52 DN |
+| impressed noise σ — measured vs model √(α²+β·DN) | 7.44 vs 7.34 DN (**+1.4 %**) |
+| saturated px clipped by S14 (DN > 4095, bright cloud cores) | 1.53 % |
+| quantization RMSE, unsaturated px (theory 1/√12 ≈ 0.29) | **0.29 DN** |
+| full-chain radiance recovery (fwd(RAW) vs input), unsaturated px | RMSE 3.06 · **PSNR 45.1 dB** · bias +0.02 % |
 
-The demo scene is a **flat field** (per-band uniform radiance, reflectance ≈ 0.04–0.27 by band),
-so the aggressive stretch deliberately reveals the *texture* instead of a landscape: per-column
-striping is the impressed **PRNU** pattern, the speckle is shot/read noise. Reproduce with
-`python scripts/run_e2e_l0_to_l1b.py <data-store>` in an eopf environment (e.g. the SDE), or run
-the manual **`e2e-l1b`** CI job — its artifacts carry the L1B product and these PNGs.
+Reading the numbers: the impressed noise matches the product noise model to 1.4 %; the
+quantization error is exactly the uniform-quantizer theory value; recovering radiance from the
+generated RAW returns the input to 45 dB with a +0.02 % bias — the only irreversible losses are
+the modelled ones (noise, 12-bit clipping of the saturated cloud cores, quantization). The DN
+pedestal (mean 1363 → 1843) is the re-applied dark signal + onboard equalization. Reproduce
+locally (numpy+zarr only): `python scripts/result_band_stages.py <L1B.zarr[.zip]>`. In this run
+the PSF/SRF/noise model are real ESA data; the per-pixel dark/PRNU are the synthetic fallback
+(run with `--gipp <dir>` for the operational-GIPP versions).
 
 ## Package
 
