@@ -14,6 +14,24 @@ limitations under the License. -->
 
 # Showcase — real E2E products
 
+## Real-data run (authoritative, SDE 2026-07-02)
+
+The full **real-L1A** end-to-end (REQ-FUNC-093; details & numbers: [Real-L1A E2E
+validation](vv/real_e2e.md)): the public-bucket L1A packaged as a **CCSDS-122-compressed,
+real-space-packet L0** (overall lossless ratio **3.66×**, 30 642 packets), ground-decoded
+bit-exactly, pushed through msi-processor `l0_decode` — **L1A′ bit-identical to the original
+in 13/13 bands**, radiometric GIPP round-trip RMSE ≈ 1e-14.
+
+| Real L1A scene (B04/B03/B02, raw per-detector geometry) | DWT LL3 subband (codec view) |
+|---|---|
+| ![Real L1A RGB crop](_static/showcase/real_l1a_rgb.png) | ![DWT LL3](_static/showcase/real_dwt_ll3.png) |
+
+A dark ocean scene with cloud speckle; the band-to-band colour misregistration is *real* —
+L1A is raw per-detector geometry (co-registration happens at L1B/L1C). Products are published
+in the GitLab **Generic Package Registry** (`s2-msi-e2e-real/0.3.0`, PSFD `.zarr.zip` names).
+
+## Synthetic demo chain
+
 Products of the full **L0→L1B** end-to-end run: the generator's open-container L0 + cal-DB
 consumed by `msi-processor` (`l0_decode → radiometric → enhancement → toa`, `eopf==2.8.1`),
 ending in a persisted **L1B TOA-reflectance** EOPF product (`EOZarrStore` →
