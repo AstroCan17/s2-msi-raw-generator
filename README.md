@@ -24,32 +24,49 @@ input/output data, and where it is stored:
 
 ```mermaid
 flowchart LR
-    IN[("Real S2 L1A/L1B<br/>EOPF product")]
+    IN[("Real S2 L1A/L1B<br/>EOPF product (bucket)")]
     ADFsrc[("ADF sources<br/>GIPP - PSF - SRF")]
     subgraph GEN["s2_msi_raw_generator — Synthetic Raw Data Generator - PRODUCER"]
         direction TB
         REV["reverse chain S1-S15<br/>(reverse.py)"]
+        C122["ccsds122 — CCSDS-122 lossless<br/>(DWT 9/7-M + bit-plane coder)"]
+        PKT["isp packetize<br/>(SEQ_FIRST/CONT/LAST + CUC)"]
         CAL["calibration.py<br/>derive D, g, A"]
         ADFW["adf_writer.py"]
+        REV --> C122 --> PKT
     end
-    L0[("L0 RAW<br/>zarr EOProduct")]
+    L0c[("canonical L0 — compressed ISPs<br/>(PSFD name S02MSIL0__…)")]
+    GD["ground decode<br/>(reassemble + decompress,<br/>bit-exact — read_l0_isp_dn)"]
+    L0oc[("open-container L0<br/>(…_OC)")]
     CALDB[("cal-DB - EOPF ADFs<br/>nuc / dark / radiometric / spectral<br/>+ noise (E2ES-side)")]
-    subgraph PROC["msi-processor / L1PP blocks - CONSUMER"]
+    subgraph PROC["msi-processor - CONSUMER"]
         direction TB
+        L0D["l0_decode → L1A′"]
         RAD["radiometric unit"]
         TOA["toa unit"]
     end
+    VAL["validation: L1A′ ≡ L1A<br/>(bit-identity, kept lines)"]
     L1[("L1B / L1C<br/>product")]
     IN --> REV
     ADFsrc --> REV
     ADFsrc --> CAL
-    REV -->|"produces: synthetic RAW"| L0
+    PKT -->|"stores"| L0c
+    L0c --> GD --> L0oc
     CAL --> ADFW -->|"stores: EOPF zarr ADFs"| CALDB
-    L0 -->|"consumes"| RAD
+    L0oc -->|"consumes"| L0D
+    L0D --> RAD
     CALDB -->|"consumes: nuc, dark"| RAD
     CALDB -->|"consumes: radiometric"| TOA
     RAD --> TOA --> L1
+    L0D -.-> VAL
+    IN -.-> VAL
 ```
+
+All chain products live under one **data-store** root (`l0/`, `caldb/`, `l1b/`, `quicklook/`;
+real-data runs add `inputs/`, `l1a_prime/`, `report/`) with **EOPF PSFD §3** file names
+(ICD-IF-NAME). The real-data end-to-end (bucket L1A → compressed-ISP L0 → `l0_decode` → L1A′ →
+bit-identity validation + real-L0 structural comparison) is driven by
+`scripts/run_e2e_real_l1a.py` (see `docs/vv/real_e2e.md`).
 
 The processor keeps calibration *internal* (a mode of its radiometric unit); the generator only
 supplies the ADF — a single shared sensor-model ADF, one source of truth. Build it with
