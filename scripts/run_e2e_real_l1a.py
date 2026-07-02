@@ -64,6 +64,15 @@ REAL_L0_KEYS = [
     "V20241218T070943_20241218T072345_A049567_WP_LN.tar",
 ]
 DETECTOR = 1                       # the example PDI L1A carries DD01 only
+# Bands grouped by ground resolution: line counts differ per resolution in a real product
+# (10 m = 2× the 20 m, 6× the 60 m line count), and a persisted EOPF product must not mix
+# 'line' sizes in one group (PSFD: different resolutions use different dimensions) — so
+# l0_decode + persist run per resolution group.
+RES_GROUPS = {
+    "r10m": ["B02", "B03", "B04", "B08"],
+    "r20m": ["B05", "B06", "B07", "B8A", "B11", "B12"],
+    "r60m": ["B01", "B09", "B10"],
+}
 PHASES = ["fetch-l1a", "fetch-l0", "preflight", "package", "ground-decode", "l0-decode",
           "validate", "radiometric-vv", "scan-l0", "quicklook", "report"]
 
@@ -250,18 +259,31 @@ def phase_l0_decode(store: dict[str, Path], args) -> None:
     oc = str(store["l0"] / pre["product_names"]["l0_oc"])
     g = zarr.open_group(oc, mode="r")
     bands = sorted(g["measurements/detector"].array_keys())
-    groups = [bands[i::args.band_groups] for i in range(args.band_groups)] \
-        if args.band_groups > 1 else [bands]
+    # resolution groups keep 'line' uniform within each persisted product (real products mix
+    # 10 m / 20 m / 60 m line counts); --band-groups > 1 subdivides them further for RAM.
+    groups: list[list[str]] = []
+    for res_bands in RES_GROUPS.values():
+        grp = [b for b in bands if b in res_bands]
+        if args.band_groups > 1:
+            groups += [grp[i::args.band_groups] for i in range(args.band_groups)]
+        else:
+            groups.append(grp)
+    groups += [[b for b in bands if not any(b in r for r in RES_GROUPS.values())]]
     outdir = store["l1a_prime"]
     stem = pre["product_names"]["l1a_prime"].removesuffix(".zarr")
     lost = {}
     for gi, grp in enumerate(g_ for g_ in groups if g_):
         prod = EOProduct(f"{stem}.g{gi}")
+        grp_lines = None
         for b in grp:
-            prod[f"measurements/detector/{b}"] = EOVariable(
-                data=np.asarray(g[f"measurements/detector/{b}"]), dims=("line", "detector"))
-        prod["conditions/time/line_time"] = EOVariable(
-            data=np.asarray(g["conditions/time/line_time"]), dims=("line",))
+            arr = np.asarray(g[f"measurements/detector/{b}"])
+            grp_lines = arr.shape[0] if grp_lines is None else grp_lines
+            prod[f"measurements/detector/{b}"] = EOVariable(data=arr, dims=("line", "detector"))
+        # line_time is sampled at the finest (10 m) line rate; stride it to this group's line
+        # count so the persisted product keeps one consistent 'line' dimension per resolution.
+        lt = np.asarray(g["conditions/time/line_time"])
+        stride = max(1, lt.shape[0] // grp_lines) if grp_lines else 1
+        prod["conditions/time/line_time"] = EOVariable(data=lt[::stride][:grp_lines], dims=("line",))
         l1a = L0DecodeUnit("l0").run({"l0c": prod}, bit_depth=pre["bit_depth"],
                                      max_lost_fraction=0.1, name=f"{stem}.g{gi}")["l1a"]
         lost.update(l1a.attrs["other_metadata"]["quality"]["lines_lost"])
