@@ -5,6 +5,10 @@ All notable changes to the Sentinel-2 MSI reverse E2ES (`s2_msi_raw_generator`).
 ## [Unreleased]
 
 ### Added
+- **`data/` E2E folders + quicklook** — `data/input/` (reference L1A/GIPP; gitignored) and
+  `data/output/{l0,caldb,quicklook}/`; `scripts/run_e2e_l0_to_l1b.py` writes products there by default.
+  New dependency-free `s2_msi_raw_generator/quicklook.py` (stdlib-only PNG writer) renders an RGB preview.
+  The large `.zarr` products are gitignored; the small **quicklook PNGs** are committed (README/site showcase).
 - **zarr v2/v3 write compatibility** (`s2_msi_raw_generator/_zarrio.py`) — the L0 + cal-DB writers now run under
   **both** zarr 3 (local/CI) and **zarr 2.18** (the `eopf==2.8.1` SDE env; eopf pins zarr <3). Products stay in
   the zarr **v2** on-disk format either way. Consequence: the full **L0→L1B E2E runs in a single venv** alongside
