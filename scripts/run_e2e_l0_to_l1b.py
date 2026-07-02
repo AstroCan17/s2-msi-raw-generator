@@ -27,6 +27,11 @@ zarr 3); step (2) needs ``eopf`` + ``msi_processor`` so the CI test importorskip
 Wiring validated on the SDE against msi-processor ``tests/it/computing/test_full_chain.py``.
 
     python scripts/run_e2e_l0_to_l1b.py [work_dir]     # needs eopf==2.8.1 + msi_processor (the SDE)
+
+``work_dir`` is the run's central **data store** (default: the repo's ``data/output/``): every product
+of the chain lands under one root — ``l0/`` (downlink input), ``caldb/`` (auxiliary ADFs), ``l1b/``
+(the archived L1B product) and ``quicklook/`` (small PNG previews) — so a single directory holds the
+whole E2E state. On the SDE point it at a dedicated store, e.g. ``~/data-store``.
 """
 
 from __future__ import annotations
@@ -136,15 +141,37 @@ def run_processor(l0_path, caldb_dir, *, sun_zenith_deg: float = SUN_ZENITH_DEG,
     return l1b
 
 
+def write_l1b(l1b, out_dir, name: str = "L1B_TOA") -> str:
+    """Persist the L1B ``EOProduct`` to ``out_dir/<name>.zarr`` with eopf's native zarr store (SDE-only).
+
+    ``EOZarrStore(url)`` requires ``url`` to already exist and writes ``url / key + ".zarr"`` on
+    ``store[key] = product`` (eopf 2.8.1 ``eopf/store/zarr.py``); ``delayed_writing=False`` so the
+    product is fully on disk when this returns.
+    """
+    from eopf.common.constants import OpeningMode
+    from eopf.store.zarr import EOZarrStore
+
+    out = Path(out_dir)
+    out.mkdir(parents=True, exist_ok=True)
+    store = EOZarrStore(str(out))
+    store.open(mode=OpeningMode.CREATE_OVERWRITE, delayed_writing=False)
+    try:
+        store[name] = l1b
+    finally:
+        store.close()
+    return str(out / f"{name}.zarr")
+
+
 def main(argv=None) -> int:
     args = argv if argv is not None else sys.argv[1:]
-    work = args[0] if args else None            # default → the repo's data/output/
-    l0_path, caldb, band_frames = build_inputs(work)
+    # The central data store for this run (l0/, caldb/, l1b/, quicklook/ live under one root).
+    store_dir = Path(args[0]) if args else DEFAULT_OUTPUT_DIR
+    l0_path, caldb, band_frames = build_inputs(store_dir)
+    print(f"data store → {store_dir}")
     print(f"built open-container L0 → {l0_path}")
     print(f"      cal-DB (incl. spectral/ESUN) → {caldb}")
     print(f"bands={list(band_frames)}  n_det={N_DET}  n_lines={N_LINES}")
-    l0_ql = quicklook.save_rgb(band_frames, Path(l0_path).resolve().parents[1] / "quicklook" / "l0_rgb.png",
-                               upscale=4)
+    l0_ql = quicklook.save_rgb(band_frames, store_dir / "quicklook" / "l0_rgb.png", upscale=4)
     print(f"      L0 quicklook (RGB=B04/B03/B02 DN) → {l0_ql}")
     try:
         l1b = run_processor(l0_path, caldb)
@@ -153,10 +180,16 @@ def main(argv=None) -> int:
         print("Install eopf==2.8.1 + msi_processor (the SDE) to produce the real L1B reflectance.")
         return 0
     print("\n=== L1B TOA reflectance ===")
+    refl = {}
     for b in sorted(band_frames):
         r = np.asarray(l1b[f"measurements/reflectance/{b}"].data)
+        refl[b] = r
         print(f"  {b}: shape={r.shape} min={float(np.nanmin(r)):.4f} "
               f"max={float(np.nanmax(r)):.4f} mean={float(np.nanmean(r)):.4f}")
+    l1b_path = write_l1b(l1b, store_dir / "l1b")
+    print(f"      L1B product → {l1b_path}")
+    l1b_ql = quicklook.save_rgb(refl, store_dir / "quicklook" / "l1b_rgb.png", upscale=4)
+    print(f"      L1B quicklook (RGB=B04/B03/B02 reflectance) → {l1b_ql}")
     print("L1B reflectance product produced.")
     return 0
 

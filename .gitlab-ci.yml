@@ -24,6 +24,33 @@ unit-tests:
       - report.xml
     expire_in: 1 week
 
+# Real L0→L1B E2E in a full eopf==2.8.1 + msi_processor environment (the same chain the SDE runs):
+# generator L0 + cal-DB → l0_decode → radiometric → enhancement → toa → persisted L1B + quicklooks.
+# Manual (heavy env install); msi-processor is cloned with CI_JOB_TOKEN — the generator project is on
+# ipf/msi-processor's job-token allowlist. Artifacts carry the L1B product + the showcase PNGs.
+e2e-l1b:
+  stage: test
+  image: python:3.11-slim
+  interruptible: true
+  timeout: 30m
+  before_script:
+    - apt-get update -qq && apt-get install -y -qq git >/dev/null
+    - python -m pip install -q --upgrade pip
+    - git clone --depth 1 "https://gitlab-ci-token:${CI_JOB_TOKEN}@${CI_SERVER_HOST}/ipf/msi-processor.git" /tmp/msi-processor
+    - pip install -q "eopf==2.8.1" /tmp/msi-processor
+    - pip install -q -e . pytest
+  script:
+    - python scripts/run_e2e_l0_to_l1b.py e2e-store
+    - python -m pytest tests/test_e2e_l1b.py -q
+  artifacts:
+    paths:
+      - e2e-store/quicklook/
+      - e2e-store/l1b/
+    expire_in: 1 week
+  rules:
+    - when: manual
+      allow_failure: true
+
 # Build the Sphinx documentation site and publish it to GitLab Pages. Runs on the default
 # branch (publishes) and on merge requests (build-only validation; GitLab deploys Pages only
 # from the default branch). The DRD set is markdown (myst-parser) + autodoc of the package.
