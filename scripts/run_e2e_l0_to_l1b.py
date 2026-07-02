@@ -36,7 +36,7 @@ from pathlib import Path
 
 import numpy as np
 
-from s2_msi_raw_generator import datation, l0product, sensor
+from s2_msi_raw_generator import datation, l0product, quicklook, sensor
 from s2_msi_raw_generator.adf_writer import BandCal, write_calibration_db
 
 # One common detector width across all bands so nuc.gain[band] length == detector-axis width (the
@@ -47,14 +47,20 @@ BANDS = ["B02", "B03", "B04", "B08", "B11", "B12"]   # 10 m group + SWIR
 DAY_OF_YEAR = 94                                     # 2024-04-03
 SUN_ZENITH_DEG = 35.0
 
+# Products land in the repo's data/ tree by default (the L0/cal-DB .zarr are gitignored; see data/output/).
+REPO_ROOT = Path(__file__).resolve().parents[1]
+DEFAULT_OUTPUT_DIR = REPO_ROOT / "data" / "output"
 
-def build_inputs(work_dir, *, n_det: int = N_DET, n_lines: int = N_LINES, bands=BANDS, seed: int = 0):
+
+def build_inputs(work_dir=None, *, n_det: int = N_DET, n_lines: int = N_LINES, bands=BANDS, seed: int = 0):
     """Build the cal-DB (with ESUN) + an open-container L0 at a common ``n_det``. Pure numpy/zarr.
 
-    Returns ``(l0_path, caldb_dir, band_frames)``. This is the CI-verified half of the E2E.
+    Writes to ``work_dir`` (default: the repo's ``data/output/``): ``l0/L0c_opencontainer.zarr`` +
+    ``caldb/``. Returns ``(l0_path, caldb_dir, band_frames)``. This is the CI-verified half of the E2E.
     """
-    work = Path(work_dir)
-    work.mkdir(parents=True, exist_ok=True)
+    work = Path(work_dir) if work_dir is not None else DEFAULT_OUTPUT_DIR
+    l0_dir = work / "l0"
+    l0_dir.mkdir(parents=True, exist_ok=True)
     caldb = work / "caldb"
 
     # cal-DB coefficients at n_det, with per-band ESUN (S2A) so the toa unit can emit reflectance.
@@ -72,7 +78,7 @@ def build_inputs(work_dir, *, n_det: int = N_DET, n_lines: int = N_LINES, bands=
         band_frames[bn] = l0product.reverse_to_l0_frames({(1, bn): radiance}, seed=seed)[(1, bn)]
     write_calibration_db(caldb, cals, unit="S2A")
 
-    l0_path = str(work / "L0c_opencontainer.zarr")
+    l0_path = str(l0_dir / "L0c_opencontainer.zarr")
     l0product.write_l0_opencontainer(l0_path, band_frames, datation=datation.Datation())
     return l0_path, str(caldb), band_frames
 
@@ -131,11 +137,15 @@ def run_processor(l0_path, caldb_dir, *, sun_zenith_deg: float = SUN_ZENITH_DEG,
 
 
 def main(argv=None) -> int:
-    work = (argv or sys.argv[1:] or ["/tmp/claude-1000/s2_e2e_l1b"])[0]
+    args = argv if argv is not None else sys.argv[1:]
+    work = args[0] if args else None            # default → the repo's data/output/
     l0_path, caldb, band_frames = build_inputs(work)
     print(f"built open-container L0 → {l0_path}")
     print(f"      cal-DB (incl. spectral/ESUN) → {caldb}")
     print(f"bands={list(band_frames)}  n_det={N_DET}  n_lines={N_LINES}")
+    l0_ql = quicklook.save_rgb(band_frames, Path(l0_path).resolve().parents[1] / "quicklook" / "l0_rgb.png",
+                               upscale=4)
+    print(f"      L0 quicklook (RGB=B04/B03/B02 DN) → {l0_ql}")
     try:
         l1b = run_processor(l0_path, caldb)
     except ImportError as e:

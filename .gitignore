@@ -13,6 +13,13 @@ venv/
 *.zarr.zip
 data/s2_dataset/
 
+# E2E data folders — track the structure + small showcase artifacts, ignore the large inputs/products.
+# (The .zarr L0/cal-DB products under data/output/ are already ignored by `*.zarr/` above; the small
+#  quicklook PNGs under data/output/quicklook/ ARE committed for showcase.)
+data/input/*
+!data/input/.gitkeep
+!data/input/README.md
+
 # Build / docs
 build/
 dist/
