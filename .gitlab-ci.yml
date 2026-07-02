@@ -36,6 +36,8 @@ e2e-l1b:
   before_script:
     - apt-get update -qq && apt-get install -y -qq git >/dev/null
     - python -m pip install -q --upgrade pip
+    # the shell runner persists /tmp between jobs — drop any stale clone first
+    - rm -rf /tmp/msi-processor
     - git clone --depth 1 "https://gitlab-ci-token:${CI_JOB_TOKEN}@${CI_SERVER_HOST}/ipf/msi-processor.git" /tmp/msi-processor
     - pip install -q "eopf==2.8.1" /tmp/msi-processor
     - pip install -q -e . pytest
@@ -63,6 +65,8 @@ e2e-real-l1a:
   before_script:
     - apt-get update -qq && apt-get install -y -qq git >/dev/null
     - python -m pip install -q --upgrade pip
+    # the shell runner persists /tmp between jobs — drop any stale clone first
+    - rm -rf /tmp/msi-processor
     - git clone --depth 1 "https://gitlab-ci-token:${CI_JOB_TOKEN}@${CI_SERVER_HOST}/ipf/msi-processor.git" /tmp/msi-processor
     - pip install -q "eopf==2.8.1" /tmp/msi-processor
     - pip install -q -e . pytest
