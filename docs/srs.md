@@ -16,8 +16,9 @@
 
 # Software Requirements Specification (SRS)
 
-**Project:** Sentinel-2 MSI Synthetic Raw Data Generator (`s2_msi_raw_generator`) · **DRD:** ECSS-E-ST-40C Rev.1 (SRS; SSS + IRD
-folded in, tailored for a single-CSC E2ES). Verification methods: **T** test · **A** analysis · **I**
+**Project:** Sentinel-2 MSI Synthetic Raw Data Generator (`s2_msi_raw_generator`) · **DRD:** ECSS-E-ST-40C Rev.1 (SRS).
+System-level context: [SSS](sss.md); the interface requirements below are single-sourced here and
+collected in the [IRD](ird.md). Verification methods: **T** test · **A** analysis · **I**
 inspection · **R** review.
 
 ## 1. Introduction
@@ -184,6 +185,8 @@ correct → reverse impress → raw′, residual $\approx 0$) on S2 data with th
   (`test_calibration`). realized
 
 ## 5. Interface requirements (REQ-IF)
+The REQ-IF set is single-sourced here; the standalone [IRD](ird.md) collects and contextualises it
+(interface inventory + design-control anchors) without duplicating the normative text.
 - **REQ-IF-001 — Input interface.** EOPF L1A/L1B Zarr (`measurements/d{DD}/b{xx}/img`;
   `…/DD{nn}/B{xx}/l1a_raw_image`). **V: I/T** (ICD §Interfaces). realized
 - **REQ-IF-002 — L0 output interface (ICD-IF-L0).** EOPF L0 Zarr v2 (156 arrays + masks + ISP +

@@ -4,6 +4,13 @@ All notable changes to the Sentinel-2 MSI reverse E2ES (`s2_msi_raw_generator`).
 
 ## [Unreleased]
 
+### Added
+- **Complete ECSS document set** — nine standalone documents closing the tailored DRL: SSS, IRD, DJF
+  (11 decision records), risk register, SPA plan (ECSS-Q-ST-80C), SRevP (with the held-review record),
+  SUITP, SUITR, and the QR report for the v0.3.0 baseline. The SDP tailoring section is now a full
+  DRL disposition table (every ECSS-E-ST-40C Rev.1 / Q-ST-80C DRD → standalone document or recorded
+  tailoring); new "Management & assurance" section on the docs landing page.
+
 ### Changed
 - **Docs landing page** — the real-data E2E showcase (quicklooks + headline numbers + source
   repository link) moved onto the documentation front page (`docs/index.md`); the separate

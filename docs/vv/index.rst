@@ -11,6 +11,8 @@ ECSS-E-ST-40C Rev.1 software verification & validation plan and report for the S
    :caption: Contents:
 
    plan
+   suitp
    report
+   suitr
    real_e2e
    real_e2e_run_report
