@@ -13,11 +13,12 @@ timing / STAC datetime come from a real :class:`~s2_msi_raw_generator.datation.D
 
 from __future__ import annotations
 
+import zlib
 from pathlib import Path
 
 import numpy as np
 
-from . import __version__, isp, quality, quality_report, sad, sensor
+from . import __version__, ccsds122, isp, quality, quality_report, sad, sensor
 from .adf import BandADF, synthesize
 from .datation import Datation
 from .reverse import reverse_mvp
@@ -63,7 +64,8 @@ def reverse_to_l0_frames(
     for (det, bname), radiance in l1b_frames.items():
         n_det = radiance.shape[1]
         adf = adfs.get(bname) or synthesize(sensor.band(bname, unit), n_det=n_det, seed=seed)
-        rng = np.random.default_rng(seed + det * 100 + hash(bname) % 97)
+        # crc32, not hash(): the latter is salted per process (PYTHONHASHSEED) — irreproducible.
+        rng = np.random.default_rng(seed + det * 100 + zlib.crc32(bname.encode()) % 97)
         out[(det, bname)] = reverse_mvp(radiance, adf, rng)
     return out
 
@@ -162,20 +164,33 @@ def write_l0_product(
     orbit: dict | None = None,
     emit_qc: bool = True,
     with_isp: bool = False,
+    isp_max_payload: int = isp.DEFAULT_MAX_PAYLOAD,
+    store_decoded: bool = True,
 ) -> str:
     """Write the L0 RAW EOProduct Zarr to ``out_path`` and return it.
 
     Each frame must be uint16 in ``[0, DN_MAX]``. A quality mask is written per frame (saturated
     pixels flagged where DN ≥ DN_MAX if no explicit mask is given). The datation (``Datation``) sets
     the real GPS/OBT line timing and the STAC datetime span; ``footprint``/``orbit`` set the STAC
-    geometry/orbit (S2A defaults). When ``with_isp`` is set (S15), per-band ``isp_header`` arrays and
-    ``conditions/anc_data/s{APID}/isp`` SAD telemetry are written, timestamped from the datation.
-    ``datetime_iso`` is a deprecated shortcut for ``Datation(epoch_utc=...)``.
+    geometry/orbit (S2A defaults). ``datetime_iso`` is a deprecated shortcut for
+    ``Datation(epoch_utc=...)``.
+
+    When ``with_isp`` is set (S15) the band's image data is **CCSDS-122 lossless compressed**
+    (:mod:`~s2_msi_raw_generator.ccsds122`) and carried as real CCSDS space packets
+    (:func:`~s2_msi_raw_generator.isp.packetize_stream`; codec segments = 8 image lines →
+    line-accurate CUC datation; ``SEQ_FIRST/CONT/LAST`` grouping) under
+    ``measurements/d{DD}/b{BB}/{isp, isp_offsets, packet_data_length}``; SAD telemetry goes to
+    ``conditions/anc_data/s{APID}/isp``. Achieved per-band compression ratios replace the
+    static ``compression_rate`` metadata. With ``store_decoded=False`` the decoded ``band{BB}``
+    arrays are omitted — the product then stores ISPs only, mirroring the real S2 L0
+    (SentiWiki: L0 = compressed ISPs; ground L1A decompresses via :func:`read_l0_isp_dn`).
     """
     if zarr is None:
         raise ImportError("zarr is required to write L0 products: `uv pip install zarr`")
     from . import _zarrio
 
+    if not store_decoded and not with_isp:
+        raise ValueError("store_decoded=False requires with_isp=True (nothing would be stored)")
     if datation is None:
         datation = Datation(epoch_utc=datetime_iso) if datetime_iso else Datation()
     detectors = sorted({det for det, _ in frames})
@@ -184,12 +199,12 @@ def write_l0_product(
     meta = build_root_metadata(
         platform=platform, datation=datation, n_lines=n_lines,
         active_detectors=detectors, footprint=footprint, orbit=orbit)
-    root.attrs.update(meta)
 
     m = root.create_group("measurements")
     q = root.create_group("quality")
     cond = root.create_group("conditions").create_group("anc_data") if with_isp else None
     line_period_s = datation.line_period_s
+    achieved_ratio: dict[str, float] = {}
 
     for (det, bname), dn in sorted(frames.items()):
         if dn.dtype != np.uint16:
@@ -197,8 +212,9 @@ def write_l0_product(
         bkey = sensor.zarr_band_key(bname)
         bnum = sensor.band_number(bname)
         mg = m.require_group(f"d{det:02d}").require_group(bkey)
-        a = _zarrio.put_array(mg, f"band{bnum}", dn, dtype="uint16")
-        a.attrs["short_name"] = f"band{bnum}"
+        if store_decoded:
+            a = _zarrio.put_array(mg, f"band{bnum}", dn, dtype="uint16")
+            a.attrs["short_name"] = f"band{bnum}"
 
         # Canonical L0 mask = S2 MSK_QUALIT (8 bit-planes), seeded from DN (saturation/no-data/lost)
         # OR'd with any injected-defect qa (reverse.s10 bit0=dead/bit1=hot → DEFECTIVE/SATURATED).
@@ -212,9 +228,29 @@ def write_l0_product(
         if with_isp:
             apid = isp.apid_for(det, sensor.BANDS.index(bname))
             t0 = datation.line_time_gps(0, bname)  # real GPS/OBT epoch of this band's first line
-            hdr, plen = isp.frame_isp_headers(dn, apid, t0_seconds=t0, line_period_s=line_period_s)
-            _zarrio.put_array(mg, "isp_header", hdr, dtype="uint8")
+            depth = 16 if int(dn.max(initial=0)) > sensor.DN_MAX else 12
+            payload, stats = ccsds122.compress_frame(dn, pixel_bit_depth=depth)
+            bounds = ccsds122.segment_byte_bounds(payload)
+            # one codec segment = one 8-image-line block row → its CUC time is that row's first line
+            seg_times = t0 + np.arange(len(bounds)) * (8 * line_period_s)
+            stream, offsets, plens = isp.packetize_stream(
+                payload, apid, segment_bounds=bounds, segment_times_gps=seg_times,
+                max_payload=isp_max_payload)
+            _zarrio.put_array(mg, "isp", stream, dtype="uint8")
+            _zarrio.put_array(mg, "isp_offsets", offsets, dtype="uint64")
+            _zarrio.put_array(mg, "packet_data_length", plens, dtype="uint32")
             mg.attrs["apid"] = apid
+            mg.attrs["n_packets"] = int(offsets.size)
+            mg.attrs["n_segments"] = int(stats.n_segments)
+            mg.attrs["max_payload_octets"] = int(isp_max_payload)
+            mg.attrs["compression"] = {
+                "scheme": "CCSDS 122.0-B lossless subset (ICD-IF-C122)",
+                "pixel_bit_depth": stats.pixel_bit_depth,
+                "raw_bytes": stats.raw_bytes,
+                "compressed_bytes": stats.compressed_bytes,
+                "ratio": round(stats.ratio, 4),
+            }
+            achieved_ratio[bname] = max(achieved_ratio.get(bname, 0.0), round(stats.ratio, 4))
             # SAD telemetry for this APID: real AOCS quaternion + orbit ephemeris + thermal (not zeros)
             n_sad = max(dn.shape[0] // 8, 1)
             sad_times = datation.gps_epoch_s + np.arange(n_sad) * (line_period_s * 8)
@@ -223,12 +259,38 @@ def write_l0_product(
             _zarrio.put_array(sg, "isp", sad_arr, dtype="uint8")
             _zarrio.put_array(sg, "packet_data_length", sad_len, dtype="uint16")
 
+    # Achieved (real) compression ratios replace the static datasheet rates (REQ-FUNC-092).
+    if achieved_ratio:
+        info = meta["other_metadata"]["sensor_configuration"]["acquisition_configuration"]
+        info["compression_scheme"] = "CCSDS 122.0-B lossless subset"
+        sbi = info["spectral_band_info"]           # keyed by band number ("03", "8A", …)
+        for bname, ratio in achieved_ratio.items():
+            sbi[sensor.band_number(bname)]["compression_rate"] = ratio
+    root.attrs.update(meta)
+
     # EOPF EOQC-style per-product quality report, embedded in the quality group (REQ-FUNC-041).
     if emit_qc:
         q.attrs["qc"] = quality_report.build_qc_report(
             meta, product_name=Path(out_path).name, has_measurements=bool(frames))
 
     return out_path
+
+
+def read_l0_isp_dn(path: str, det: int, bname: str) -> np.ndarray:
+    """Ground decompression: canonical L0 ISP stream → the exact uint16 DN frame.
+
+    The real-chain L1A-side operation (SentiWiki: decompression happens at L1A): read
+    ``measurements/d{DD}/b{BB}/isp``, reassemble the packet groups
+    (:func:`~s2_msi_raw_generator.isp.reassemble_segments` — seq_flags + continuity enforced),
+    join them back into the CCSDS-122 stream and decode it bit-exactly.
+    """
+    if zarr is None:
+        raise ImportError("zarr is required to read L0 products: `uv pip install zarr`")
+    g = zarr.open_group(str(path), mode="r")
+    mg = g[f"measurements/d{det:02d}/{sensor.zarr_band_key(bname)}"]
+    stream = np.asarray(mg["isp"])
+    payload = b"".join(isp.reassemble_segments(stream))
+    return ccsds122.decompress_frame(payload)
 
 
 def frames_to_strip(frames: dict[FrameKey, np.ndarray]) -> dict[str, np.ndarray]:

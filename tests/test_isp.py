@@ -79,7 +79,7 @@ def test_apid_for_is_deterministic_and_11bit():
     assert isp.apid_for(4, 2) != isp.apid_for(5, 2)
 
 
-def test_l0_with_isp_writes_headers_and_telemetry(tmp_path):
+def test_l0_with_isp_writes_compressed_stream_and_telemetry(tmp_path):
     zarr = pytest.importorskip("zarr")
     from s2_msi_raw_generator import l0product
     frames = {(4, "B03"): np.full((16, 8), 100.0)}
@@ -88,17 +88,47 @@ def test_l0_with_isp_writes_headers_and_telemetry(tmp_path):
     l0product.write_l0_product(out, l0, with_isp=True)
 
     g = zarr.open_group(out, mode="r")
-    # per-band isp_header present
-    ih = g["measurements/d04/b03/isp_header"]
-    assert ih.shape == (16, isp.ISP_HEADER_LEN) and ih.dtype == np.uint8
-    apid = dict(g["measurements/d04/b03"].attrs)["apid"]
+    mg = g["measurements/d04/b03"]
+    stream = np.asarray(mg["isp"])
+    offsets = np.asarray(mg["isp_offsets"])
+    plens = np.asarray(mg["packet_data_length"])
+    assert stream.dtype == np.uint8 and offsets.dtype == np.uint64 and plens.dtype == np.uint32
+    attrs = dict(mg.attrs)
+    assert attrs["n_packets"] == offsets.size == plens.size
+    assert attrs["compression"]["scheme"].startswith("CCSDS 122")
+    # packets tile the stream exactly, and every one self-parses
+    pkts = list(isp.iter_packets(stream))
+    assert len(pkts) == attrs["n_packets"]
+    assert offsets[0] == 0 and int(offsets[-1]) + isp.PRIMARY_HEADER_LEN + int(plens[-1]) == stream.size
+    # ground decode restores the exact DN (the L0→L1A relation)
+    rec = l0product.read_l0_isp_dn(out, 4, "B03")
+    assert np.array_equal(rec, l0[(4, "B03")])
+    # achieved ratio replaces the static metadata rate
+    sbi = dict(g.attrs)["other_metadata"]["sensor_configuration"]["acquisition_configuration"]
+    assert sbi["spectral_band_info"]["03"]["compression_rate"] == attrs["compression"]["ratio"]
     # conditions/anc_data/s{APID}/isp + packet_data_length present
+    apid = attrs["apid"]
     assert g[f"conditions/anc_data/s{apid}/isp"].dtype == np.uint8
     assert g[f"conditions/anc_data/s{apid}/packet_data_length"].dtype == np.uint16
 
 
+def test_l0_isp_only_product_omits_decoded_bands(tmp_path):
+    """store_decoded=False mirrors the real S2 L0: ISPs only, DN restored by ground decode."""
+    zarr = pytest.importorskip("zarr")
+    from s2_msi_raw_generator import l0product
+    frames = {(4, "B03"): np.full((16, 8), 100.0)}
+    l0 = l0product.reverse_to_l0_frames(frames, seed=1)
+    out = str(tmp_path / "L0isp_only.zarr")
+    l0product.write_l0_product(out, l0, with_isp=True, store_decoded=False)
+    g = zarr.open_group(out, mode="r")
+    assert "band03" not in g["measurements/d04/b03"]
+    assert np.array_equal(l0product.read_l0_isp_dn(out, 4, "B03"), l0[(4, "B03")])
+    with pytest.raises(ValueError):
+        l0product.write_l0_product(str(tmp_path / "x.zarr"), l0, store_decoded=False)
+
+
 def test_l0_isp_timestamps_use_real_gps_epoch(tmp_path):
-    """REQ-FUNC-035: the CUC time in the written ISP headers is the real GPS OBT, not t0=0."""
+    """REQ-FUNC-035: the CUC time in the written ISP packets is the real GPS OBT, not t0=0."""
     zarr = pytest.importorskip("zarr")
     from s2_msi_raw_generator import datation, l0product
     frames = {(4, "B03"): np.full((16, 8), 100.0)}
@@ -107,7 +137,7 @@ def test_l0_isp_timestamps_use_real_gps_epoch(tmp_path):
     d = datation.Datation(epoch_utc="2024-04-03T10:24:15Z")
     l0product.write_l0_product(out, l0, datation=d, with_isp=True)
 
-    ih = np.asarray(zarr.open_group(out, mode="r")["measurements/d04/b03/isp_header"])
-    t0 = isp.parse_cuc_time(bytes(ih[0, 6:12]))          # first-line CUC time
+    stream = np.asarray(zarr.open_group(out, mode="r")["measurements/d04/b03/isp"])
+    _hdr, t0, _body = next(isp.iter_packets(stream))     # first packet CUC = first segment epoch
     assert t0 == pytest.approx(d.line_time_gps(0, "B03"), abs=1.0 / 65536)
     assert t0 > 1.30e9                                    # real GPS second-of-epoch, not zero

@@ -5,6 +5,25 @@ All notable changes to the Sentinel-2 MSI reverse E2ES (`s2_msi_raw_generator`).
 ## [Unreleased]
 
 ### Added
+- **Compressed ISP payloads + ground decode (real downlink shape)** — the canonical L0's
+  `with_isp` branch now CCSDS-122-compresses each band and carries it as **real CCSDS space
+  packets**: `isp.packetize_stream` (segment groups = codec segments = 8 image lines,
+  `SEQ_FIRST/CONT/LAST` grammar, continuous 14-bit counter, per-group CUC epoch),
+  `isp.iter_packets` / `isp.reassemble_segments` (strict grammar+continuity), stored as
+  `measurements/d{DD}/b{BB}/{isp, isp_offsets, packet_data_length}` (+ compression attrs;
+  achieved per-band ratios replace the static `compression_rate` metadata). New
+  `l0product.read_l0_isp_dn` = the ground (L1A-side) decompression — bit-exact. New
+  `write_l0_product(..., store_decoded=False)` stores **ISPs only**, mirroring the real S2 L0.
+  `io.read_l1a_raw` gains a `dtype` kwarg (uint16 reads without the float64 spike). (ICD-IF-L0
+  updated; REQ-FUNC-092)
+
+### Changed
+- **Removed the per-line `isp_header` array** from the canonical L0 (superseded by the packet
+  stream; repo-internal schema change, msi-processor consumes the open-container form).
+
+### Fixed
+- `reverse_to_l0_frames` band reseeding now uses `zlib.crc32` instead of salted `hash()` —
+  DN streams are reproducible across processes (REQ-QUAL-004; synthetic demo outputs change once).
 - **CCSDS 122.0-B lossless image compression** (`s2_msi_raw_generator/ccsds122.py`, pure numpy) —
   the documented alternative to Sentinel-2's proprietary onboard MRCPB wavelet scheme: 3-level
   integer DWT 9/7-M, 8×8 block/family + 16-block gaggle structure, self-describing segment

@@ -44,8 +44,11 @@ flowchart TD
     S12["S12 · reverse onboard equalization"]
     S13["S13 · add sensor noise σ = √(α² + β·DN) (product noise model)"]
     S14["S14 · quantize to 12-bit uint16 [0, 4095]"]
-    S15["S15 · format L0 RAW (156 detector/band frames + ISP telemetry + STAC)"]
-    IN --> S1 --> S3 --> S4 --> S5 --> S6 --> S7 --> S8 --> S9 --> S10 --> S11 --> S12 --> S13 --> S14 --> S15
+    S15a["S15a · CCSDS-122 lossless compress (onboard step; ccsds122)"]
+    S15b["S15b · ISP packetize (SEQ flags + CUC) + SAD telemetry + STAC → L0 RAW"]
+    GD["ground decode (L1A-side conjugate):<br/>reassemble packets → decompress bit-exact (read_l0_isp_dn)"]
+    IN --> S1 --> S3 --> S4 --> S5 --> S6 --> S7 --> S8 --> S9 --> S10 --> S11 --> S12 --> S13 --> S14 --> S15a --> S15b
+    S15b -.-> GD
 ```
 
 **Realized execution order.** `reverse.reverse_mvp` runs `S1 → S6 → S7 → S13 → S11 → S12 → S14`: the
