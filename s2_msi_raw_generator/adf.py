@@ -236,9 +236,11 @@ def synthesize(
     """Build a :class:`BandADF` for band ``b`` over ``n_det`` detector columns.
 
     PSF (real, per-unit), spectral, gain and the noise model (α, β from the product) are all
-    real. The per-detector PRNU/dark/equalization arrays are seeded representative values — pass real
-    product-derived arrays via :meth:`BandADF.from_product` to remove the last modelled component
-    (the per-pixel NUC GIPP is credentialed, blocker #36).
+    real. The per-detector PRNU/dark/equalization arrays are seeded representative values — use
+    :meth:`BandADF.from_gipp` with the (publicly fetchable) operational GIPP for the real
+    per-pixel coefficients, or :meth:`BandADF.from_product` for product-derived arrays; this
+    synthetic fallback exists for GIPP-less environments only. (The early "credentialed GIPP"
+    blocker #36 is resolved — see ATBD §8.)
     """
     rng = np.random.default_rng(seed + hash(b.name) % 10_000)
     a, bb = noise_coeffs(b)
