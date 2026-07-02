@@ -5,7 +5,9 @@ Packets (CCSDS 133.0-B primary header + a CUC secondary time header), and genera
 Ancillary Data (SAD) packets per APID. Timestamps derive from ``sensor.LINE_PERIOD_MS``.
 
 Layout (ATBD Annex A.9):
-* ``measurements/d{DD}/b{BB}/isp_header`` — per-line packet headers (image data stays in band{BB}).
+
+* ``measurements/d{DD}/b{BB}/{isp, isp_offsets, packet_data_length}`` — real CCSDS space packets
+  whose payloads carry the **CCSDS-122-compressed image data** (module ``ccsds122``; ICD-IF-ISP).
 * ``conditions/anc_data/s{APID}/isp`` + ``packet_data_length`` — SAD/housekeeping telemetry.
 """
 
@@ -94,7 +96,7 @@ def frame_isp_headers(
     t0_seconds: float = 0.0,
     line_period_s: float,
 ) -> tuple[np.ndarray, np.ndarray]:
-    """Per-line ISP headers for a detector/band frame (image data itself stays in ``band{BB}``).
+    """Legacy per-line ISP headers (superseded by :func:`packetize_stream` in the canonical L0).
 
     Returns ``(headers, packet_data_length)``:
 

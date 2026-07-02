@@ -21,8 +21,8 @@ report / validation report, SVR). Plan: `plan.md`. Requirements: `../srs.md`.
 
 ## 1. Summary
 
-The automated test suite — **52 test functions across 9 files, expanding to 104 parametrized cases —
-passes in full (104 passed, 2 skipped), green in GitLab CI**. The 2 skips are the real-data tests, which
+The automated test suite — **21 files, 201 tests at v0.3.0 —
+passes in full (201 passed, 5 skipped), green in GitLab CI**. The skips are the real-data/eopf-gated tests, which
 pass when `S2_E2ES_GIPP_DIR` / `S2_E2ES_L1A` are supplied (verified on the operational GIPP and a real
 L1A). All *realized* requirements in the SRS are verified.
 
@@ -62,7 +62,10 @@ All *realized* SRS requirements are verified **PASS** by the cited method:
 - **REQ-FUNC-001/003/005/010–022/030–034/044/045/046/047** — T (see the inventory and `../sdd/traceability.md`).
 - **REQ-PERF-001…004** — T/A, results in §3, all within bounds.
 - **REQ-IF-001/002/003** — I/T (L1A/L1B + GIPP inputs, L0 ICD output).
-- **REQ-QUAL-001…004** — I/R/T (minimal deps; 104-test CI; originality review; seeded determinism).
+- **REQ-QUAL-001…004** — I/R/T (minimal deps; 201-test CI at v0.3.0; originality review; seeded determinism).
+- **REQ-FUNC-091/092/093** — T/I: PSFD naming round-trip, CCSDS-122 bit-exact compression + packet
+  grammar, and the authoritative real-L1A run (L1A′ bit-identical 13/13, GIPP RT ≈ 1e-14) — see
+  [Real-L1A E2E validation](real_e2e.md).
 - Deferred / cancelled requirements (REQ-FUNC-043/053/062, REQ-FUNC-090) are out of this verification cycle.
 
 ## 5. Anomalies & observations

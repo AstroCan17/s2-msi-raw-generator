@@ -75,9 +75,21 @@ chains `reverse_mvp()`, `reverse_full()`; exact-inverse bridge `reverse_radiomet
 `DerivedCalibration`; `synth_dark_acquisition()`, `synth_diffuser_acquisition()`, `derive_dark()`,
 `derive_relative_response()`, `calibrate()`, `estimated_adf()`.
 
-### isp.py — CCSDS ISP / telemetry (REQ-FUNC-030)
-`build_primary_header()`, `parse_primary_header()`, `cuc_time()`, `apid_for()`, `frame_isp_headers()`,
-`build_sad_packets()`.
+### isp.py — CCSDS ISP / telemetry (REQ-FUNC-030, -092)
+`build_primary_header()`, `parse_primary_header()`, `cuc_time()`, `apid_for()`,
+`packetize_stream()` / `iter_packets()` / `reassemble_segments()` (compressed payload transport,
+SEQ_FIRST/CONT/LAST grammar), `build_sad_packets()`; `frame_isp_headers()` is legacy.
+
+### ccsds122.py — CCSDS 122.0-B lossless image compression (REQ-FUNC-092; ICD-IF-C122)
+`compress_frame()` / `decompress_frame()` (bit-exact), `dwt97m_forward()` / `dwt97m_inverse()`,
+`parse_segment_headers()`, `segment_byte_bounds()`, `CompressionStats`.
+
+### naming.py — EOPF PSFD §3 product naming (REQ-FUNC-091; ICD-IF-NAME)
+`psfd_name()`, `parse_psfd_name()` (exact inverse), `from_l1a_context()` (flagged fallbacks).
+
+### s3fetch.py — anonymous S3 fetch (REQ-FUNC-093 input path)
+`list_prefix()` (paginated), `fetch_prefix()` (verified parallel GET, resume, traversal guard),
+`parse_list_xml()`, `save_manifest()`.
 
 ### io.py — product reader (REQ-IF-001, REQ-FUNC-001)
 `read_l1b_band()`, `read_l1a_raw()`, `read_platform()`.
