@@ -8,6 +8,7 @@ and (3) the full 13-band build round-tripped back through the processor formulas
 from __future__ import annotations
 
 import importlib.util
+import json
 from pathlib import Path
 
 import numpy as np
@@ -81,7 +82,9 @@ def test_write_calibration_db_schema(tmp_path):
     assert (tmp_path / "PROVENANCE.md").exists()
 
     nuc = zarr.open_group(str(tmp_path / "nuc.zarr"), mode="r")
-    assert nuc.metadata.zarr_format == 2                    # EOPF/msi-processor interop
+    # EOPF/msi-processor interop: v2 on disk — asserted from the .zgroup file itself so the test
+    # passes under both zarr 3 (CI) and zarr 2.18 (the eopf env; Group.metadata does not exist there).
+    assert json.loads((tmp_path / "nuc.zarr" / ".zgroup").read_text())["zarr_format"] == 2
     g = np.asarray(nuc["gain/B03"])
     assert g.dtype == np.float32 and g.shape == (3,)
     assert np.asarray(nuc["offset/B8A"]).shape == (4,)
