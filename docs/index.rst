@@ -36,6 +36,7 @@ inverse-crime cure). Implemented from the public L1 ATBD and the GIPP data only.
    :maxdepth: 1
    :caption: Project documentation:
 
+   showcase
    atbd/atbd
    srs
    sdd/index
