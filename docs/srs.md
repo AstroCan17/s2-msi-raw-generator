@@ -151,6 +151,21 @@ correct → reverse impress → raw′, residual $\approx 0$) on S2 data with th
 - **REQ-FUNC-015 ADF source** PSF (SentiWiki), SRF (RD 3), noise model (product), per-pixel
   dark/PRNU (GIPP). **V: I/T**. realized
 
+### 3.4b Real-data E2E requirements
+- **REQ-FUNC-091 — PSFD product naming.** *Every emitted product file name shall follow the EOPF
+  PSFD §3 rule (ICD-IF-NAME) and round-trip through `naming.parse_psfd_name`; fields not
+  derivable from source metadata shall fall back to documented defaults and be flagged.*
+  **V: T** (`test_naming`, driver fixture test). realized
+- **REQ-FUNC-092 — Onboard-representative ISP payloads.** *The canonical L0 shall carry each
+  band as CCSDS-122-lossless-compressed data in real CCSDS space packets (ICD-IF-C122 +
+  ICD-IF-ISP layout), and a ground-decode operation shall restore the exact DN.* **V: T**
+  (`test_ccsds122`, `test_isp_packetize`, `test_isp`, `test_integration`). realized
+- **REQ-FUNC-093 — Real-L1A round-trip validation.** *The software shall provide a driver that
+  packages a real L1A into the L0 forms, runs `msi-processor` `l0_decode` to L1A′, and reports
+  bit-identity on kept lines, line-loss accounting, compression ratios, the GIPP radiometric
+  round-trip and a structural comparison against a real PSD L0 product.* **V: T** (driver
+  fixture tests), **V: I** (SDE full-frame run, `scripts/run_e2e_real_l1a.py`). realized
+
 ### 3.5 Deferred functional requirements (specified, not yet realized)
 - **REQ-FUNC-043 — Credentialed ADF API.** Load ADFs via the EOPF ADF service. deferred
 - **REQ-FUNC-053 — Configurable PU orchestration**, **REQ-FUNC-062 — Dask distribution**. deferred

@@ -52,6 +52,34 @@ e2e-l1b:
     - when: manual
       allow_failure: true
 
+# Windowed real-L1A E2E (REQ-FUNC-093): bucket L1A (first 4096 lines) → compressed-ISP L0 →
+# ground decode → msi-processor l0_decode → L1A′ bit-identity + report. Manual (downloads
+# ~500 MB + builds the eopf env); the authoritative full-frame run happens on the SDE store.
+e2e-real-l1a:
+  stage: test
+  image: python:3.11-slim
+  interruptible: true
+  timeout: 45m
+  before_script:
+    - apt-get update -qq && apt-get install -y -qq git >/dev/null
+    - python -m pip install -q --upgrade pip
+    - git clone --depth 1 "https://gitlab-ci-token:${CI_JOB_TOKEN}@${CI_SERVER_HOST}/ipf/msi-processor.git" /tmp/msi-processor
+    - pip install -q "eopf==2.8.1" /tmp/msi-processor
+    - pip install -q -e . pytest
+  script:
+    - python scripts/run_e2e_real_l1a.py e2e-real-store
+        --phases fetch-l1a,preflight,package,ground-decode,l0-decode,validate,quicklook,report
+        --lines 4096
+  artifacts:
+    when: always
+    paths:
+      - e2e-real-store/report/
+      - e2e-real-store/quicklook/
+    expire_in: 1 week
+  rules:
+    - when: manual
+      allow_failure: true
+
 # Build the Sphinx documentation site and publish it to GitLab Pages. Runs on the default
 # branch (publishes) and on merge requests (build-only validation; GitLab deploys Pages only
 # from the default branch). The DRD set is markdown (myst-parser) + autodoc of the package.
