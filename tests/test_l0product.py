@@ -105,3 +105,19 @@ def test_full_156_array_contract(tmp_path):
             assert g[f"measurements/d{d:02d}/{sensor.zarr_band_key(bn)}/band{sensor.band_number(bn)}"] is not None
             count += 1
     assert count == 156
+
+
+def test_reverse_frames_seed_is_process_independent():
+    """REQ-QUAL-004: crc32-based reseeding (not hash()) — identical DN across processes."""
+    frames = {(1, "B03"): np.full((8, 6), 120.0)}
+    a = l0product.reverse_to_l0_frames(frames, seed=3)[(1, "B03")]
+    b = l0product.reverse_to_l0_frames(frames, seed=3)[(1, "B03")]
+    assert np.array_equal(a, b)
+    # pin the crc32-derived stream: zlib.crc32(b"B03") % 97 == 33 → rng seed 3 + 100 + 33
+    import zlib
+    assert zlib.crc32(b"B03") % 97 == 30
+    rng = np.random.default_rng(3 + 100 + 30)
+    from s2_msi_raw_generator.adf import synthesize
+    from s2_msi_raw_generator.reverse import reverse_mvp
+    expect = reverse_mvp(np.full((8, 6), 120.0), synthesize(sensor.band("B03"), n_det=6, seed=3), rng)
+    assert np.array_equal(a, expect)

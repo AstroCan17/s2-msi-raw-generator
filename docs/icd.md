@@ -81,13 +81,19 @@ Band-key map `B03→b03`, `B8A→b8a`; band-number `B03→"03"`, `B8A→"8A"`; d
 
 | Path | Type | Dimension | Range / value | Source |
 |---|---|---|---|---|
-| `measurements/d{DD}/b{BB}/band{N}` | uint16 | (line, column); chunks = full | `[0, 4095]`; attr `short_name="band{N}"` | reverse chain (REQ-FUNC-031) |
-| `measurements/d{DD}/b{BB}/isp_header` *(with_isp)* | uint8 | (n_lines, 12) | CCSDS primary+CUC; group attr `apid` | `isp.frame_isp_headers` (S15) |
+| `measurements/d{DD}/b{BB}/band{N}` *(store_decoded)* | uint16 | (line, column); chunks = full | `[0, 4095]`; attr `short_name="band{N}"` | reverse chain (REQ-FUNC-031) |
+| `measurements/d{DD}/b{BB}/isp` *(with_isp)* | uint8 | (stream octets,) | concatenated CCSDS space packets carrying the **CCSDS-122 compressed** frame (ICD-IF-C122 payload; `SEQ_FIRST/CONT/LAST` groups = codec segments = 8 image lines; per-group CUC epoch); group attrs `apid`, `n_packets`, `n_segments`, `max_payload_octets`, `compression{scheme, pixel_bit_depth, raw/compressed_bytes, ratio}` | `ccsds122.compress_frame` + `isp.packetize_stream` (S15, REQ-FUNC-092) |
+| `measurements/d{DD}/b{BB}/isp_offsets` *(with_isp)* | uint64 | (n_packets,) | byte offset of each packet in `isp` | `isp.packetize_stream` |
+| `measurements/d{DD}/b{BB}/packet_data_length` *(with_isp)* | uint32 | (n_packets,) | data-field octet count (CCSDS field + 1) | `isp.packetize_stream` |
 | `quality/d{DD}/b{BB}/mask` | uint8 | = band shape | bit0 saturated ($\mathrm{DN}\ge 4095$), bit1 hot, dead cols | reverse / defects (REQ-FUNC-032) |
 | `conditions/anc_data/s{APID}/isp` *(with_isp)* | uint8 | (n_packets, hdr+payload) | CCSDS SAD/housekeeping | `isp.build_sad_packets` |
 | `conditions/anc_data/s{APID}/packet_data_length` *(with_isp)* | uint16 | (n_packets,) | octet count | `isp.build_sad_packets` |
 
-A full product = **12 detectors × 13 bands = 156** `band{N}` arrays + 156 `mask` arrays.
+A full product = **12 detectors × 13 bands = 156** `band{N}` arrays + 156 `mask` arrays; with
+``store_decoded=False`` the `band{N}` arrays are omitted and the product stores **ISPs only**,
+mirroring the real S2 L0 (SentiWiki: L0 = compressed ISPs — the ground L1A step decompresses;
+here `l0product.read_l0_isp_dn` restores the exact DN). The former per-line `isp_header` array
+is **removed** by this issue (superseded by the packet stream; repo-internal schema change).
 
 **Root attributes** (`build_root_metadata`):
 
