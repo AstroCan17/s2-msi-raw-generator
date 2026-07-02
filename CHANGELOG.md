@@ -5,6 +5,11 @@ All notable changes to the Sentinel-2 MSI reverse E2ES (`s2_msi_raw_generator`).
 ## [Unreleased]
 
 ### Changed
+- **Ground decode delegated to the consumer** — the pipeline's `ground-decode` phase now
+  uses msi-processor's `ground_decode` (the operational, L1A-side decompression) when
+  installed, and cross-checks it bit-exactly against this repo's `read_l0_isp_dn`
+  (retained as the E2ES reference decoder — DJF DEC-12). Reports gain
+  `decoder`/`decoder_cross_check` fields.
 - **Shared data-store** — products and inputs move to the `ipf/data-store` project's
   generic package registry (registry = versioned DB, local store = working copy). New
   pipeline phases `fetch-store` (anonymous pull, sha256-verified manifest) and

@@ -133,6 +133,19 @@ downlink-faithful one. Repo-internal schema change — the `msi-processor` consu
 form and is unaffected.
 **Evidence:** ISP self-parse 100 % via `iter_packets`; ICD-IF-L0 updated in the same MR.
 
+### DEC-12 — Ground decode on the consumer side (reference decoder retained)
+**Alternatives:** keep the only decoder in the generator vs move the operational decode to the
+consumer (msi-processor) vs move it and delete ours.
+**Decision:** the operational ground decode lives in msi-processor (`ground_decode`, its
+REQ-F-L0-06) — the mission-faithful placement (decompression is the L1A-side operation); the
+generator keeps `read_l0_isp_dn` as the E2ES reference decoder, and the pipeline's
+`ground-decode` phase cross-checks the two implementations bit-exactly.
+**Rationale:** producer compresses, consumer decompresses — bit-identity becomes a true
+interface test between two codebases instead of a self-check; retaining the reference decoder
+keeps the generator self-testable (codec unit tests) and adds an independent-decoder V&V check.
+**Evidence:** consumer fixture tests decode the producer stream bit-exactly; the pipeline
+cross-check reports per band in `ground_decode.json`.
+
 ## 3. Traceability
 
 Every DEC above cites its verifying evidence; requirement-level closure is in the
