@@ -16,9 +16,9 @@ zarr = pytest.importorskip("zarr")
 
 from s2_msi_raw_generator import sensor
 
-# Import the SDE driver script (scripts/ is not a package).
-_SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "run_e2e_l0_to_l1b.py"
-_spec = importlib.util.spec_from_file_location("run_e2e_l0_to_l1b", _SCRIPT)
+# Import the pipeline driver script (scripts/ is not a package).
+_SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "run_pipeline.py"
+_spec = importlib.util.spec_from_file_location("run_pipeline", _SCRIPT)
 e2e = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(e2e)
 
@@ -58,6 +58,6 @@ def test_l0_to_l1b_real_chain_sde(tmp_path):
     l0_path, caldb, _ = e2e.build_inputs(tmp_path, n_det=64, n_lines=48)
     l1b = e2e.run_processor(l0_path, caldb)
     assert l1b is not None
-    l1b_path = e2e.write_l1b(l1b, tmp_path / "l1b")           # EOZarrStore → <dir>/L1B_TOA.zarr
+    l1b_path = e2e.write_l1b(l1b, tmp_path / "l1b")           # EOZarrStore → <dir>/<PSFD L1B>.zarr
     g = zarr.open_group(l1b_path, mode="r")
     assert "measurements" in g                                # persisted product tree round-trips

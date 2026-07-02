@@ -131,7 +131,7 @@ correct → reverse impress → raw′, residual $\approx 0$) on S2 data with th
   open-container L0 (`measurements/detector/<band>` + `quality/l0_flags/<band>` + `conditions/*`) that the
   `msi-processor` `l0_decode` unit ingests, and provide an L0→L1B driver (radiometric + toa reflectance),
   with `nuc.gain[band]` length matching the detector-axis width.* **V: T** (CI: schema, `test_e2e_l1b`; full chain in the manual `e2e-l1b` CI job),
-  **V: I** (SDE real run, `scripts/run_e2e_l0_to_l1b.py`). realized
+  **V: I** (SDE real run, `scripts/run_pipeline.py --synthetic`). realized
 - **REQ-FUNC-045 — ADF provenance.** *The software shall record per-component ADF provenance in the output
   metadata.* **V: I** (`l0product` `adf_provenance`). realized
 
@@ -165,7 +165,7 @@ correct → reverse impress → raw′, residual $\approx 0$) on S2 data with th
   packages a real L1A into the L0 forms, runs `msi-processor` `l0_decode` to L1A′, and reports
   bit-identity on kept lines, line-loss accounting, compression ratios, the GIPP radiometric
   round-trip and a structural comparison against a real PSD L0 product.* **V: T** (driver
-  fixture tests), **V: I** (SDE full-frame run, `scripts/run_e2e_real_l1a.py`). realized
+  fixture tests), **V: I** (SDE full-frame run, `scripts/run_pipeline.py`). realized
 
 ### 3.5 Deferred functional requirements (specified, not yet realized)
 - **REQ-FUNC-043 — Credentialed ADF API.** Load ADFs via the EOPF ADF service. deferred
@@ -179,7 +179,7 @@ correct → reverse impress → raw′, residual $\approx 0$) on S2 data with th
   (`test_real_data`, <1 % typical / ±5 % bound). realized
 - **REQ-PERF-003 — Radiometric round-trip exactness.** *forward∘reverse on L1A DN shall be an exact
   inverse ($\mathrm{RMSE} \to 0$; ~1e-14 observed, bound <1e-6 / <1e-9 synthetic).* **V: T**
-  (`test_roundtrip_atbd`, `roundtrip_real_l1a.py`). realized
+  (`test_roundtrip_atbd`, pipeline `radiometric-vv` phase). realized
 - **REQ-PERF-004 — Calibration recovery.** *Derived dark shall recover truth ($\le 0.5$ DN bound; ~0.05 DN
   typical); relative-response correlation $\ge 0.9$ (>0.99 typical); $A \approx$ `cal_gain` (±5 %).* **V: T**
   (`test_calibration`). realized

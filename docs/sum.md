@@ -30,86 +30,74 @@ pip install -e ".[read]"     # numpy + zarr (reader + L0 writer)
 pip install -e ".[dev]"
 ```
 
-Optional, only to render preview PNGs with `save_images.py`: `pip install pillow` (or `imageio` /
-`matplotlib`).
 
 ## 2. Quick start
 
 ```bash
-pytest                        # 201 tests at v0.3.0 (real-data/eopf cases skip without env)
+pytest                        # full suite (real-data/eopf cases skip without env)
 ```
 
 The packagedS2 PSF matrices live under `s2_msi_raw_generator/data/psf/`; no external data is needed for the unit
 tests. Real-data runs need an EOPF L1A/L1B `.zarr` and the operational GIPP folder (see §4).
 
-## 3. Reverse chain → L0 RAW
+## 3. The pipeline
+
+All operations run through the **single driver** `scripts/run_pipeline.py`: a phase-structured,
+idempotent pipeline over one data-store root (`inputs/ caldb/ l0/ l1a_prime/ l1b/ quicklook/
+figures/ report/`). Every product file name follows the EOPF PSFD §3 convention
+(`s2_msi_raw_generator.naming`, REQ-FUNC-091).
+
+| Phase set | Phases | Needs |
+|---|---|---|
+| **Real chain** (default; REQ-FUNC-093) | `fetch-l1a fetch-l0 preflight package ground-decode l0-decode validate radiometric-vv scan-l0 quicklook report` | numpy+zarr; `l0-decode`/`validate` need `eopf==2.8.1` + `msi_processor` |
+| **Synthetic chain** (`--synthetic`; REQ-FUNC-042) | `build-l0-synth l0-to-l1b` | numpy+zarr; `l0-to-l1b` needs the eopf env |
+| **On demand** | `build-caldb` · `derive-adf` · `figures` | numpy+zarr only |
 
 ```bash
-# reverse one band of a  L1B granule (radiance → L0 DN), prints a self-consistency check
-python scripts/demo_reverse_real.py <L1B.zarr.zip> [detector] [band]
+# real chain, all phases (fetch → package → decode → validate → report)
+python scripts/run_pipeline.py ~/validation-data/e2e-real --gipp <GIPP_dir>
 
-#  L1B → assemble a full synthetic L0 RAW product (156-array Zarr + STAC/sensor-config)
-python scripts/demo_build_l0.py [out_dir]
+# re-run individual phases (idempotent; JSON per phase under <store>/report/)
+python scripts/run_pipeline.py <store> --phases preflight,package,ground-decode --lines 4096
+
+# synthetic flat-field chain into the repo's tracked data store
+python scripts/run_pipeline.py data/output --synthetic
+
+# full 13-band derived Option-Y cal-DB (nuc/dark/radiometric/spectral[+noise] ADFs)
+python scripts/run_pipeline.py <store> --phases build-caldb
+
+# real per-detector PRNU (+ dark from a dark-calibration granule) → .npz for BandADF.from_product
+python scripts/run_pipeline.py <store> --phases derive-adf --l1a <L1A.zarr> [--dark <dark.zarr>]
+
+# README/docs single-band stage figures + quality metrics table
+python scripts/run_pipeline.py <store> --phases figures --fig-l1b <L1B.zarr[.zip]>
 ```
 
-## 4. Real-data V&V and calibration
-
-Point the scripts at a L1A `.zarr` and the operational GIPP directory. A convenient layout (the
-`data/` folder is gitignored):
+Run the gated tests on real data:
 
 ```bash
-mkdir -p data
-ln -s /path/to/GIPP                       data/gipp
-ln -s /path/to/PDI_MSI_S2_L1A.zarr        data/PDI_MSI_S2_L1A.zarr
+S2_E2ES_GIPP_DIR=<GIPP_dir> S2_E2ES_L1A=<L1A.zarr> pytest tests/ -q
 ```
 
-```bash
-# round-trip V&V: forward correct → reverse impress == identity on  DN (~1e-14 RMSE)
-python scripts/roundtrip_real_l1a.py data/PDI_MSI_S2_L1A.zarr data/gipp B02 B03 B11 B12
+## 4. CLI reference
 
-# calibration sub-set: synthetic CSM diffuser + dark → derived dark/gain (inverse-crime cure)
-python scripts/demo_calibration.py data/gipp
+`run_pipeline.py <store> [--phases …] [--synthetic] [--l1a PATH] [--dark PATH] [--gipp DIR]
+[--bands …] [--detectors 1-12] [--lines N] [--band-groups N] [--max-payload N] [--jobs N]
+[--seed N] [--caldb-n-det N] [--store-decoded yes|no] [--fig-l1b PATH] [--fig-band B04]
+[--fig-detector N] [--fig-line-start N] [--fig-lines N] [--fig-zoom-*] [--fig-out DIR]`
 
-# save viewable images (bit-exact .npy + uint8 PNG) of raw / corrected / residual / calibration frames
-python scripts/save_images.py data/PDI_MSI_S2_L1A.zarr data/gipp B03 --out images
-```
+Phases are idempotent and re-runnable individually; each writes its JSON under
+`<store>/report/` and the final `report` phase assembles `e2e_report.md`. See
+`docs/vv/real_e2e.md` for the real-chain acceptance criteria.
 
-Run the gated tests on data:
-
-```bash
-S2_E2ES_GIPP_DIR=data/gipp S2_E2ES_L1A=data/PDI_MSI_S2_L1A.zarr pytest tests/ -q
-```
-
-## 5. CLI reference
-
-| Script | Arguments |
-|---|---|
-| `demo_reverse_real.py` | `[L1B.zarr.zip] [detector=4] [band=B03]` |
-| `demo_build_l0.py` | `[out_dir]` |
-| `roundtrip_real_l1a.py` | `<L1A.zarr> <GIPP_dir> [bands…] [--detector N] [--lines 2048]` |
-| `demo_calibration.py` | `[GIPP_dir]` (GIPP if given, else synthetic ADFs) |
-| `save_images.py` | `<L1A.zarr> <GIPP_dir> [band=B03] [--detector 1] [--lines 1024] [--out images]` |
-| `derive_prnu_dark.py` | `--l1a <L1A/L1B.zarr> [--dark <dark.zarr>] [--bands …] [--detectors 1-12] [--out *.npz]` |
-| `run_e2e_l0_to_l1b.py` | `[work_dir]` (synthetic demo; the data-store default is `data/output/`) |
-| `run_e2e_real_l1a.py` | `<store_root> [--phases …] [--l1a PATH] [--gipp DIR] [--bands …] [--lines N] [--band-groups N] [--max-payload N] [--jobs N] [--store-decoded yes\|no]` |
-
-### Real-L1A E2E walkthrough (SDE)
-
-```console
-$ python scripts/run_e2e_real_l1a.py ~/validation-data/e2e-real \
-      --gipp <GIPP_dir>            # all phases: fetch → package → decode → validate → report
-```
-
-Phases are idempotent and re-runnable individually (`--phases preflight,package,ground-decode`);
-each writes its JSON under `<store>/report/` and the final `report` phase assembles
-`e2e_report.md`. `l0-decode`/`validate` need `eopf==2.8.1` + `msi_processor`; every other phase
-runs in the plain generator environment. See `docs/vv/real_e2e.md` for the acceptance criteria.
-
-## 6. Outputs
+## 5. Outputs
 
 - **L0 RAW product** — EOPF L0 Zarr (zarr v2): `measurements/d{DD}/b{BB}/band{N}` (uint16, 156 arrays),
   `quality/d{DD}/b{BB}/mask` (uint8), optional `conditions/anc_data/s{APID}/` ISP telemetry, and root
   STAC + `sensor_configuration` + `processing_history.adf_provenance` metadata. See the ICD (`icd.md`).
-- **V&V tables** — per-band RMSE / FPN (`roundtrip_real_l1a.py`), calibration recovery (`demo_calibration.py`).
-- **Images** — `save_images.py` writes, per stage, a bit-exact `.npy` and a min-max-normalised uint8 `.png`
-  (raw L1A, forward-corrected L1B, round-trip residual ≈ black, synthetic calibration dark + diffuser).
+- **Open-container L0 + cal-DB + L1B** — the processor handoff products (PSFD `_OC` suffix; ADF set
+  `nuc/dark/radiometric/spectral[/noise].zarr`; PSFD-named L1B reflectance).
+- **V&V evidence** — per-phase JSONs + `e2e_report.md` under `<store>/report/`
+  (`radiometric-vv` = the GIPP round-trip table).
+- **Images** — `quicklook/` PNGs and the `figures` phase's stage-by-stage set
+  (`result_<band>_*.png`, committed under `docs/_static/showcase/`).

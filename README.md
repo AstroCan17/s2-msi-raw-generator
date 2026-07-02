@@ -66,11 +66,11 @@ All chain products live under one **data-store** root (`l0/`, `caldb/`, `l1b/`, 
 real-data runs add `inputs/`, `l1a_prime/`, `report/`) with **EOPF PSFD §3** file names
 (ICD-IF-NAME). The real-data end-to-end (bucket L1A → compressed-ISP L0 → `l0_decode` → L1A′ →
 bit-identity validation + real-L0 structural comparison) is driven by
-`scripts/run_e2e_real_l1a.py` (see `docs/vv/real_e2e.md`).
+`scripts/run_pipeline.py` (see `docs/vv/real_e2e.md`).
 
 The processor keeps calibration *internal* (a mode of its radiometric unit); the generator only
 supplies the ADF — a single shared sensor-model ADF, one source of truth. Build it with
-`scripts/build_cal_db.py` (see Usage). Coefficients are **derived** (diffuser + dark), not the truth
+the pipeline's `build-caldb` phase (see Usage). Coefficients are **derived** (diffuser + dark), not the truth
 ADF, so the round-trip is non-tautological.
 
 ## Result
@@ -122,7 +122,7 @@ quantization error is exactly the uniform-quantizer theory value; recovering rad
 generated RAW returns the input to 45 dB with a +0.02 % bias — the only irreversible losses are
 the modelled ones (noise, 12-bit clipping of the saturated cloud cores, quantization). The DN
 pedestal (mean 1363 → 1843) is the re-applied dark signal + onboard equalization. Reproduce
-locally (numpy+zarr only): `python scripts/result_band_stages.py <L1B.zarr[.zip]>`. In this run
+locally (numpy+zarr only): `python scripts/run_pipeline.py <store> --phases figures --fig-l1b <L1B.zarr[.zip]>`. In this run
 the PSF/SRF/noise model are real ESA data; the per-pixel dark/PRNU are the synthetic fallback
 (run with `--gipp <dir>` for the operational-GIPP versions).
 
@@ -165,36 +165,29 @@ implemented from public references only.
 
 ```bash
 pip install -e ".[read]"                 # numpy + zarr (eopf not required)
-pytest                                   # 201 tests at v0.3.0
+pytest                                   # full suite
 ```
 
-**Reverse chain → L0 RAW** (on a  L1B granule):
+Everything runs through the **single pipeline driver** `scripts/run_pipeline.py`
+(phase-structured, idempotent, one data-store root; all product names PSFD §3):
 
 ```bash
-python scripts/demo_reverse_real.py <L1B.zarr.zip> 4 B03   # reverse one band
-python scripts/demo_build_l0.py                            # assemble a synthetic L0 RAW product
-```
+# real-data chain (fetch → package → ground-decode → l0_decode → validate → report)
+python scripts/run_pipeline.py ~/validation-data/e2e-real --gipp <GIPP_dir>
 
-**Real-data V&V with the operational GIPP** — point at the GIPP folder + a L1A:
+# synthetic flat-field chain into the repo's tracked data store (L0 + cal-DB, then L1B in an eopf env)
+python scripts/run_pipeline.py data/output --synthetic
 
-```bash
-# round-trip V&V (forward → reverse == identity on  DN, ~1e-14 RMSE)
-python scripts/roundtrip_real_l1a.py <L1A.zarr> <GIPP_dir> B02 B03 B11 B12
-
-# calibration sub-set: synthetic diffuser + dark → derived dark/gain (inverse-crime cure)
-python scripts/demo_calibration.py <GIPP_dir>
-
-# calibration database (EOPF ADFs) for the downstream L1PP processor (Option Y coupling)
-python scripts/build_cal_db.py caldb        # writes nuc/dark/radiometric/spectral/noise .zarr + PROVENANCE.md
-
-# save viewable images (bit-exact .npy + uint8 .png) of raw / corrected / residual / calib
-python scripts/save_images.py <L1A.zarr> <GIPP_dir> B03 --out images
+# on-demand phases
+python scripts/run_pipeline.py <store> --phases build-caldb                       # Option-Y cal-DB ADFs
+python scripts/run_pipeline.py <store> --phases derive-adf --l1a <L1A.zarr>       # real PRNU/dark → npz
+python scripts/run_pipeline.py <store> --phases figures --fig-l1b <L1B.zarr.zip>  # Result figures
 ```
 
 The GIPP folder holds the `S2A_OPER_GIP_*.xml` files (R2EQOG ×13, R2DEPI, BLINDP, R2PARA,
-R2CRCO); the L1A is an EOPF L1A Zarr (`measurements/DDnn/Bxx/l1a_raw_image`). Data lives under a
-gitignored `data/` (or pass any path). Real-data tests run when `S2_E2ES_GIPP_DIR` / `S2_E2ES_L1A`
-are set.
+R2CRCO); the L1A is an EOPF L1A Zarr (`measurements/DDnn/Bxx/l1a_raw_image`). The `data/` E2E
+store (input + output products) is tracked in git and syncs with the repo. Real-data tests run
+when `S2_E2ES_GIPP_DIR` / `S2_E2ES_L1A` are set.
 
 ## Status
 

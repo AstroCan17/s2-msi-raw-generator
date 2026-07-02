@@ -35,7 +35,7 @@ document, SRelD). Full history: `../CHANGELOG.md`.
 - Documentation set (this release): ATBD (issued v1.0), SRS, SDD, ICD, DPM, V&V plan + report, SUM, this
   SRN, CIDL, SCF, SRF, SDP; plus README, CHANGELOG, LICENSE.
 - Scripts: `demo_reverse_real.py`, `demo_build_l0.py`, `roundtrip_real_l1a.py`, `demo_calibration.py`,
-  `save_images.py`, `derive_prnu_dark.py`.
+  `save_images.py`, `derive_prnu_dark.py` (since consolidated into `scripts/run_pipeline.py`).
 
 ## 3. Changes (this cycle)
 
