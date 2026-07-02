@@ -21,8 +21,8 @@ document, SRelD). Full history: `../CHANGELOG.md`.
 
 ## 1. Release
 
-- **Package:** `s2_msi_raw_generator` · **version:** `0.3.0.dev0` · **date:** 2026-06-30.
-- **Status:** all-real-data reverse E2ES; 104 tests pass; GitLab CI green on `main`.
+- **Package:** `s2_msi_raw_generator` · **version:** `0.3.0` · **date:** 2026-07-02.
+- **Status:** all-real-data reverse E2ES; 201 tests pass (v0.3.0); GitLab CI green on `main`.
 - **License:** Apache-2.0.
 
 ## 2. Contents
@@ -38,6 +38,12 @@ document, SRelD). Full history: `../CHANGELOG.md`.
   `save_images.py`, `derive_prnu_dark.py`.
 
 ## 3. Changes (this cycle)
+
+**v0.3.0 — real-data E2E:** CCSDS 122.0-B lossless codec (`ccsds122.py`, ICD-IF-C122); compressed-ISP
+canonical L0 (`isp.packetize_stream`, ground decode `read_l0_isp_dn`); EOPF PSFD §3 naming
+(`naming.py`, ICD-IF-NAME); real-L1A E2E driver + authoritative SDE run — **L1A′ bit-identical 13/13
+bands**, lossless 3.66×, GIPP round-trip ≈ 1e-14 (`docs/vv/real_e2e.md`); products in the package
+registry `s2-msi-e2e-real/0.3.0`; Release v0.3.0.
 
 - **Real operational GIPP** → per-pixel dark + relative response (replaces the DQR-summary dark / seeded
   PRNU).

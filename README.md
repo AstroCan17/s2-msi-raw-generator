@@ -125,7 +125,7 @@ Full **ECSS-E-ST-40C Rev.1** software documentation set under `docs/` (tailored 
 | SDD | `docs/sdd/` | Software design — architecture, module design, REQ→code→test traceability |
 | ICD | `docs/icd.md` | Interfaces — L1A/L1B + GIPP inputs, the L0 RAW output (ICD-IF-L0) |
 | DPM | `docs/dpm/` | Data processing model — the reverse chain blocks + parameter/data list |
-| V&V | `docs/vv/` | Verification & validation plan + report (136 tests, RMSE ~1e-14) |
+| V&V | `docs/vv/` | Verification & validation plan + report (201 tests at v0.3.0, RMSE ~1e-14; real-data E2E: vv/real_e2e) |
 | SUM | `docs/sum.md` | User manual — install, usage, CLI |
 | SRN | `docs/srn.md` | Release note |
 | CIDL / SCF / SRF / SDP | `docs/{cidl,scf,srf,sdp}.md` | Config item list, config file, reuse file, development plan |
@@ -138,7 +138,7 @@ implemented from public references only.
 
 ```bash
 pip install -e ".[read]"                 # numpy + zarr (eopf not required)
-pytest                                   # 136 tests
+pytest                                   # 201 tests at v0.3.0
 ```
 
 **Reverse chain → L0 RAW** (on a  L1B granule):
@@ -171,7 +171,7 @@ are set.
 
 ## Status
 
-**Complete — full S1–S15 reverse chain, all- ADFs, original round-trip V&V; 136 tests, CI green.**
+**Complete — full S1–S15 reverse chain (incl. CCSDS-122 compressed ISPs), real-data E2E validated (L1A′ bit-identical 13/13); 201 tests, CI green.**
 
 | Increment | Content |
 |---|---|

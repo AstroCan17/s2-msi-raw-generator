@@ -26,6 +26,7 @@ official L1 ATBD equation ``X = A·G·L + D`` (S2-PDGS-MPC-ATBD-L1 §4.1.1). Pro
 
 from __future__ import annotations
 
+import zlib
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
@@ -142,7 +143,7 @@ class BandADF:
 
     ``psf`` and the band's spectral/gain values are (published). The per-detector
     ``prnu_gain``/``dark_dn``/``eq_*`` arrays are either product-derived (``from_product``)
-    or seeded representative values (``synthesize``) when the credentialed GIPP is unavailable.
+    or seeded representative values (``synthesize``) when the operational GIPP is not supplied.
     """
 
     band: sensor.Band
@@ -242,7 +243,8 @@ def synthesize(
     synthetic fallback exists for GIPP-less environments only. (The early "credentialed GIPP"
     blocker #36 is resolved — see ATBD §8.)
     """
-    rng = np.random.default_rng(seed + hash(b.name) % 10_000)
+    # crc32, not hash(): hash() is salted per process (PYTHONHASHSEED) — REQ-QUAL-004.
+    rng = np.random.default_rng(seed + zlib.crc32(b.name.encode()) % 10_000)
     a, bb = noise_coeffs(b)
     # 1D per-detector PRNU (relative response); dark = DQR pedestal + per-pixel DSNU (1σ).
     prnu_gain = 1.0 + rng.normal(0.0, prnu_std, size=n_det)

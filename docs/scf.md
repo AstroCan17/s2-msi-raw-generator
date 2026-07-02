@@ -29,7 +29,7 @@ The Software Configuration File documents the inventory, baseline, build means a
 |-------|-------|
 | Name | Sentinel-2 MSI Synthetic Raw Data Generator |
 | Package | `s2_msi_raw_generator` |
-| Version | `0.3.0.dev0` (`s2_msi_raw_generator/__init__.py`) |
+| Version | `0.3.0` (`s2_msi_raw_generator/__init__.py`) |
 | Repository | `gitlab.eopf` `e2es/s2-msi-raw-generator`, branch `main` |
 | License | Apache-2.0 |
 | Language / runtime | Python ≥ 3.11 |
@@ -45,7 +45,7 @@ The Software Configuration File documents the inventory, baseline, build means a
   `roundtrip_real_l1a.py`, `demo_calibration.py`, `save_images.py`.
 - **Tests** (`tests/`): `test_reverse.py`, `test_real_data.py`, `test_calibration.py`,
   `test_roundtrip_atbd.py`, `test_l0product.py`, `test_gipp.py`, `test_isp.py`, `test_integration.py`,
-  `test_inc3_steps.py` (104 cases).
+  `test_inc3_steps.py`; full inventory = `tests/test_*.py` (21 files, 201 tests at v0.3.0).
 - **Documentation** (`docs/`): ATBD, SRS, SDD, ICD, DPM, V&V, SUM, SRN, CIDL, SCF, SRF, SDP.
 - **Project files**: `pyproject.toml`, `.gitlab-ci.yml`, `README.md`, `CHANGELOG.md`, `LICENSE`.
 
@@ -70,7 +70,7 @@ No EOPF CPM and no credentials are required for the realized path.
 
 ```bash
 pip install -e ".[read]"     # numpy + zarr
-pytest                       # 104 tests
+pytest                       # 201 tests at v0.3.0
 ```
 
 Real-data runs additionally need a GIPP folder (`S2A_OPER_GIP_*.xml`) and an EOPF L1A/L1B Zarr; both are

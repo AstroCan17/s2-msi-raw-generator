@@ -46,6 +46,8 @@ Each requirement in `../srs.md` carries its method and the implementing test; th
 | Performance | REQ-PERF-001…004 | T/A | `test_reverse`, `test_real_data`, `test_roundtrip_atbd`, `test_calibration` |
 | Interfaces | REQ-IF-001/002/003 | I/T | `test_l0product`, `test_gipp`, ICD inspection |
 | Quality | REQ-QUAL-001…004 | I/R/T | `pyproject` inspection, CI, originality review, seeded determinism |
+| L0 completion (ESUN/datation/SAD/EOQC/open container) | REQ-FUNC-035–042 | T/I | `test_adf_writer`, `test_datation`, `test_sad`, `test_quality`, `test_quality_report`, `test_e2e_l1b` |
+| Real-data E2E (naming / compressed ISP / round-trip) | REQ-FUNC-091/092/093 | T/I | `test_naming`, `test_ccsds122` + `test_isp_packetize`, `test_real_e2e_driver`; SDE run → `real_e2e` |
 
 ## 3. Test environment
 
@@ -60,7 +62,7 @@ Each requirement in `../srs.md` carries its method and the implementing test; th
 
 ## 4. Acceptance criteria
 
-- All non-gated tests pass in CI (currently **104 passed, 2 skipped** — the 2 skips are the real-data
+- All non-gated tests pass in CI (currently **201 passed, 5 skipped** (v0.3.0) — the skips are the real-data
   tests, which pass when the data env vars are set).
 - The radiometric round-trip is an exact inverse within the bounds in §Quantitative results of the SVR.
 - The calibration sub-set recovers the impressed dark/relative-response within bounds (inverse-crime cure).
