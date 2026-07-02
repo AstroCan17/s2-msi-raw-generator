@@ -7,7 +7,7 @@ its default. Every product of the chain lands under this single root:
 |---|---|---|
 | `l0/` | L0 RAW **open-container** product (`L0c_opencontainer.zarr`) — decoded detector frames + `quality/l0_flags` + `conditions/*` that `msi-processor` ingests | **ignored** (large satellite-image product) |
 | `caldb/` | Calibration database — `nuc` / `dark` / `radiometric` / `spectral` / `noise` `.zarr` + `PROVENANCE.md` | ignored (`*.zarr/`; regenerable) |
-| `l1b/` | L1B **TOA-reflectance** product (`L1B_TOA.zarr`) written back by the processor step (SDE-only) | ignored (`*.zarr/`) |
+| `l1b/` | L1B **TOA-reflectance** product (`L1B_TOA.zarr`) written back by the processor step (eopf env: SDE or the manual `e2e-l1b` CI job) | ignored (`*.zarr/`) |
 | `quicklook/` | Small PNG previews of the products (`l0_rgb.png`, `l1b_rgb.png`) | **committed** (showcase) |
 
 `msi-processor` consumes the `l0/` + `caldb/` products directly from this store — pass explicit paths

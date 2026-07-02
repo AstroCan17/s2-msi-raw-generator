@@ -56,3 +56,9 @@ absolute coefficient $A$.
 | signal/raw DN frames | `numpy` `(lines, cols)` | intermediate per step |
 | L0 RAW EOProduct | Zarr v2 (156 arrays + masks + ISP) | output product (ICD-IF-L0) |
 | derived calibration | `DerivedCalibration` | estimated dark/gain/A from the calibration sub-set |
+
+**S15 compression/packetization parameters** (`ccsds122.py`, `isp.py`, `l0product.write_l0_product`):
+`pixel_bit_depth` (12, or 16 when DN > 4095 — e.g. the 32768 saturation sentinel; preflight-chosen),
+`segment_blocks` (default one block row = 8 image lines — line-accurate packet datation),
+`isp_max_payload` (octets per packet data field, default 8192), `store_decoded`
+(False → ISP-only product mirroring the real S2 L0).

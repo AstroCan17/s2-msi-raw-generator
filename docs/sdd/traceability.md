@@ -57,6 +57,9 @@ method (T/A/I/R) and status. Verification details and quantitative results are i
 | REQ-FUNC-036 | Orbit/attitude ephemeris | sad, l0product | `sad.orbit_ephemeris`, `synth_orbit_attitude` | `test_sad` | T | realized |
 | REQ-FUNC-037 | SAD content (real ISP) | sad, l0product | `sad.synth_orbit_attitude`, `pack_sad_isp`, `scan_ccsds_packets` | `test_sad` | T | realized |
 | REQ-FUNC-042 | Open-container L0 + L0→L1B E2E | l0product, scripts | `l0product.write_l0_opencontainer`, `scripts/run_e2e_l0_to_l1b.py` | `test_e2e_l1b` | T/I | realized |
+| REQ-FUNC-091 | PSFD §3 product naming (ICD-IF-NAME) | `naming.py` | `test_naming`, `test_real_e2e_driver` | realized |
+| REQ-FUNC-092 | CCSDS-122 compressed ISP payloads + ground decode | `ccsds122.py`, `isp.py`, `l0product.py` | `test_ccsds122`, `test_isp_packetize`, `test_isp`, `test_integration` | realized |
+| REQ-FUNC-093 | Real-L1A E2E validation driver + report | `scripts/run_e2e_real_l1a.py`, `s3fetch.py` | `test_real_e2e_driver`; SDE run (`docs/vv/real_e2e.md`) | realized |
 | REQ-FUNC-043 | Credentialed ADF API | — | — | — | — | deferred |
 | REQ-FUNC-053 | Configurable PU orchestration | — | — | — | — | deferred |
 | REQ-FUNC-062 | Dask distribution | — | — | — | — | deferred |
@@ -84,6 +87,6 @@ method (T/A/I/R) and status. Verification details and quantitative results are i
 | REQ ID | Requirement | Design | Code | Test | Method | Status |
 |---|---|---|---|---|---|---|
 | REQ-QUAL-001 | Minimal dependencies | (packaging) | `pyproject.toml` | — | I | realized |
-| REQ-QUAL-002 | Test coverage & CI | (all) | `tests/`, `.gitlab-ci.yml` | 104 tests | T | realized |
+| REQ-QUAL-002 | Test coverage & CI | (all) | `tests/`, `.gitlab-ci.yml` | 201 tests (v0.3.0) | T | realized |
 | REQ-QUAL-003 | Originality (no external-processor source) | (all) | repo | grep | I,R | realized |
 | REQ-QUAL-004 | Reproducibility (seeded RNG) | reverse, calibration | `np.random.default_rng(seed)` | `test_*` | T | realized |

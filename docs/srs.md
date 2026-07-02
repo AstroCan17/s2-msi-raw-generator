@@ -129,7 +129,7 @@ correct → reverse impress → raw′, residual $\approx 0$) on S2 data with th
 - **REQ-FUNC-042 — Open-container L0 handoff + L0→L1B E2E.** *The software shall additionally emit an
   open-container L0 (`measurements/detector/<band>` + `quality/l0_flags/<band>` + `conditions/*`) that the
   `msi-processor` `l0_decode` unit ingests, and provide an L0→L1B driver (radiometric + toa reflectance),
-  with `nuc.gain[band]` length matching the detector-axis width.* **V: T** (CI: schema, `test_e2e_l1b`),
+  with `nuc.gain[band]` length matching the detector-axis width.* **V: T** (CI: schema, `test_e2e_l1b`; full chain in the manual `e2e-l1b` CI job),
   **V: I** (SDE real run, `scripts/run_e2e_l0_to_l1b.py`). realized
 - **REQ-FUNC-045 — ADF provenance.** *The software shall record per-component ADF provenance in the output
   metadata.* **V: I** (`l0product` `adf_provenance`). realized
@@ -193,7 +193,7 @@ correct → reverse impress → raw′, residual $\approx 0$) on S2 data with th
 ## 6. Quality / non-functional requirements (REQ-QUAL)
 - **REQ-QUAL-001 — Minimal dependencies.** Runtime deps = `numpy` (+ `zarr` for I/O); no EOPF CPM required.
   **V: I** (`pyproject.toml`). realized
-- **REQ-QUAL-002 — Test coverage & CI.** Automated test suite, green in CI. **V: T** (104 tests, GitLab CI). realized
+- **REQ-QUAL-002 — Test coverage & CI.** Automated test suite, green in CI. **V: T** (201 tests at v0.3.0, GitLab CI). realized
 - **REQ-QUAL-003 — Originality.** No external-processor source code; the source repos' names do not appear
   in the deliverable. **V: I/R** (grep). realized
 - **REQ-QUAL-004 — Reproducibility.** Seeded RNG; deterministic outputs for fixed seed. **V: T**. realized

@@ -54,7 +54,7 @@ set is tailored as follows:
   - *Software Maintenance Plan (SMP)* — maintenance follows the same feature-branch → MR → CI → `main`
     process in the project repository; releases are recorded in the SRN and `CHANGELOG.md`.
   - *Software Product Assurance Plan (SPAP, ECSS-Q-ST-80C)* — product assurance is implemented by the
-    automated test suite (104 cases), the CI quality gate, the originality policy (REQ-QUAL-003), and
+    automated test suite (201 tests at v0.3.0), the CI quality gate, the originality policy (REQ-QUAL-003), and
     requirement traceability (`docs/sdd/traceability.md`).
 
 ## Configuration management
