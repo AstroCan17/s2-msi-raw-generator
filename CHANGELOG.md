@@ -5,6 +5,15 @@ All notable changes to the Sentinel-2 MSI reverse E2ES (`s2_msi_raw_generator`).
 ## [Unreleased]
 
 ### Added
+- **Single-band stage-by-stage result figures** — new `scripts/result_band_stages.py`
+  (numpy+zarr only): renders, for one band/detector of the real L1B, the ideal-DN image, the
+  instrument-effects-impressed image (S6–S13) and the generated RAW L0 (S14), with zoom crops,
+  the impressed-noise field and a quality table (noise σ vs model +1.4 %, quantization RMSE
+  0.29 DN = 1/√12, full-chain radiance recovery PSNR 45.1 dB). Figures committed under
+  `docs/_static/showcase/` and shown in the README §Result and the docs landing page; the
+  synthetic flat-field demo quicklooks were removed from README/git (still produced by the
+  E2E driver, now gitignored).
+
 - **Complete ECSS document set** — nine standalone documents closing the tailored DRL: SSS, IRD, DJF
   (11 decision records), risk register, SPA plan (ECSS-Q-ST-80C), SRevP (with the held-review record),
   SUITP, SUITR, and the QR report for the v0.3.0 baseline. The SDP tailoring section is now a full

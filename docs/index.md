@@ -50,6 +50,19 @@ A dark ocean scene with cloud speckle; the band-to-band colour misregistration i
 L1A is raw per-detector geometry (co-registration happens at L1B/L1C). Products are published
 in the GitLab **Generic Package Registry** (`s2-msi-e2e-real/0.3.0`, PSFD `.zarr.zip` names).
 
+### Single band, stage by stage (B04, real product)
+
+One band through the reverse chain — ideal DN, instrument effects impressed (S6–S13:
+PSF re-blur, PRNU, noise, dark, onboard equalization), generated 12-bit RAW (S14). Zoomed
+256×256 cloud-edge crops; impressed noise matches the product model to **+1.4 %**,
+quantization RMSE is the theory value **0.29 DN**, full-chain radiance recovery
+**PSNR 45.1 dB** (bias +0.02 %). Full strips, metric tables and the reproduce command:
+repository `README.md` §Result (`scripts/result_band_stages.py`).
+
+| original — ideal DN | effects impressed | RAW L0 DN |
+|---|---|---|
+| ![B04 original](_static/showcase/result_b04_original_zoom.png) | ![B04 effects](_static/showcase/result_b04_effects_zoom.png) | ![B04 raw](_static/showcase/result_b04_raw_zoom.png) |
+
 ```{toctree}
 :maxdepth: 1
 :caption: "Project documentation:"
