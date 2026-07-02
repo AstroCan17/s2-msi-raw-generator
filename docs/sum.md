@@ -55,7 +55,7 @@ figures/ report/`). Every product file name follows the EOPF PSFD §3 convention
 
 ```bash
 # real chain, all phases (fetch → package → decode → validate → report)
-python scripts/run_pipeline.py ~/validation-data/e2e-real --gipp <GIPP_dir>
+python scripts/run_pipeline.py ~/data-store --gipp <GIPP_dir>
 
 # re-run individual phases (idempotent; JSON per phase under <store>/report/)
 python scripts/run_pipeline.py <store> --phases preflight,package,ground-decode --lines 4096

@@ -90,7 +90,7 @@ e2e-real-l1a:
 publish-e2e-real:
   stage: docs
   variables:
-    PUBLISH_STORE: /home/jovyan/validation-data/e2e-real
+    PUBLISH_STORE: /home/jovyan/data-store
     PKG: s2-msi-e2e-real
     VER: 0.3.0
   script:
