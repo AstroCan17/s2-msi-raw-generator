@@ -178,6 +178,10 @@ python scripts/run_pipeline.py ~/data-store --gipp $S2_E2ES_GIPP_DIR
 # synthetic flat-field chain into the repo's tracked data store (L0 + cal-DB, then L1B in an eopf env)
 python scripts/run_pipeline.py data/output --synthetic
 
+# shared data-store (ipf/data-store registry): pull / push the product DB
+python scripts/run_pipeline.py <store> --phases fetch-store
+python scripts/run_pipeline.py <store> --phases publish-store --publish-version <X.Y.Z>
+
 # on-demand phases
 python scripts/run_pipeline.py <store> --phases build-caldb                       # Option-Y cal-DB ADFs
 python scripts/run_pipeline.py <store> --phases derive-adf --l1a <L1A.zarr>       # real PRNU/dark → npz
@@ -185,8 +189,9 @@ python scripts/run_pipeline.py <store> --phases figures --fig-l1b <L1B.zarr.zip>
 ```
 
 The GIPP folder holds the `S2A_OPER_GIP_*.xml` files (R2EQOG ×13, R2DEPI, BLINDP, R2PARA,
-R2CRCO); the L1A is an EOPF L1A Zarr (`measurements/DDnn/Bxx/l1a_raw_image`). The `data/` E2E
-store (input + output products) is tracked in git and syncs with the repo. Real-data tests run
+R2CRCO); the L1A is an EOPF L1A Zarr (`measurements/DDnn/Bxx/l1a_raw_image`). Products and inputs
+live in the shared [ipf/data-store](https://gitlab.eopf.copernicus.eu/ipf/data-store) registry —
+pull a working copy with `--phases fetch-store`. Real-data tests run
 when `S2_E2ES_GIPP_DIR` / `S2_E2ES_L1A` are set.
 
 ## Status

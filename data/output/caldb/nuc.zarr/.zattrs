@@ -1,9 +1,0 @@
-{
-  "processor": "s2_msi_raw_generator",
-  "processor_version": "0.3.0",
-  "unit": "S2A",
-  "adf_type": "ADF_REQOG",
-  "content": "per-detector NUC gain g_d and offset o_d",
-  "source": "derived (CSM diffuser + dark calibration)",
-  "convention": "processor two-point NUC (estimate_nuc); radiometric gain diffuser-derived (~1/cal_gain)"
-}
