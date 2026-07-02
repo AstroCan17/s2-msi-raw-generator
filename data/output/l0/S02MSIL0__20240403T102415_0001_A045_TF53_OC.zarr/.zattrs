@@ -1,0 +1,441 @@
+{
+  "stac_discovery": {
+    "type": "Feature",
+    "bbox": [
+      8.999,
+      44.637,
+      10.291,
+      45.637
+    ],
+    "geometry": {
+      "type": "Polygon",
+      "coordinates": [
+        [
+          [
+            8.999,
+            44.637
+          ],
+          [
+            10.291,
+            44.637
+          ],
+          [
+            10.291,
+            45.637
+          ],
+          [
+            8.999,
+            45.637
+          ],
+          [
+            8.999,
+            44.637
+          ]
+        ]
+      ]
+    },
+    "properties": {
+      "platform": "Sentinel-2A",
+      "constellation": "sentinel-2",
+      "instrument": "Multi Spectral Imager MSI",
+      "eopf:type": "S2MSIL0_",
+      "eopf:datastrip_id": "S2A_OPER_MSI_L0__DS_20240403T102415_A034803",
+      "product:type": "S2MSIL0_",
+      "processing:level": "L0",
+      "processing:software": {
+        "s2_msi_raw_generator": "0.3.0"
+      },
+      "sat:relative_orbit": 122,
+      "sat:absolute_orbit": 34803,
+      "sat:orbit_state": "descending",
+      "datetime": "2024-04-03T10:24:15.000Z",
+      "start_datetime": "2024-04-03T10:24:15.000Z",
+      "end_datetime": "2024-04-03T10:24:15.073Z"
+    }
+  },
+  "other_metadata": {
+    "NUC_table_ID": 3,
+    "onboard_compression_flag": true,
+    "onboard_equalization_flag": true,
+    "orbit_ephemeris_start": {
+      "TAI": "2024-04-03T10:24:52.000Z",
+      "UTC": "2024-04-03T10:24:15.000Z",
+      "UT1": "2024-04-03T10:24:15.000Z",
+      "position": [
+        7157000.0,
+        0.0,
+        0.0
+      ],
+      "velocity": [
+        0.0,
+        -1640.429,
+        7378.528
+      ]
+    },
+    "orbit_ephemeris_stop": {
+      "TAI": "2024-04-03T10:24:52.073Z",
+      "UTC": "2024-04-03T10:24:15.073Z",
+      "UT1": "2024-04-03T10:24:15.073Z",
+      "position": [
+        7156999.978,
+        -120.729,
+        543.03
+      ],
+      "velocity": [
+        -0.588,
+        -1640.429,
+        7378.528
+      ]
+    },
+    "sensor_configuration": {
+      "acquisition_configuration": {
+        "active_detectors_list": "01",
+        "compress_mode": true,
+        "equalization_mode": true,
+        "nuc_table_id": 3,
+        "spectral_band_info": {
+          "01": {
+            "compression_rate": 2.655,
+            "integration_time": {
+              "unit": "ms",
+              "value": 7.4473767
+            },
+            "physical_gains": 4.10503,
+            "central_wavelength": {
+              "unit": "nm",
+              "value": 443.0
+            },
+            "bandwidth": {
+              "unit": "nm",
+              "value": 20
+            },
+            "equivalent_wavelength": {
+              "unit": "nm",
+              "value": 442.695
+            }
+          },
+          "02": {
+            "compression_rate": 2.97,
+            "integration_time": {
+              "unit": "ms",
+              "value": 1.2821506
+            },
+            "physical_gains": 3.75138,
+            "central_wavelength": {
+              "unit": "nm",
+              "value": 492.0
+            },
+            "bandwidth": {
+              "unit": "nm",
+              "value": 64
+            },
+            "equivalent_wavelength": {
+              "unit": "nm",
+              "value": 492.715
+            }
+          },
+          "03": {
+            "compression_rate": 2.97,
+            "integration_time": {
+              "unit": "ms",
+              "value": 1.3230393
+            },
+            "physical_gains": 4.17678,
+            "central_wavelength": {
+              "unit": "nm",
+              "value": 560.5
+            },
+            "bandwidth": {
+              "unit": "nm",
+              "value": 35
+            },
+            "equivalent_wavelength": {
+              "unit": "nm",
+              "value": 559.849
+            }
+          },
+          "04": {
+            "compression_rate": 2.97,
+            "integration_time": {
+              "unit": "ms",
+              "value": 1.3872929
+            },
+            "physical_gains": 4.50915,
+            "central_wavelength": {
+              "unit": "nm",
+              "value": 665.0
+            },
+            "bandwidth": {
+              "unit": "nm",
+              "value": 30
+            },
+            "equivalent_wavelength": {
+              "unit": "nm",
+              "value": 664.622
+            }
+          },
+          "05": {
+            "compression_rate": 2.655,
+            "integration_time": {
+              "unit": "ms",
+              "value": 2.844058
+            },
+            "physical_gains": 5.19263,
+            "central_wavelength": {
+              "unit": "nm",
+              "value": 705.0
+            },
+            "bandwidth": {
+              "unit": "nm",
+              "value": 14
+            },
+            "equivalent_wavelength": {
+              "unit": "nm",
+              "value": 704.115
+            }
+          },
+          "06": {
+            "compression_rate": 2.655,
+            "integration_time": {
+              "unit": "ms",
+              "value": 2.7251472
+            },
+            "physical_gains": 4.85731,
+            "central_wavelength": {
+              "unit": "nm",
+              "value": 741.0
+            },
+            "bandwidth": {
+              "unit": "nm",
+              "value": 14
+            },
+            "equivalent_wavelength": {
+              "unit": "nm",
+              "value": 740.492
+            }
+          },
+          "07": {
+            "compression_rate": 2.655,
+            "integration_time": {
+              "unit": "ms",
+              "value": 2.7489293
+            },
+            "physical_gains": 4.52068,
+            "central_wavelength": {
+              "unit": "nm",
+              "value": 784.0
+            },
+            "bandwidth": {
+              "unit": "nm",
+              "value": 20
+            },
+            "equivalent_wavelength": {
+              "unit": "nm",
+              "value": 782.753
+            }
+          },
+          "08": {
+            "compression_rate": 2.97,
+            "integration_time": {
+              "unit": "ms",
+              "value": 1.2704681
+            },
+            "physical_gains": 6.14137,
+            "central_wavelength": {
+              "unit": "nm",
+              "value": 842.0
+            },
+            "bandwidth": {
+              "unit": "nm",
+              "value": 118
+            },
+            "equivalent_wavelength": {
+              "unit": "nm",
+              "value": 832.79
+            }
+          },
+          "8A": {
+            "compression_rate": 2.655,
+            "integration_time": {
+              "unit": "ms",
+              "value": 2.5586717
+            },
+            "physical_gains": 5.11991,
+            "central_wavelength": {
+              "unit": "nm",
+              "value": 865.0
+            },
+            "bandwidth": {
+              "unit": "nm",
+              "value": 20
+            },
+            "equivalent_wavelength": {
+              "unit": "nm",
+              "value": 864.711
+            }
+          },
+          "09": {
+            "compression_rate": 2.655,
+            "integration_time": {
+              "unit": "ms",
+              "value": 7.593408
+            },
+            "physical_gains": 8.50206,
+            "central_wavelength": {
+              "unit": "nm",
+              "value": 946.0
+            },
+            "bandwidth": {
+              "unit": "nm",
+              "value": 20
+            },
+            "equivalent_wavelength": {
+              "unit": "nm",
+              "value": 945.054
+            }
+          },
+          "10": {
+            "compression_rate": 2.655,
+            "integration_time": {
+              "unit": "ms",
+              "value": 5.6989655
+            },
+            "physical_gains": 55.05589,
+            "central_wavelength": {
+              "unit": "nm",
+              "value": 1374.0
+            },
+            "bandwidth": {
+              "unit": "nm",
+              "value": 30
+            },
+            "equivalent_wavelength": {
+              "unit": "nm",
+              "value": 1373.456
+            }
+          },
+          "11": {
+            "compression_rate": 2.4,
+            "integration_time": {
+              "unit": "ms",
+              "value": 1.4035684
+            },
+            "physical_gains": 35.29882,
+            "central_wavelength": {
+              "unit": "nm",
+              "value": 1614.0
+            },
+            "bandwidth": {
+              "unit": "nm",
+              "value": 88
+            },
+            "equivalent_wavelength": {
+              "unit": "nm",
+              "value": 1613.681
+            }
+          },
+          "12": {
+            "compression_rate": 2.4,
+            "integration_time": {
+              "unit": "ms",
+              "value": 1.5003662
+            },
+            "physical_gains": 106.1588,
+            "central_wavelength": {
+              "unit": "nm",
+              "value": 2197.5
+            },
+            "bandwidth": {
+              "unit": "nm",
+              "value": 179
+            },
+            "equivalent_wavelength": {
+              "unit": "nm",
+              "value": 2202.368
+            }
+          }
+        },
+        "tdi_configuration_list": {
+          "03": "APPLIED",
+          "04": "APPLIED",
+          "11": "APPLIED",
+          "12": "APPLIED"
+        }
+      },
+      "time_stamp": {
+        "line_period": 1.5658736,
+        "acquisition_epoch_utc": "2024-04-03T10:24:15Z",
+        "acquisition_epoch_gps_s": 1396175073.0,
+        "band_time_stamp": {
+          "01": {
+            "unit": "s (GPS)",
+            "value": 1396175073.0
+          },
+          "02": {
+            "unit": "s (GPS)",
+            "value": 1396175073.0
+          },
+          "03": {
+            "unit": "s (GPS)",
+            "value": 1396175073.0
+          },
+          "04": {
+            "unit": "s (GPS)",
+            "value": 1396175073.0
+          },
+          "05": {
+            "unit": "s (GPS)",
+            "value": 1396175073.0
+          },
+          "06": {
+            "unit": "s (GPS)",
+            "value": 1396175073.0
+          },
+          "07": {
+            "unit": "s (GPS)",
+            "value": 1396175073.0
+          },
+          "08": {
+            "unit": "s (GPS)",
+            "value": 1396175073.0
+          },
+          "8A": {
+            "unit": "s (GPS)",
+            "value": 1396175073.0
+          },
+          "09": {
+            "unit": "s (GPS)",
+            "value": 1396175073.0
+          },
+          "10": {
+            "unit": "s (GPS)",
+            "value": 1396175073.0
+          },
+          "11": {
+            "unit": "s (GPS)",
+            "value": 1396175073.0
+          },
+          "12": {
+            "unit": "s (GPS)",
+            "value": 1396175073.0
+          }
+        }
+      }
+    }
+  },
+  "processing_history": {
+    "processor": "s2_msi_raw_generator",
+    "processor_version": "0.3.0",
+    "adf_provenance": {
+      "physical_gains": "product metadata (metadata/round-trip bridge)",
+      "cal_gain": "derived (noise \u03b1,\u03b2 + SNR@Lref); reproduces SNR@Lref",
+      "psf": "ESA SentiWiki S2{A,B,C}_PSF",
+      "spectral": "SRF doc COPE-GSEG-EOPG-TN-15-0007",
+      "noise": "verbatim (L1A product noise_model \u03b1,\u03b2; S2-RUT)",
+      "dark": "per-pixel (operational S2A GIPP R2EQOG COEFF_D) \u2014 or DQR 440-520 LSB fallback",
+      "equalization": "per-pixel relative-response (GIPP R2EQOG); stability Clerc 2026 Table 3",
+      "prnu": "per-pixel (GIPP R2EQOG, BandADF.from_gipp) \u2014 or L1B-derived / seeded fallback",
+      "defects": "GIPP R2DEPI saturated+blind columns"
+    }
+  }
+}

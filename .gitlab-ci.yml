@@ -40,7 +40,7 @@ e2e-l1b:
     - pip install -q "eopf==2.8.1" /tmp/msi-processor
     - pip install -q -e . pytest
   script:
-    - python scripts/run_e2e_l0_to_l1b.py e2e-store
+    - python scripts/run_pipeline.py e2e-store --synthetic
     # Full suite under the eopf env (zarr 2.18) — locks in the dual-zarr (2/3) compatibility promise.
     - python -m pytest tests/ -q
   artifacts:
@@ -67,7 +67,7 @@ e2e-real-l1a:
     - pip install -q "eopf==2.8.1" /tmp/msi-processor
     - pip install -q -e . pytest
   script:
-    - python scripts/run_e2e_real_l1a.py e2e-real-store
+    - python scripts/run_pipeline.py e2e-real-store
         --phases fetch-l1a,preflight,package,ground-decode,l0-decode,validate,quicklook,report
         --lines 4096
   artifacts:

@@ -90,5 +90,5 @@ flowchart LR
 The NUC `gain`/`offset` follow the processor's two-point convention (`estimate_nuc`); the absolute
 `radiometric.gain` is diffuser-derived ($\approx 1/\mathrm{cal\_gain}$); `spectral.zarr` carries the per-band
 **ESUN** (Thuillier 2003, S2A — ATBD §A.3) the processor's `toa` unit needs for TOA reflectance. Written by
-`s2_msi_raw_generator.adf_writer` (`scripts/build_cal_db.py`); `noise.zarr` (RNOMO) is E2ES-side and not read
+`s2_msi_raw_generator.adf_writer` (`s2_msi_raw_generator.caldb`, pipeline phase `build-caldb`); `noise.zarr` (RNOMO) is E2ES-side and not read
 by the processor.

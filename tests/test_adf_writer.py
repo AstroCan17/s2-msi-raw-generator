@@ -7,7 +7,6 @@ and (3) the full 13-band build round-tripped back through the processor formulas
 
 from __future__ import annotations
 
-import importlib.util
 import json
 from pathlib import Path
 
@@ -18,11 +17,7 @@ zarr = pytest.importorskip("zarr")
 
 from s2_msi_raw_generator import adf, adf_writer, reverse, sensor
 
-# Import the producer script (scripts/ is not a package).
-_SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "build_cal_db.py"
-_spec = importlib.util.spec_from_file_location("build_cal_db", _SCRIPT)
-build_cal_db = importlib.util.module_from_spec(_spec)
-_spec.loader.exec_module(build_cal_db)
+from s2_msi_raw_generator import caldb as build_cal_db
 
 
 # --- the processor's consuming formulas, replicated (no eopf dependency) -----------------------

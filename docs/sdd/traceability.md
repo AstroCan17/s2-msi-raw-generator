@@ -56,10 +56,10 @@ method (T/A/I/R) and status. Verification details and quantitative results are i
 | REQ-FUNC-041 | EOQC quality report | quality_report, l0product | `quality_report.build_qc_report`, `write_qc_report` | `test_quality_report` | T | realized |
 | REQ-FUNC-036 | Orbit/attitude ephemeris | sad, l0product | `sad.orbit_ephemeris`, `synth_orbit_attitude` | `test_sad` | T | realized |
 | REQ-FUNC-037 | SAD content (real ISP) | sad, l0product | `sad.synth_orbit_attitude`, `pack_sad_isp`, `scan_ccsds_packets` | `test_sad` | T | realized |
-| REQ-FUNC-042 | Open-container L0 + L0→L1B E2E | l0product, scripts | `l0product.write_l0_opencontainer`, `scripts/run_e2e_l0_to_l1b.py` | `test_e2e_l1b` | T/I | realized |
+| REQ-FUNC-042 | Open-container L0 + L0→L1B E2E | l0product, scripts | `l0product.write_l0_opencontainer`, `scripts/run_pipeline.py` (`--synthetic`) | `test_e2e_l1b` | T/I | realized |
 | REQ-FUNC-091 | PSFD §3 product naming (ICD-IF-NAME) | `naming.py` | `test_naming`, `test_real_e2e_driver` | realized |
 | REQ-FUNC-092 | CCSDS-122 compressed ISP payloads + ground decode | `ccsds122.py`, `isp.py`, `l0product.py` | `test_ccsds122`, `test_isp_packetize`, `test_isp`, `test_integration` | realized |
-| REQ-FUNC-093 | Real-L1A E2E validation driver + report | `scripts/run_e2e_real_l1a.py`, `s3fetch.py` | `test_real_e2e_driver`; SDE run (`docs/vv/real_e2e.md`) | realized |
+| REQ-FUNC-093 | Real-L1A E2E validation driver + report | `scripts/run_pipeline.py`, `s3fetch.py` | `test_real_e2e_driver`; SDE run (`docs/vv/real_e2e.md`) | realized |
 | REQ-FUNC-043 | Credentialed ADF API | — | — | — | — | deferred |
 | REQ-FUNC-053 | Configurable PU orchestration | — | — | — | — | deferred |
 | REQ-FUNC-062 | Dask distribution | — | — | — | — | deferred |
@@ -71,7 +71,7 @@ method (T/A/I/R) and status. Verification details and quantitative results are i
 |---|---|---|---|---|---|---|
 | REQ-PERF-001 | Noise $\sigma$ within ±5 % over $\ge 10^4$ px | reverse | `s13_add_noise` | `test_reverse::test_noise_sigma_matches_model_within_5pct` | T | realized |
 | REQ-PERF-002 | SNR@Lref fidelity | sensor, reverse | `Band.cal_gain`, `s13_add_noise` | `test_real_data` | T,A | realized |
-| REQ-PERF-003 | Round-trip exactness ($\mathrm{RMSE} \to 0$) | forward_radiometric_atbd | `forward_correct`/`reverse_impress` | `test_roundtrip_atbd`, `scripts/roundtrip_real_l1a.py` | T | realized |
+| REQ-PERF-003 | Round-trip exactness ($\mathrm{RMSE} \to 0$) | forward_radiometric_atbd | `forward_correct`/`reverse_impress` | `test_roundtrip_atbd`, pipeline phase `radiometric-vv` | T | realized |
 | REQ-PERF-004 | Calibration recovery accuracy | calibration | `calibrate` | `test_calibration` | T | realized |
 
 ## Interface requirements
