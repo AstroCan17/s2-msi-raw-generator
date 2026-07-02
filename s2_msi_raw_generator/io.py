@@ -16,13 +16,16 @@ except ImportError:  # pragma: no cover - zarr is an optional reader dependency
 
 
 def _open(path: str):
+    """Open a product group under **both** zarr 3 (CI) and zarr 2.18 (the eopf env).
+
+    zarr 3's ``LocalStore`` does not exist in zarr 2 — a plain path string works in both, and
+    ``ZipStore`` exists in both for ``.zarr.zip`` products.
+    """
     if zarr is None:
         raise ImportError("zarr is required to read EOPF products: `uv pip install zarr`")
     if str(path).endswith(".zip"):
-        store = zarr.storage.ZipStore(path, mode="r")
-    else:
-        store = zarr.storage.LocalStore(path)
-    return zarr.open_group(store, mode="r")
+        return zarr.open_group(zarr.storage.ZipStore(path, mode="r"), mode="r")
+    return zarr.open_group(str(path), mode="r")
 
 
 def read_l1b_band(
