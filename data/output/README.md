@@ -8,9 +8,8 @@ its default. Every product of the chain lands under this single root:
 | `l0/` | L0 RAW **open-container** product (`L0c_opencontainer.zarr`) — decoded detector frames + `quality/l0_flags` + `conditions/*` that `msi-processor` ingests | **ignored** (large satellite-image product) |
 | `caldb/` | Calibration database — `nuc` / `dark` / `radiometric` / `spectral` / `noise` `.zarr` + `PROVENANCE.md` | ignored (`*.zarr/`; regenerable) |
 | `l1b/` | L1B **TOA-reflectance** product (`L1B_TOA.zarr`) written back by the processor step (eopf env: SDE or the manual `e2e-l1b` CI job) | ignored (`*.zarr/`) |
-| `quicklook/` | Small PNG previews of the products (`l0_rgb.png`, `l1b_rgb.png`) | **committed** (demo preview) |
+| `quicklook/` | Small PNG previews of the products (`l0_rgb.png`, `l1b_rgb.png`), written by the driver | ignored (regenerable; the README/site show the real-data stage figures from `docs/_static/showcase/` instead) |
 
 `msi-processor` consumes the `l0/` + `caldb/` products directly from this store — pass explicit paths
-(or a dedicated store root such as `~/data-store` on the SDE) to the E2E driver. The `.zarr` products
-are gitignored (large / regenerable); the small quicklook PNGs are committed for the README and the
-documentation site.
+(or a dedicated store root such as `~/data-store` on the SDE) to the E2E driver. All products here are
+gitignored (large / regenerable); the committed result figures live in `docs/_static/showcase/`.
