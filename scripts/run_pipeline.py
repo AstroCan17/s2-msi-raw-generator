@@ -41,7 +41,7 @@ stage-by-stage README/docs figures + quality metrics).
 
 Examples::
 
-    python scripts/run_pipeline.py ~/validation-data/e2e-real                 # real chain
+    python scripts/run_pipeline.py ~/data-store                              # real chain
     python scripts/run_pipeline.py <store> --phases preflight,package --lines 4096
     python scripts/run_pipeline.py data/output --synthetic                    # synthetic chain
     python scripts/run_pipeline.py <store> --phases figures --fig-l1b <L1B.zarr[.zip]>
@@ -958,7 +958,7 @@ def phase_report(store: dict[str, Path], args) -> None:
 
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    ap.add_argument("store", help="data-store root (e.g. ~/validation-data/e2e-real or data/output)")
+    ap.add_argument("store", help="data-store root (e.g. ~/data-store on the SDE, or data/output)")
     ap.add_argument("--phases", default=None,
                     help=f"comma list from {PHASES} (default: the real chain, "
                          "or the synthetic chain with --synthetic)")
