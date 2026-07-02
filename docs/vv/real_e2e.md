@@ -53,6 +53,52 @@ wrappers (FEP/annotation layers) around the inner packets, whose layout is propr
 The real DS tar's MTD carries no `S2A_OPER_MSI_L0__DS_…` strings extractable by our regex
 (`psd_datastrip_ids: []`); the crosswalk instead pattern-matches our own PSD-form id.
 
+## Per-band statistics & interpretation
+
+Raw per-band numbers of the authoritative run (verbatim machine output:
+[run report](real_e2e_run_report.md); JSONs in the registry package):
+
+| Band | DN min–max | Saturated px (32768) | Entropy (bits/px) | Codec bpp | Ratio | Round-trip RMSE (DN) |
+|---|---|---|---|---|---|---|
+| B01 | 48–32768 | 103 680 | 5.05 | 4.72 | 3.393 | 2.8e-16 |
+| B02 | 47–32768 | 1 078 272 | 5.14 | 4.65 | 3.438 | 3.7e-15 |
+| B03 | 48–32768 | 1 078 272 | 5.00 | 4.51 | 3.550 | 6.4e-15 |
+| B04 | 48–32768 | 1 078 272 | 4.92 | 4.30 | 3.723 | 9.3e-15 |
+| B05 | 47–32768 | 269 568 | 4.90 | 4.48 | 3.568 | 1.1e-14 |
+| B06 | 47–32768 | 269 568 | 4.73 | 4.32 | 3.702 | 1.1e-14 |
+| B07 | 47–32768 | 269 568 | 4.56 | 4.14 | 3.864 | 1.2e-14 |
+| B08 | 47–32768 | 1 078 272 | 4.77 | 4.11 | 3.889 | 1.1e-14 |
+| B09 | 47–32768 | 103 680 | 3.10 | 3.43 | 4.671 | 1.5e-14 |
+| B10 | 45–32768 | 103 680 | 2.48 | 3.43 | 4.659 | 9.0e-15 |
+| B11 | 46–32768 | 269 568 | 5.21 | 4.61 | 3.470 | 6.6e-15 |
+| B12 | 46–32768 | 269 568 | 5.16 | 4.75 | 3.365 | 5.2e-15 |
+| B8A | 47–32768 | 269 568 | 4.54 | 4.11 | 3.895 | 9.7e-15 |
+
+**Reading the numbers:**
+
+- **Zero-error signature.** L1A′ RMSE 0 / PSNR ∞ / `lines_lost` 0 in all bands — the packaging,
+  compression, packetisation and decode layers are exactly transparent to the science data.
+- **Saturation masks are physically consistent.** The saturated fraction is *identically*
+  1.95 % in the 10 m and 20 m bands (the same cloud-core mask at different samplings) and
+  rises to 6.7 % at 60 m — coarse pixels flag when any saturated sub-area falls inside them
+  (mixing/dilation), as expected. The DN floor (45–48) is the dark-ocean background.
+- **Compression tracks scene entropy and band physics.** Textured bands (H ≈ 5 bits/px) end
+  *below* first-order entropy (B04: 4.92 → 4.30 bpp) — the DWT removes spatial correlation
+  beyond zeroth-order statistics. The darkest atmospheric-absorption bands compress best
+  (B09/B10, water-vapour/cirrus: 4.67×); the most textured SWIR band compresses worst
+  (B12: 3.37×, also the highest raw column-FPN 0.174).
+- **The §4.5.3 simplification is visible exactly where theory predicts.** In near-empty bands
+  the coded rate sits *above* entropy (B10: 2.48 → 3.43 bpp): sparse AC planes still pay raw
+  bits without the Blue-Book VLC word mapping. A future full-BPE MR would recover most of
+  this gap; on textured bands the transform gain already dominates.
+- **Radiometric round-trip at machine precision.** 2.8e-16 … 1.5e-14 DN is float64 rounding
+  territory (ε ≈ 2.2e-16) — `forward_correct∘reverse_impress` is algebraically exact on the
+  real GIPP coefficients.
+- **Scene-limited FPN column.** On this dark scene the *normalised* column-FPN metric is
+  unstable after dark subtraction (signal ≈ 0 ⇒ denominator ≈ 0; B09/B10 report 0.000, other
+  bands rise). It is informative only — the equalization-quality evidence in this run is the
+  machine-precision RMSE; FPN-flattening demonstrations need a bright, homogeneous scene.
+
 ## Method notes
 
 - Bit-identity is asserted with msi-processor's own `align_extent` + `compute_metrics`
