@@ -4,7 +4,7 @@ Licensed under the Apache License, Version 2.0; see the repository LICENSE. -->
 # Real-L1A end-to-end validation (REQ-FUNC-093)
 
 The authoritative real-data run of the reverse E2ES, driven by
-`scripts/run_e2e_real_l1a.py` on the SDE. Data path (the real-chain shape — the S2 L0→L1A
+`scripts/run_pipeline.py` on the SDE. Data path (the real-chain shape — the S2 L0→L1A
 relation is decode/packaging, per SentiWiki L0 stores compressed ISPs and L1A decompresses):
 
 real L1A DN `X` → **CCSDS-122 lossless compress** → **CCSDS space packets** → canonical L0 →

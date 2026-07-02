@@ -42,7 +42,7 @@ The Software Configuration File documents the inventory, baseline, build means a
 - **Packaged data** (`s2_msi_raw_generator/data/psf/`):S2 PSF matrices, 12 bands × 3 units (S2A/S2B/S2C) CSV
   (B10 absent by design) + `PROVENANCE.md`.
 - **Scripts** (`scripts/`): `demo_reverse_real.py`, `demo_build_l0.py`, `derive_prnu_dark.py`,
-  `roundtrip_real_l1a.py`, `demo_calibration.py`, `save_images.py`.
+  the single pipeline driver `run_pipeline.py` (all phases).
 - **Tests** (`tests/`): `test_reverse.py`, `test_real_data.py`, `test_calibration.py`,
   `test_roundtrip_atbd.py`, `test_l0product.py`, `test_gipp.py`, `test_isp.py`, `test_integration.py`,
   `test_inc3_steps.py`; full inventory = `tests/test_*.py` (21 files, 201 tests at v0.3.0).
@@ -62,7 +62,6 @@ Reference data: ATBD (RD 1), Sentinel-2 L1 ATBD, SRF doc COPE-GSEG-EOPG-TN-15-00
 | Runtime dependency | `numpy ≥ 1.26` |
 | I/O extra (`read`) | `zarr ≥ 3` |
 | Test extra (`dev`) | `pytest ≥ 8`, `zarr` |
-| Image export (optional) | `pillow` / `imageio` / `matplotlib` (for `save_images.py` PNGs only) |
 
 No EOPF CPM and no credentials are required for the realized path.
 

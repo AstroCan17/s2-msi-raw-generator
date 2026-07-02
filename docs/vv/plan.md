@@ -52,7 +52,7 @@ Each requirement in `../srs.md` carries its method and the implementing test; th
 ## 3. Test environment
 
 - **Runtime:** Python ≥ 3.11; runtime dependencies `numpy` + `zarr` only (no EOPF CPM, no external
-  processor). Image export (`save_images.py`) optionally uses `pillow`/`imageio`/`matplotlib`.
+  processor). All quicklook/figure PNGs use the stdlib encoder (no image libraries).
 - **Continuous integration:** GitLab CI, single `test` stage, image `python:3.12-slim`,
   `pip install numpy pytest zarr` then `pytest tests/ -q --junitxml=report.xml`.
 - **Synthetic-fixture tests** run with no external data (tiny inline GIPP fixtures; packaged PSF CSVs under

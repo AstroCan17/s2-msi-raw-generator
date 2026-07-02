@@ -8,18 +8,10 @@ venv/
 .mypy_cache/
 .ruff_cache/
 
-# Data (large EOPF Zarr products — kept out of git)
-*.zarr/
-*.zarr.zip
+# Local sample-data archive only; the data/ E2E store (input + output products, quicklooks)
+# IS tracked and synced through git. Mind the push size before dropping large real inputs
+# (e.g. the ~500 MB bucket L1A) into data/input/.
 data/s2_dataset/
-
-# E2E data folders — track the structure, ignore the large inputs/products and the regenerable
-# driver quicklooks. (The .zarr products under data/output/ are already ignored by `*.zarr/` above;
-# the committed result figures live in docs/_static/showcase/.)
-data/input/*
-!data/input/.gitkeep
-!data/input/README.md
-data/output/quicklook/*.png
 
 # Build / docs
 build/

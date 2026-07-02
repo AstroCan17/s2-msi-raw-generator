@@ -43,7 +43,7 @@ The E2ES serves two purposes:
    `Y` → our reverse impress → `X′`. The residual `X′ − X` ≈ 0 (verified to ~1e-14 on S2 DN)
    proves the forward and reverse are exact inverses; a controlled per-pixel-PRNU test shows the
    equalization genuinely flattens fixed-pattern noise (`forward_radiometric_atbd`,
-   `scripts/roundtrip_real_l1a.py`). Implemented from the public L1 ATBD — no external processor.
+   the pipeline's `radiometric-vv` phase). Implemented from the public L1 ATBD — no external processor.
 
 ## 1.2 Purpose of document
 
@@ -421,7 +421,7 @@ Per-stage error-budget table, **reflective-domain terms**. Populate numerically 
   anonymous-GET; verified 2026-07-02). The real-L1A round-trip runs on it at RMSE ≈ 1e-14
   (`docs/vv/real_e2e.md`). Still open in the narrow sense: a real **dark-calibration granule**
   (night-over-ocean) is not in this dataset — per-pixel dark therefore comes from the GIPP, not
-  from a dark acquisition. L1B-derived PRNU remains available via `scripts/derive_prnu_dark.py`.
+  from a dark acquisition. L1B-derived PRNU remains available via the pipeline's `derive-adf` phase.
 
 ---
 
