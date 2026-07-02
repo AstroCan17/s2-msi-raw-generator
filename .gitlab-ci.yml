@@ -27,7 +27,7 @@ unit-tests:
 # Real L0→L1B E2E in a full eopf==2.8.1 + msi_processor environment (the same chain the SDE runs):
 # generator L0 + cal-DB → l0_decode → radiometric → enhancement → toa → persisted L1B + quicklooks.
 # Manual (heavy env install); msi-processor is cloned with CI_JOB_TOKEN — the generator project is on
-# ipf/msi-processor's job-token allowlist. Artifacts carry the L1B product + the showcase PNGs.
+# ipf/msi-processor's job-token allowlist. Artifacts carry the L1B product + the quicklook PNGs.
 e2e-l1b:
   stage: test
   image: python:3.11-slim
