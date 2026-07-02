@@ -41,7 +41,8 @@ e2e-l1b:
     - pip install -q -e . pytest
   script:
     - python scripts/run_e2e_l0_to_l1b.py e2e-store
-    - python -m pytest tests/test_e2e_l1b.py -q
+    # Full suite under the eopf env (zarr 2.18) — locks in the dual-zarr (2/3) compatibility promise.
+    - python -m pytest tests/ -q
   artifacts:
     paths:
       - e2e-store/quicklook/
