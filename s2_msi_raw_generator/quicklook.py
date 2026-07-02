@@ -15,7 +15,7 @@
 """Dependency-free quicklook PNG writer for the L0 / L1B products (numpy + stdlib only).
 
 Renders a small RGB preview of a ``{band: 2-D array}`` product with a per-channel percentile contrast
-stretch — for the repo/README/site **showcase**. No ``matplotlib`` / ``PIL`` dependency (a minimal PNG
+stretch — for the repo README / documentation front page. No ``matplotlib`` / ``PIL`` dependency (a minimal PNG
 encoder using ``zlib`` + ``struct``), so it runs anywhere the generator does, including the SDE.
 """
 
