@@ -75,7 +75,16 @@ ADF, so the round-trip is non-tautological.
 
 ## Showcase — real E2E products
 
-Products of the full **L0→L1B** run: generator open-container L0 + cal-DB →
+**Real-data run (SDE, 2026-07-02):** the public-bucket **real L1A** packaged as a
+CCSDS-122-compressed, real-space-packet **L0** (lossless ratio **3.66×**, 30 642 CCSDS
+packets), ground-decoded bit-exactly and pushed through msi-processor `l0_decode` —
+**L1A′ bit-identical to the original in 13/13 bands**; radiometric GIPP round-trip
+RMSE ≈ 1e-14. Numbers & criteria: `docs/vv/real_e2e.md`; products: GitLab package registry
+`s2-msi-e2e-real/0.3.0` (PSFD `.zarr.zip` names).
+
+![Real L1A scene — B04/B03/B02, raw per-detector geometry (band misregistration is real; co-registration happens at L1B/L1C)](docs/_static/showcase/real_l1a_rgb.png)
+
+**Synthetic demo chain (L0→L1B):** generator open-container L0 + cal-DB →
 `msi-processor` `l0_decode → radiometric → enhancement → toa` (`eopf==2.8.1`) → persisted
 **L1B TOA reflectance** (`EOZarrStore`). RGB = B04/B03/B02, per-channel 2–98 % percentile
 stretch (`quicklook.py`, stdlib-only PNG writer).
