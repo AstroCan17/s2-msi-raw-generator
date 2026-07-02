@@ -267,18 +267,36 @@ def phase_ground_decode(store: dict[str, Path], args) -> None:
     l1a = pre["l1a_path"]
     d = _datation_from_preflight(pre)
     canon = str(store["l0"] / pre["product_names"]["l0"])
+    # Operational decoder = the CONSUMER's (msi-processor ground_decode — the real-chain
+    # L1A-side decompression); the generator's read_l0_isp_dn stays as the E2ES-side
+    # reference decoder and cross-checks it when the consumer is importable.
+    try:
+        from msi_processor.computing.l0_decode.ground_decode import decode_canonical_l0
+    except ImportError:
+        decode_canonical_l0 = None
     rt = {}
     band_frames = {}
     for bn in pre["bands"]:
-        rec = l0product.read_l0_isp_dn(canon, DETECTOR, bn)
+        rec_ref = l0product.read_l0_isp_dn(canon, DETECTOR, bn)
+        cross = None
+        if decode_canonical_l0 is not None:
+            rec = decode_canonical_l0(canon, DETECTOR, bn)
+            cross = bool(np.array_equal(rec, rec_ref))
+            if not cross:
+                raise SystemExit(f"[ground-decode] {bn}: consumer and reference decoders disagree")
+        else:
+            rec = rec_ref
         orig = gio.read_l1a_raw(l1a, DETECTOR, bn, lines=args.line_slice, dtype=np.uint16)
         ok = bool(np.array_equal(rec, orig))
-        rt[bn] = {"bit_exact": ok}
+        rt[bn] = {"bit_exact": ok,
+                  "decoder": "msi-processor" if decode_canonical_l0 else "e2es-reference",
+                  "decoder_cross_check": cross}
         if not ok:
             raise SystemExit(f"[ground-decode] {bn}: reconstructed DN != original — codec fault")
         band_frames[bn] = rec
         del orig
-        print(f"[ground-decode] {bn}: bit-exact OK")
+        print(f"[ground-decode] {bn}: bit-exact OK"
+              + (f" (consumer decoder, cross-check {cross})" if cross is not None else ""))
     # compression accounting from the canonical product's attrs
     import zarr
     g = zarr.open_group(canon, mode="r")
