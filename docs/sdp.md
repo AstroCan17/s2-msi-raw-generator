@@ -41,21 +41,36 @@ specifications (the ATBD and the Sentinel-2 L1 ATBD) and validated againstS2 dat
 | 8 | Calibration sub-set — synthetic CSM sun-diffuser + dark → derived coefficients (inverse-crime cure) |
 | Docs | ECSS-E-ST-40C documentation set (SRS, SDD, ICD, DPM, V&V, SUM, SRN, CIDL, SCF, SRF, SDP) |
 
-## ECSS tailoring
+## ECSS tailoring — Document Requirements List (DRL)
 
-This is a single-CSC (Computer Software Configuration item) E2ES of low criticality. The full ECSS DRD
-set is tailored as follows:
+This is a single-CSC (Computer Software Configuration item) E2ES of low criticality. The full DRL
+(ECSS-E-ST-40C Rev.1 Annexes B–T + ECSS-Q-ST-80C + M-ST-40C items) is dispositioned as follows; every
+DRD is either a standalone document or is tailored with recorded rationale.
 
-- **Authored fully:** SRS, SDD, ICD, DPM, V&V plan + report, SUM, ATBD.
-- **Authored concisely:** SRN, CIDL, SCF, SRF, this SDP.
-- **Folded into this SDP with rationale (not separate documents):**
-  - *Software Review Plan (SRevP)* — reviews are conducted per increment as merge-request reviews plus the
-    automated CI gate (unit + integration tests must pass before merge).
-  - *Software Maintenance Plan (SMP)* — maintenance follows the same feature-branch → MR → CI → `main`
-    process in the project repository; releases are recorded in the SRN and `CHANGELOG.md`.
-  - *Software Product Assurance Plan (SPAP, ECSS-Q-ST-80C)* — product assurance is implemented by the
-    automated test suite (201 tests at v0.3.0), the CI quality gate, the originality policy (REQ-QUAL-003), and
-    requirement traceability (`docs/sdd/traceability.md`).
+| DRD | Disposition |
+|---|---|
+| SSS (Annex B) | standalone — [sss.md](sss.md) |
+| IRD (Annex C) | standalone — [ird.md](ird.md); the interface *requirements* stay single-sourced in the SRS (REQ-IF), the IRD references them |
+| SRS (Annex D) | standalone — [srs.md](srs.md) |
+| ICD (Annex E) | standalone — [icd.md](icd.md) |
+| SDD (Annex F) | standalone — [sdd/](sdd/index.rst) incl. the traceability matrix |
+| DJF | standalone — [djf.md](djf.md) |
+| SRelD (Annex G) | standalone — [srn.md](srn.md) + `CHANGELOG.md` |
+| SUM (Annex H) | standalone — [sum.md](sum.md) |
+| SVerP + SValP (Annexes I, J) | **combined** into the [V&V plan](vv/plan.md) — single-CSC scope makes separate plans redundant |
+| SUITP (Annex K) | standalone — [vv/suitp.md](vv/suitp.md) |
+| SVS (Annex L) | **folded into** the [V&V plan](vv/plan.md) §2 verification matrix + [SUITP](vv/suitp.md) §5 pass/fail criteria — the validation specifications are the executable tests themselves |
+| SVR (Annex M) | standalone — [V&V report](vv/report.md) + [real-data E2E validation](vv/real_e2e.md) |
+| SUITR | standalone — [vv/suitr.md](vv/suitr.md) |
+| SRF (Annex N) | standalone — [srf.md](srf.md) |
+| SDP (Annex O) | this document |
+| SRevP (Annex P) | standalone — [srevp.md](srevp.md) |
+| SMP (Annex T) | **folded into this SDP** — maintenance follows the same feature-branch → MR → CI → `main` process; releases recorded in the SRN and `CHANGELOG.md` |
+| SPAP (ECSS-Q-ST-80C) | standalone — [spa-plan.md](spa-plan.md) |
+| Risk register | standalone — [risk-register.md](risk-register.md) |
+| CIDL / SCF (M-ST-40C) | standalone — [cidl.md](cidl.md), [scf.md](scf.md) |
+| QR report | standalone — [qr.md](qr.md) |
+| ATBD / DPM (mission-specific) | standalone — [atbd/atbd.md](atbd/atbd.md) (issued v1.0), [dpm/](dpm/index.rst) |
 
 ## Configuration management
 
