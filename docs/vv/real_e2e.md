@@ -22,10 +22,36 @@ msi-processor **`l0_decode`** → **L1A′** → compare with `X`.
 | 5 | ISP self-parse | 100 % of generated packets walk via `iter_packets`; real `.bin` tiling reported (informative) |
 | 6 | Naming | every product name round-trips `parse_psfd_name`; fallbacks flagged |
 
-## Results
+## Results — authoritative SDE full-frame run (2026-07-02)
 
-*Populated from `report/e2e_report.md` of the SDE full-frame run (MR4).* The windowed CI
-variant (`e2e-real-l1a` job, `--lines 4096`) exercises the same phases with artifacts.
+Input: the public-bucket `PDI_MSI_S2_L1A.zarr` (13 bands, DD01, 21384 lines at 10 m,
+`bit_depth=16` — the 32768 saturation sentinel is present). Products (registry package
+`s2-msi-e2e-real/0.3.0`): `S02MSIL0__20240403T102415_0033_A045_TC42.zarr` (canonical,
+compressed ISPs) · `…_TC42_OC.zarr` (open container) · `S02MSIL1A_…_T6DE.g{0,1,2}.zarr`
+(L1A′ per resolution group). Naming fallbacks flagged: `datetime`, `sat:relative_orbit`,
+`platform` (the example L1A is a platform-agnostic granule without STAC discovery metadata).
+
+| # | Criterion | Result |
+|---|---|---|
+| 1 | Codec round-trip, 13 full real bands | ✅ **bit-exact 13/13** |
+| 2 | L1A′ vs original (kept lines) | ✅ **`bit_identical=True` 13/13, RMSE 0, `lines_lost` 0 = preflight 0** |
+| 3 | Radiometric GIPP round-trip | ✅ RMSE **2.77e-16 … 1.51e-14** (gate 1e-6) |
+| 4 | EOQC | ✅ OK (both L0 forms) |
+| 5 | ISP self-parse / real-stream scan | ✅ 100 % of our 30 642 packets walk; real SADATA members tiling: **2/68** (see limits) |
+| 6 | Naming round-trip | ✅ all names parse; PSD `eopf:datastrip_id` pattern-match **True** |
+
+**Compression (CCSDS-122 lossless subset, 16-bit packed-raw base):** overall **3.66×**
+(637 MB → 174 MB); per band 3.37 (B12) … 4.67 (B09); 60 m cirrus/aerosol bands compress
+best. For scale: the onboard MRCPB runs *lossy* at 2.4–2.97 — our *lossless* subset exceeds
+those figures on this scene because the real DN field is smooth/low-entropy (dark ocean).
+
+**Known limits (recorded verbatim in `isp_structural.json`):** the PSD L0 SAFE image-ISP
+`.bin` objects are HTTP 403 on GET under the bucket policy, so image-packet accounting was
+not possible; the structural ISP validation ran on the real **SADATA** tars instead, where
+only 2/68 members satisfy the pure packet-tiling criterion — consistent with non-CCSDS
+wrappers (FEP/annotation layers) around the inner packets, whose layout is proprietary.
+The real DS tar's MTD carries no `S2A_OPER_MSI_L0__DS_…` strings extractable by our regex
+(`psd_datastrip_ids: []`); the crosswalk instead pattern-matches our own PSD-form id.
 
 ## Method notes
 

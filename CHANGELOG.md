@@ -2,7 +2,15 @@
 
 All notable changes to the Sentinel-2 MSI reverse E2ES (`s2_msi_raw_generator`).
 
-## [Unreleased]
+## [0.3.0] — 2026-07-02
+
+Real-data E2E release: the reverse E2ES now packages a **real bucket L1A** into a
+**CCSDS-122-lossless-compressed, real-CCSDS-space-packet L0**, ground-decodes it bit-exactly
+and proves **L1A′ ≡ L1A (13/13 bands bit-identical)** through msi-processor `l0_decode`, with
+the radiometric GIPP round-trip at RMSE ≈ 1e-14, EOPF **PSFD §3 product naming**
+(ICD-IF-NAME) and published products (`s2-msi-e2e-real/0.3.0` generic packages) + validation
+report (`docs/vv/real_e2e.md`). Authoritative full-frame run on the SDE, 2026-07-02: overall
+lossless compression **3.66×** (637→174 MB, 16-bit base), 30 642 packets, EOQC OK.
 
 ### Added
 - **Real-L1A E2E driver + PSFD naming + bucket fetch** — `scripts/run_e2e_real_l1a.py`
