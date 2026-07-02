@@ -55,15 +55,28 @@ in the GitLab **Generic Package Registry** (`s2-msi-e2e-real/0.3.0`, PSFD `.zarr
 :caption: "Project documentation:"
 
 atbd/atbd
+sss
 srs
+ird
 sdd/index
+djf
 icd
 dpm/index
 vv/index
 cidl
 scf
 srf
+```
+
+```{toctree}
+:maxdepth: 1
+:caption: "Management & assurance:"
+
 sdp
+spa-plan
+srevp
+risk-register
+qr
 ```
 
 ```{toctree}
