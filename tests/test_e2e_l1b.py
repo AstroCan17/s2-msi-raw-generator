@@ -52,9 +52,12 @@ def test_nuc_gain_width_matches_detector_axis(tmp_path):
 
 
 def test_l0_to_l1b_real_chain_sde(tmp_path):
-    """Real L0→L1B run — skipped unless eopf + msi_processor are installed (the SDE runner)."""
+    """Real L0→L1B run + native persist — skipped unless eopf + msi_processor are installed (the SDE)."""
     pytest.importorskip("eopf")
     pytest.importorskip("msi_processor")
     l0_path, caldb, _ = e2e.build_inputs(tmp_path, n_det=64, n_lines=48)
     l1b = e2e.run_processor(l0_path, caldb)
     assert l1b is not None
+    l1b_path = e2e.write_l1b(l1b, tmp_path / "l1b")           # EOZarrStore → <dir>/L1B_TOA.zarr
+    g = zarr.open_group(l1b_path, mode="r")
+    assert "measurements" in g                                # persisted product tree round-trips
