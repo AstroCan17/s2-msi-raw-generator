@@ -5,6 +5,17 @@ All notable changes to the Sentinel-2 MSI reverse E2ES (`s2_msi_raw_generator`).
 ## [Unreleased]
 
 ### Added
+- **Showcase (real E2E products) + `e2e-l1b` CI job** — README + docs `showcase` page with the
+  committed L0 DN / L1B reflectance quicklooks from a real chain run; new **manual CI job**
+  `e2e-l1b` builds the full `eopf==2.8.1` + `msi_processor` environment (job-token clone of
+  `ipf/msi-processor`), runs the L0→L1B chain **and** the E2E pytest suite, and uploads the L1B
+  product + quicklooks as artifacts — the real E2E is now CI-reproducible, not SDE-only.
+- **L1B persistence + L1B quicklook (single data-store root)** — `scripts/run_e2e_l0_to_l1b.py` now
+  treats its `work_dir` as the run's central **data store** (`l0/`, `caldb/`, `l1b/`, `quicklook/`
+  under one root; default `data/output/`, e.g. `~/data-store` on the SDE). New `write_l1b` persists
+  the L1B `EOProduct` via eopf's native `EOZarrStore` (`<store>/l1b/L1B_TOA.zarr`, SDE-only) and the
+  driver renders an **L1B reflectance quicklook** (`quicklook/l1b_rgb.png`) next to the L0 one.
+  Quicklook writer gains unit tests (uint16 DN, float reflectance + NaN, flat band, upscale).
 - **`data/` E2E folders + quicklook** — `data/input/` (reference L1A/GIPP; gitignored) and
   `data/output/{l0,caldb,quicklook}/`; `scripts/run_e2e_l0_to_l1b.py` writes products there by default.
   New dependency-free `s2_msi_raw_generator/quicklook.py` (stdlib-only PNG writer) renders an RGB preview.
