@@ -102,6 +102,28 @@ A full product = **12 detectors × 13 bands = 156** `band{N}` arrays + 156 `mask
 `unit` (S2A/S2B/S2C) is derived from `platform` via `sensor.unit_from_platform`; APIDs from
 `isp.apid_for(detector, band_index)` (11-bit, base 1024).
 
+### ICD-IF-C122 — compressed image payload stream (normative)
+
+ISP image payloads carry a **CCSDS 122.0-B lossless-profile** stream produced by
+`s2_msi_raw_generator.ccsds122` (the documented *alternative* to Sentinel-2's proprietary
+onboard MRCPB scheme). One stream encodes one detector/band frame and is fully
+**self-describing**:
+
+| Field group | Layout (little-endian) | Blue-Book counterpart |
+|---|---|---|
+| Frame header | `magic "C122LSv1"` u8×8 · `version` u8 · `dwt_levels` u8 (=3) · `height` u32 · `width` u32 · `pixel_bit_depth` u8 · `pad` u8 (`pad_h<<4\|pad_w`) · `segment_blocks` u32 · `n_segments` u32 | Part 3 / Part 4 content |
+| Per segment | `flags` u8 (bit0 StartImgFlag, bit1 EndImgFlag) · `n_blocks` u32 · `BitDepthDC` u8 · `BitDepthAC` u8 · section byte-lengths `len_dc`/`len_bda`/`len_ac` u32×3, then the three byte-aligned sections | Part 1A content |
+| DC section | raw two's-complement reference (`BitDepthDC` bits) + zigzag-DPCM diffs, per-gaggle Rice (5-bit parameter, 31 = uncoded escape), gaggles of 16 | §4.3 |
+| BitDepthAC section | same DPCM+Rice machinery, 6-bit reference width | §4.4 |
+| AC section | plane-sequential (`BitDepthAC−1 → 0`) significance → sign → refinement passes, block-major scan, **raw-packed bits** | §4.5 stages |
+
+**Documented divergences** (agreed lossless subset): §4.5.3 word mapping / variable-length
+codes replaced by raw-packed stage bits (bit-exact, structurally 122-shaped, *not*
+interoperable with reference decoders — the matching decoder is in-package); explicit
+byte-aligned header fields carrying the Part 1A/3/4 content; byte-aligned sections.
+Segments default to one block row = 8 image lines. Verified by `tests/test_ccsds122.py`
+(bit-exact `compress_frame`∘`decompress_frame` identity). (REQ-FUNC-092)
+
 ## Validation requirements
 The output structure is verified by `tests/test_l0product.py` (156-array contract, dtypes, root metadata,
 `eopf:type`, `tdi_configuration_list`, `physical_gains`, `line_period`, `adf_provenance`) and

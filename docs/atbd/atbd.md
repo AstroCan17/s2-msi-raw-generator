@@ -142,7 +142,7 @@ flowchart TD
     S12["S12 · re-apply onboard equalization"]
     S13["S13 · add noise σ=√(a+b·DN)"]
     S14["S14 · quantize 12-bit"]
-    S15["S15 · format L0 RAW (156 detector/band frames + ISP telemetry + STAC)"]
+    S15["S15 · CCSDS-122 lossless compress → ISP packetize → L0 RAW (156 frames + telemetry + STAC)"]
     IN --> S1 --> S3 --> S4 --> S5 --> S6 --> S7 --> S8 --> S9 --> S10 --> S11 --> S12 --> S13 --> S14 --> S15
 ```
 No geometry inversion (L1A/L1B already sensor geometry).
@@ -318,11 +318,30 @@ with **$\alpha$, $\beta$ read verbatim from the L1A product**
 
 ## 5.S15 Generate ISP packets & telemetry
 
-**Forward.** Package into CCSDS ISP; timestamps from `line_period = 1.5658736 ms`; SAD packets per APID.
+**Forward.** Two sub-steps mirroring the real onboard chain:
+
+1. **Onboard image compression** — the real Sentinel-2 compresses MSI video data onboard with
+   the proprietary **MRCPB** wavelet scheme (bit-plane coding, per-band tuned rates ≈ 2.4–2.97,
+   CoReCi ASIC); a CCSDS-compression ASIC is the documented *alternative*. This generator
+   implements that alternative: **CCSDS 122.0-B, lossless profile**
+   (`s2_msi_raw_generator/ccsds122.py`) — 3-level integer DWT 9/7-M (§3.3 lifting with
+   `floor(·+1/2)` rounding, whole-sample symmetric extension), 8×8 block/family structure and
+   16-block gaggles (§4.1), self-describing segment headers carrying the Part-1A/3/4 content
+   (§4.2), DC and per-block `BitDepthAC` DPCM + per-gaggle Rice coding (§4.3/§4.4). *Documented
+   divergence:* the §4.5 AC stages keep their semantics and scan order but the per-stage bits are
+   packed raw instead of §4.5.3 word-mapped VLCs — bit-exact lossless, structurally 122-shaped,
+   not interoperable with reference decoders (the matching decoder ships in the module). Segments
+   default to one block row = **8 image lines**, giving line-accurate packet datation.
+2. **Packetization** — the compressed stream is carried in CCSDS space packets; per-line
+   timestamps from `line_period = 1.5658736 ms`; SAD packets per APID.
+
+Note the level split of the real chain: **L0 stores the compressed, annotated ISPs; the ground
+L1A step decompresses** (SentiWiki S2 Products). Choosing the *lossless* profile (real MRCPB is
+lossy) keeps the reverse E2ES chain bit-exact so the L0→L1A round-trip is provable.
 
 **Output.** The 156-frame L0 (Annex A.9).
 
-**ADF:** `ADF_SADMP`, `ADF_DATAT`. **Conjugate:** `l0_decode`.
+**ADF:** `ADF_SADMP`, `ADF_DATAT`. **Conjugate:** ground decompression + `l0_decode`.
 
 **Calibration sub-set (inverse-crime cure — implemented `s2_msi_raw_generator/calibration.py`):** synthetic
 CSM sun-diffuser + dark acquisitions → derive `D`, `g`, `A` (L1 ATBD §4.1.1.2.2) → *estimated* ADF
