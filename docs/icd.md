@@ -164,6 +164,13 @@ report (`derived_from_defaults`).
 `S2A_OPER_PRD_MSIL0P_…​.SAFE`, `S2A_OPER_MSI_L0__GR_…_D<dd>` — the structural-comparison
 phase of `scripts/run_pipeline.py` maps these to our PSFD names in its report.
 
+**Operational decoder placement.** The canonical L0's ground decode (packet reassembly +
+CCSDS-122 decompression) is implemented on the **consumer side**
+(`msi_processor.computing.l0_decode.ground_decode`) — the real-chain L1A-side operation.
+This module's `read_l0_isp_dn` remains the E2ES-side *reference* decoder; the pipeline's
+`ground-decode` phase runs both and cross-checks them bit-exactly when the consumer is
+installed.
+
 ## Validation requirements
 The output structure is verified by `tests/test_l0product.py` (156-array contract, dtypes, root metadata,
 `tests/test_ccsds122.py` (ICD-IF-C122 bit-exact stream), `tests/test_isp_packetize.py` (packet grammar),
