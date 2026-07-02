@@ -36,7 +36,7 @@ Optional, only to render preview PNGs with `save_images.py`: `pip install pillow
 ## 2. Quick start
 
 ```bash
-pytest                        # 104 tests (2 real-data tests skip without env vars)
+pytest                        # 201 tests at v0.3.0 (real-data/eopf cases skip without env)
 ```
 
 The packagedS2 PSF matrices live under `s2_msi_raw_generator/data/psf/`; no external data is needed for the unit

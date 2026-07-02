@@ -166,6 +166,8 @@ phase of `scripts/run_e2e_real_l1a.py` maps these to our PSFD names in its repor
 
 ## Validation requirements
 The output structure is verified by `tests/test_l0product.py` (156-array contract, dtypes, root metadata,
+`tests/test_ccsds122.py` (ICD-IF-C122 bit-exact stream), `tests/test_isp_packetize.py` (packet grammar),
+`tests/test_naming.py` (ICD-IF-NAME round-trip), `tests/test_s3fetch.py`, `tests/test_real_e2e_driver.py`,
 `eopf:type`, `tdi_configuration_list`, `physical_gains`, `line_period`, `adf_provenance`) and
 `tests/test_integration.py` (end-to-end product incl. ISP + quality masks). Inputs are exercised on real
 ESA L1A/L1B and the GIPP.

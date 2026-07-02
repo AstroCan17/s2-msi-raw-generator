@@ -24,7 +24,7 @@ project = "s2-msi-raw-generator"
 copyright = "2026 Can Deniz Kaya"
 author = "Can Deniz Kaya"
 # Set by the CI pipeline (`SPHINX_RELEASE`); falls back to the package version.
-release = os.environ.get("SPHINX_RELEASE", "0.3.0.dev0")
+release = os.environ.get("SPHINX_RELEASE", "0.3.0")
 
 # -- General configuration ----------------------------------------------------
 extensions = [

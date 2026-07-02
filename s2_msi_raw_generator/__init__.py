@@ -6,4 +6,4 @@ module was cancelled — L1A/L1B is already in detector geometry, so there is no
 de-orthorectify (Issue #17). See ``docs/atbd/atbd.md``.
 """
 
-__version__ = "0.3.0.dev0"
+__version__ = "0.3.0"

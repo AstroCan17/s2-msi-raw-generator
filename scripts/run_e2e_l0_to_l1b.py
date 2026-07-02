@@ -23,10 +23,10 @@ TOA-reflectance product.
 The generator writes zarr in a **v2/v3-compatible** way (``s2_msi_raw_generator._zarrio``), so step (1)
 runs in the same ``eopf==2.8.1`` (zarr 2.18) environment as step (2) — a **single venv**, no separate
 zarr-3 venv needed. Step (1)'s schema is also exercised in generator CI (``tests/test_e2e_l1b.py``,
-zarr 3); step (2) needs ``eopf`` + ``msi_processor`` so the CI test importorskips it (runs on the SDE).
+zarr 3); step (2) needs ``eopf`` + ``msi_processor`` so the CI unit test importorskips it (it runs on the SDE or in the manual ``e2e-l1b`` CI job).
 Wiring validated on the SDE against msi-processor ``tests/it/computing/test_full_chain.py``.
 
-    python scripts/run_e2e_l0_to_l1b.py [work_dir]     # needs eopf==2.8.1 + msi_processor (the SDE)
+    python scripts/run_e2e_l0_to_l1b.py [work_dir]     # needs eopf==2.8.1 + msi_processor (SDE / e2e-l1b job)
 
 ``work_dir`` is the run's central **data store** (default: the repo's ``data/output/``): every product
 of the chain lands under one root — ``l0/`` (downlink input), ``caldb/`` (auxiliary ADFs), ``l1b/``
@@ -92,7 +92,7 @@ def run_processor(l0_path, caldb_dir, *, sun_zenith_deg: float = SUN_ZENITH_DEG,
                   earth_sun_distance_au: float = 1.0):
     """Run msi-processor ``l0_decode → radiometric → enhancement → toa`` (emit_reflectance) → L1B.
 
-    **SDE-only** (needs ``eopf==2.8.1`` + ``msi_processor``); imported lazily so this file stays importable
+    Needs ``eopf==2.8.1`` + ``msi_processor`` (the SDE or the manual ``e2e-l1b`` CI job); imported lazily so this file stays importable
     in generator CI. Wiring validated against msi-processor ``tests/it/computing/test_full_chain.py``.
     """
     import zarr
@@ -142,7 +142,7 @@ def run_processor(l0_path, caldb_dir, *, sun_zenith_deg: float = SUN_ZENITH_DEG,
 
 
 def write_l1b(l1b, out_dir, name: str = "L1B_TOA") -> str:
-    """Persist the L1B ``EOProduct`` to ``out_dir/<name>.zarr`` with eopf's native zarr store (SDE-only).
+    """Persist the L1B ``EOProduct`` to ``out_dir/<name>.zarr`` with eopf's native zarr store (eopf env: SDE / e2e-l1b job).
 
     ``EOZarrStore(url)`` requires ``url`` to already exist and writes ``url / key + ".zarr"`` on
     ``store[key] = product`` (eopf 2.8.1 ``eopf/store/zarr.py``); ``delayed_writing=False`` so the
