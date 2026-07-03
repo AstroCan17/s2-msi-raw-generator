@@ -176,7 +176,7 @@ Everything runs through the **single pipeline driver** `scripts/run_pipeline.py`
 python scripts/run_pipeline.py ~/data-store --gipp $S2_E2ES_GIPP_DIR
 
 # synthetic flat-field chain into the repo's tracked data store (L0 + cal-DB, then L1B in an eopf env)
-python scripts/run_pipeline.py data/output --synthetic
+python scripts/run_pipeline.py <store> --synthetic
 
 # shared data-store (ipf/data-store registry): pull / push the product DB
 python scripts/run_pipeline.py <store> --phases fetch-store
