@@ -177,6 +177,58 @@ def build_root_metadata(
     }
 
 
+def _band_payload(
+    dn: np.ndarray,
+    mask: np.ndarray | None,
+    with_isp: bool,
+    t0_gps: float,
+    line_period_s: float,
+    gps_epoch_s: float,
+    apid: int,
+    max_payload: int,
+) -> dict:
+    """One band's CPU-bound share of :func:`write_l0_product` — no zarr I/O.
+
+    Quality mask, CCSDS-122 lossless compression, ISP packetization and SAD telemetry.
+    Module-level (picklable) so ``write_l0_product(jobs>1)`` can fan bands out to worker
+    processes — the codec's entropy coder is pure Python and holds the GIL, so threads
+    would not scale.
+    """
+    # Canonical L0 mask = S2 MSK_QUALIT (8 bit-planes), seeded from DN (saturation/no-data/lost)
+    # OR'd with any injected-defect qa (reverse.s10 bit0=dead/bit1=hot → DEFECTIVE/SATURATED).
+    qflags = quality.l0_flags(dn)
+    if mask is not None:
+        qflags = qflags | quality.from_s10_qa(mask)
+    out: dict = {"mask": quality.to_msk_qualit(qflags)}
+    if not with_isp:
+        return out
+    depth = 16 if int(dn.max(initial=0)) > sensor.DN_MAX else 12
+    payload, stats = ccsds122.compress_frame(dn, pixel_bit_depth=depth)
+    bounds = ccsds122.segment_byte_bounds(payload)
+    # one codec segment = one 8-image-line block row → its CUC time is that row's first line
+    seg_times = t0_gps + np.arange(len(bounds)) * (8 * line_period_s)
+    stream, offsets, plens = isp.packetize_stream(
+        payload,
+        apid,
+        segment_bounds=bounds,
+        segment_times_gps=seg_times,
+        max_payload=max_payload,
+    )
+    # SAD telemetry for this APID: real AOCS quaternion + orbit ephemeris + thermal (not zeros)
+    n_sad = max(dn.shape[0] // 8, 1)
+    sad_times = gps_epoch_s + np.arange(n_sad) * (line_period_s * 8)
+    sad_arr, sad_len = sad.pack_sad_isp(sad.synth_orbit_attitude(sad_times), apid)
+    out.update(
+        stats=stats,
+        stream=stream,
+        offsets=offsets,
+        plens=plens,
+        sad_arr=sad_arr,
+        sad_len=sad_len,
+    )
+    return out
+
+
 def write_l0_product(
     out_path: str,
     frames: dict[FrameKey, np.ndarray],
@@ -194,6 +246,7 @@ def write_l0_product(
     eopf_type: str = "S2MSIL0_",
     operation_mode: str = "NOBS",
     datatake_type: str = "INS-NOBS",
+    jobs: int = 1,
 ) -> str:
     """Write the L0 RAW EOProduct Zarr to ``out_path`` and return it.
 
@@ -212,6 +265,10 @@ def write_l0_product(
     static ``compression_rate`` metadata. With ``store_decoded=False`` the decoded ``band{BB}``
     arrays are omitted — the product then stores ISPs only, mirroring the real S2 L0
     (SentiWiki: L0 = compressed ISPs; ground L1A decompresses via :func:`read_l0_isp_dn`).
+
+    ``jobs > 1`` fans the per-band CPU work (compression/packetization/SAD —
+    :func:`_band_payload`) out to that many worker processes; the zarr writes stay in this
+    process and the product is bit-identical to a serial run.
     """
     if zarr is None:
         raise ImportError(
@@ -248,47 +305,62 @@ def write_l0_product(
     line_period_s = datation.line_period_s
     achieved_ratio: dict[str, float] = {}
 
-    for (det, bname), dn in sorted(frames.items()):
+    items = sorted(frames.items())
+    for (det, bname), dn in items:
         if dn.dtype != np.uint16:
             raise TypeError(f"frame ({det},{bname}) must be uint16, got {dn.dtype}")
+
+    def _payload_args(det: int, bname: str, dn: np.ndarray) -> tuple:
+        mask = masks.get((det, bname)) if masks is not None else None
+        return (
+            dn,
+            mask,
+            with_isp,
+            datation.line_time_gps(0, bname),  # real GPS/OBT epoch of the band's first line
+            line_period_s,
+            datation.gps_epoch_s,
+            isp.apid_for(det, sensor.BANDS.index(bname)),
+            isp_max_payload,
+        )
+
+    # Per-band CPU work → worker processes (the codec's entropy coder is GIL-bound);
+    # all zarr writes stay in this process, so the product is written serially below.
+    # spawn context: fork from a multi-threaded parent is deprecated (3.12+) / deadlock-prone.
+    if jobs > 1 and len(items) > 1:
+        import multiprocessing
+        from concurrent.futures import ProcessPoolExecutor
+
+        ctx = multiprocessing.get_context("spawn")
+        with ProcessPoolExecutor(
+            max_workers=min(jobs, len(items)), mp_context=ctx
+        ) as pool:
+            futures = {
+                key: pool.submit(_band_payload, *_payload_args(*key, dn))
+                for key, dn in items
+            }
+            payloads = {key: fut.result() for key, fut in futures.items()}
+    else:
+        payloads = {key: _band_payload(*_payload_args(*key, dn)) for key, dn in items}
+
+    for (det, bname), dn in items:
+        pay = payloads[(det, bname)]
         bkey = sensor.zarr_band_key(bname)
         bnum = sensor.band_number(bname)
         mg = m.require_group(f"d{det:02d}").require_group(bkey)
         if store_decoded:
             a = _zarrio.put_array(mg, f"band{bnum}", dn, dtype="uint16")
             a.attrs["short_name"] = f"band{bnum}"
-
-        # Canonical L0 mask = S2 MSK_QUALIT (8 bit-planes), seeded from DN (saturation/no-data/lost)
-        # OR'd with any injected-defect qa (reverse.s10 bit0=dead/bit1=hot → DEFECTIVE/SATURATED).
-        qflags = quality.l0_flags(dn)
-        if masks is not None and (det, bname) in masks:
-            qflags = qflags | quality.from_s10_qa(masks[(det, bname)])
-        mk = quality.to_msk_qualit(qflags)
         qg = q.require_group(f"d{det:02d}").require_group(bkey)
-        _zarrio.put_array(qg, "mask", mk, dtype="uint8")
+        _zarrio.put_array(qg, "mask", pay["mask"], dtype="uint8")
 
         if with_isp:
             apid = isp.apid_for(det, sensor.BANDS.index(bname))
-            t0 = datation.line_time_gps(
-                0, bname
-            )  # real GPS/OBT epoch of this band's first line
-            depth = 16 if int(dn.max(initial=0)) > sensor.DN_MAX else 12
-            payload, stats = ccsds122.compress_frame(dn, pixel_bit_depth=depth)
-            bounds = ccsds122.segment_byte_bounds(payload)
-            # one codec segment = one 8-image-line block row → its CUC time is that row's first line
-            seg_times = t0 + np.arange(len(bounds)) * (8 * line_period_s)
-            stream, offsets, plens = isp.packetize_stream(
-                payload,
-                apid,
-                segment_bounds=bounds,
-                segment_times_gps=seg_times,
-                max_payload=isp_max_payload,
-            )
-            _zarrio.put_array(mg, "isp", stream, dtype="uint8")
-            _zarrio.put_array(mg, "isp_offsets", offsets, dtype="uint64")
-            _zarrio.put_array(mg, "packet_data_length", plens, dtype="uint32")
+            stats = pay["stats"]
+            _zarrio.put_array(mg, "isp", pay["stream"], dtype="uint8")
+            _zarrio.put_array(mg, "isp_offsets", pay["offsets"], dtype="uint64")
+            _zarrio.put_array(mg, "packet_data_length", pay["plens"], dtype="uint32")
             mg.attrs["apid"] = apid
-            mg.attrs["n_packets"] = int(offsets.size)
+            mg.attrs["n_packets"] = int(pay["offsets"].size)
             mg.attrs["n_segments"] = int(stats.n_segments)
             mg.attrs["max_payload_octets"] = int(isp_max_payload)
             mg.attrs["compression"] = {
@@ -301,15 +373,9 @@ def write_l0_product(
             achieved_ratio[bname] = max(
                 achieved_ratio.get(bname, 0.0), round(stats.ratio, 4)
             )
-            # SAD telemetry for this APID: real AOCS quaternion + orbit ephemeris + thermal (not zeros)
-            n_sad = max(dn.shape[0] // 8, 1)
-            sad_times = datation.gps_epoch_s + np.arange(n_sad) * (line_period_s * 8)
-            sad_arr, sad_len = sad.pack_sad_isp(
-                sad.synth_orbit_attitude(sad_times), apid
-            )
             sg = cond.require_group(f"s{apid}")
-            _zarrio.put_array(sg, "isp", sad_arr, dtype="uint8")
-            _zarrio.put_array(sg, "packet_data_length", sad_len, dtype="uint16")
+            _zarrio.put_array(sg, "isp", pay["sad_arr"], dtype="uint8")
+            _zarrio.put_array(sg, "packet_data_length", pay["sad_len"], dtype="uint16")
 
     # Achieved (real) compression ratios replace the static datasheet rates (REQ-FUNC-092).
     if achieved_ratio:
@@ -346,6 +412,37 @@ def read_l0_isp_dn(path: str, det: int, bname: str) -> np.ndarray:
     stream = np.asarray(mg["isp"])
     payload = b"".join(isp.reassemble_segments(stream))
     return ccsds122.decompress_frame(payload)
+
+
+def decode_verify_band(
+    canon_path: str,
+    det: int,
+    bname: str,
+    l1a_path: str,
+    line_slice: slice | None,
+) -> tuple[np.ndarray, bool, bool | None]:
+    """Ground-decode one band of a canonical L0 and verify it against the original L1A DN.
+
+    Uses the CONSUMER decoder (msi-processor ``ground_decode``) when importable,
+    cross-checked bit-exactly against the E2ES reference :func:`read_l0_isp_dn`; falls
+    back to the reference alone. Returns ``(reconstructed_dn, bit_exact_vs_original,
+    cross_check)`` — ``cross_check`` is ``None`` without the consumer, else the
+    decoder-agreement verdict. Module-level (picklable) so the driver's ground-decode
+    phase can fan bands out to a process pool (decompression is pure-Python/GIL-bound).
+    """
+    rec_ref = read_l0_isp_dn(canon_path, det, bname)
+    cross: bool | None = None
+    try:
+        from msi_processor.computing.l0_decode.ground_decode import decode_canonical_l0
+    except ImportError:
+        rec = rec_ref
+    else:
+        rec = decode_canonical_l0(canon_path, det, bname)
+        cross = bool(np.array_equal(rec, rec_ref))
+    from . import io as gio
+
+    orig = gio.read_l1a_raw(l1a_path, det, bname, lines=line_slice, dtype=np.uint16)
+    return rec, bool(np.array_equal(rec, orig)), cross
 
 
 def frames_to_strip(frames: dict[FrameKey, np.ndarray]) -> dict[str, np.ndarray]:
