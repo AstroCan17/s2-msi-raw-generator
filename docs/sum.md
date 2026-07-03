@@ -49,9 +49,9 @@ figures/ report/`). Every product file name follows the EOPF PSFD §3 convention
 
 | Phase set | Phases | Needs |
 |---|---|---|
-| **Real chain** (default; REQ-FUNC-093) | `fetch-l1a fetch-l0 preflight package ground-decode l0-decode validate radiometric-vv scan-l0 quicklook report` | numpy+zarr; `l0-decode`/`validate` need `eopf==2.8.1` + `msi_processor` |
-| **Synthetic chain** (`--synthetic`; REQ-FUNC-042) | `build-l0-synth l0-to-l1b` | numpy+zarr; `l0-to-l1b` needs the eopf env |
-| **On demand** | `build-caldb` · `derive-adf` · `figures` | numpy+zarr only |
+| **Nominal mode** (default; REQ-FUNC-093) | `fetch-l1a fetch-l0 preflight package ground-decode l0-decode validate radiometric-vv scan-l0 quicklook report` — real S2 product → synthetic RAW downlink | numpy+zarr; `ground-decode`/`l0-decode`/`validate` need `eopf==2.8.1` + `msi_processor` |
+| **Calibration mode** (`--mode calibration`; REQ-FUNC-048) | `cal-acquire cal-package build-caldb report` — dark (DASC) + sun-diffuser (ABSR) campaign → **real downlink L0 products** `S02MSIDCA`/`S02MSISCA` + Option-Y cal-DB | numpy+zarr only |
+| **On demand** | `derive-adf` · `figures` | numpy+zarr only |
 | **Data-store sync** | `fetch-store` (pull, anonymous) · `publish-store` (push, job/`glab` token) | numpy+stdlib; DB = the [ipf/data-store](https://gitlab.eopf.copernicus.eu/ipf/data-store) registry |
 
 ```bash
@@ -64,12 +64,11 @@ python scripts/run_pipeline.py ~/data-store --gipp <GIPP_dir>
 # re-run individual phases (idempotent; JSON per phase under <store>/report/)
 python scripts/run_pipeline.py <store> --phases preflight,package,ground-decode --lines 4096
 
-# synthetic flat-field chain into the repo's tracked data store
-python scripts/run_pipeline.py <store> --synthetic
+# calibration campaign: dark + sun-diffuser acquisitions as REAL downlink L0 products
+# (S02MSIDCA / S02MSISCA, compressed ISPs) + the Option-Y cal-DB derived from the same frames
+python scripts/run_pipeline.py <store> --mode calibration
 
-# full 13-band derived Option-Y cal-DB (nuc/dark/radiometric/spectral[+noise] ADFs
-# + the raw calibration acquisitions: flatfield.zarr and dark.zarr /frame — the consumer's
-# radiometric calibration-mode inputs)
+# standalone Option-Y cal-DB (same numbers as the campaign derivation — deterministic seeds)
 python scripts/run_pipeline.py <store> --phases build-caldb
 
 # real per-detector PRNU (+ dark from a dark-calibration granule) → .npz for BandADF.from_product
@@ -87,9 +86,9 @@ S2_E2ES_GIPP_DIR=<GIPP_dir> S2_E2ES_L1A=<L1A.zarr> pytest tests/ -q
 
 ## 4. CLI reference
 
-`run_pipeline.py <store> [--phases …] [--synthetic] [--l1a PATH] [--dark PATH] [--gipp DIR]
-[--bands …] [--detectors 1-12] [--lines N] [--band-groups N] [--max-payload N] [--jobs N]
-[--seed N] [--caldb-n-det N] [--store-decoded yes|no] [--fig-l1b PATH] [--fig-band B04]
+`run_pipeline.py <store> [--mode nominal|calibration] [--phases …] [--l1a PATH] [--dark PATH]
+[--gipp DIR] [--bands …] [--detectors 1-12] [--lines N] [--band-groups N] [--max-payload N]
+[--jobs N] [--seed N] [--n-det N] [--cal-lines N] [--store-decoded yes|no] [--fig-l1b PATH] [--fig-band B04]
 [--fig-detector N] [--fig-line-start N] [--fig-lines N] [--fig-zoom-*] [--fig-out DIR]`
 
 Phases are idempotent and re-runnable individually; each writes its JSON under

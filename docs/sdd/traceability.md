@@ -56,7 +56,8 @@ method (T/A/I/R) and status. Verification details and quantitative results are i
 | REQ-FUNC-041 | EOQC quality report | quality_report, l0product | `quality_report.build_qc_report`, `write_qc_report` | `test_quality_report` | T | realized |
 | REQ-FUNC-036 | Orbit/attitude ephemeris | sad, l0product | `sad.orbit_ephemeris`, `synth_orbit_attitude` | `test_sad` | T | realized |
 | REQ-FUNC-037 | SAD content (real ISP) | sad, l0product | `sad.synth_orbit_attitude`, `pack_sad_isp`, `scan_ccsds_packets` | `test_sad` | T | realized |
-| REQ-FUNC-042 | Open-container L0 + L0→L1B E2E | l0product, scripts | `l0product.write_l0_opencontainer`, `scripts/run_pipeline.py` (`--synthetic`) | `test_e2e_l1b` | T/I | realized |
+| REQ-FUNC-042 | Open-container L0 handoff | l0product, scripts | `l0product.write_l0_opencontainer`, nominal `ground-decode` phase | `test_l0_handoff` | T/I | realized |
+| REQ-FUNC-048 | Calibration-campaign L0 products (DASC/ABSR) | calibration, caldb, l0product, scripts | `phase_cal_acquire`/`phase_cal_package`/`caldb.derive_from_acquisitions`; PSFD `S02MSIDCA`/`S02MSISCA` | `test_cal_mode` | T | realized |
 | REQ-FUNC-091 | PSFD §3 product naming (ICD-IF-NAME) | `naming.py` | `test_naming`, `test_real_e2e_driver` | realized |
 | REQ-FUNC-092 | CCSDS-122 compressed ISP payloads + ground decode | `ccsds122.py`, `isp.py`, `l0product.py` | `test_ccsds122`, `test_isp_packetize`, `test_isp`, `test_integration` | realized |
 | REQ-FUNC-093 | Real-L1A E2E validation driver + report | `scripts/run_pipeline.py`, `s3fetch.py` | `test_real_e2e_driver`; SDE run (`docs/vv/real_e2e.md`) | realized |

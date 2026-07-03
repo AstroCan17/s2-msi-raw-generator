@@ -172,11 +172,13 @@ Everything runs through the **single pipeline driver** `scripts/run_pipeline.py`
 (phase-structured, idempotent, one data-store root; all product names PSFD §3):
 
 ```bash
-# real-data chain (fetch → package → ground-decode → l0_decode → validate → report)
+# nominal mode (default): real S2 product → synthetic RAW downlink
+# (fetch → package → ground-decode → l0_decode → validate → report)
 python scripts/run_pipeline.py ~/data-store --gipp $S2_E2ES_GIPP_DIR
 
-# synthetic flat-field chain into the repo's tracked data store (L0 + cal-DB, then L1B in an eopf env)
-python scripts/run_pipeline.py <store> --synthetic
+# calibration mode: dark (DASC) + sun-diffuser (ABSR) campaign acquisitions packaged as
+# REAL downlink L0 products (S02MSIDCA / S02MSISCA, compressed ISPs) + Option-Y cal-DB
+python scripts/run_pipeline.py <store> --mode calibration
 
 # shared data-store (ipf/data-store registry): pull / push the product DB
 python scripts/run_pipeline.py <store> --phases fetch-store

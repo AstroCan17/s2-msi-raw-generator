@@ -31,13 +31,20 @@ class DerivedCalibration:
     """Calibration coefficients *estimated* from the synthetic diffuser + dark acquisitions."""
 
     band: str
-    dark: np.ndarray            # (n_det,) estimated per-detector dark D(j)
+    dark: np.ndarray  # (n_det,) estimated per-detector dark D(j)
     relative_response: np.ndarray  # (n_det,) estimated relative response g(j), ⟨g⟩ = 1
-    abs_coeff: float            # estimated absolute calibration coefficient A
-    l_diff: float               # diffuser radiance used
+    abs_coeff: float  # estimated absolute calibration coefficient A
+    l_diff: float  # diffuser radiance used
 
 
-def synth_dark_acquisition(adf: BandADF, n_lines: int, rng: np.random.Generator) -> np.ndarray:
+#: Diffuser radiance level as a multiple of Lref — bright but clip-free for every band
+#: (worst case B08 stays ≈2510 DN pre-quantization; S14 clips silently above 4095).
+DIFFUSER_LEVEL_FACTOR = 1.5
+
+
+def synth_dark_acquisition(
+    adf: BandADF, n_lines: int, rng: np.random.Generator
+) -> np.ndarray:
     """Synthetic **dark** L0 acquisition (zero scene radiance → dark pedestal + sensor noise)."""
     zero = np.zeros((n_lines, adf.dark_dn.shape[0]), dtype=np.float64)
     return reverse_mvp(zero, adf, rng).astype(np.float64)
@@ -67,12 +74,14 @@ def derive_relative_response(
 
     ``g(j) = A·L_diff / ⟨X_diff(i,j) − D(j)⟩_i`` then normalised so ``⟨g(j)⟩_j = 1`` (L1 ATBD).
     """
-    signal = np.mean(np.asarray(diffuser_acq, dtype=np.float64), axis=0) - np.asarray(dark_est)
+    signal = np.mean(np.asarray(diffuser_acq, dtype=np.float64), axis=0) - np.asarray(
+        dark_est
+    )
     signal = np.where(signal > 0, signal, np.nan)
-    g_raw = 1.0 / signal                                  # g ∝ 1 / (X_diff − D)
-    g = g_raw / np.nanmean(g_raw)                         # normalise ⟨g⟩_j = 1
+    g_raw = 1.0 / signal  # g ∝ 1 / (X_diff − D)
+    g = g_raw / np.nanmean(g_raw)  # normalise ⟨g⟩_j = 1
     g = np.where(np.isfinite(g), g, 1.0)
-    abs_coeff = float(np.nanmean(signal) / l_diff)        # A·L_diff = ⟨X_diff − D⟩ at ⟨g⟩ = 1
+    abs_coeff = float(np.nanmean(signal) / l_diff)  # A·L_diff = ⟨X_diff − D⟩ at ⟨g⟩ = 1
     return g, abs_coeff
 
 

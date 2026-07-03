@@ -52,7 +52,6 @@ ADF_TYPES = {
     "radiometric": "ADF_RABCA",
     "spectral": "ADF_SPECT",
     "noise": "ADF_RNOMO",
-    "flatfield": "ADF_RDIFF",
 }
 
 
@@ -60,13 +59,15 @@ ADF_TYPES = {
 class BandCal:
     """Per-band calibration coefficients in the ``msi-processor`` ADF convention."""
 
-    band: str                 # canonical S2 band id, e.g. "B03" / "B8A"
-    nuc_gain: np.ndarray      # (n_det,) NUC correction gain g_d
-    nuc_offset: np.ndarray    # (n_det,) NUC offset o_d
-    dark_offset: float        # per-band dark k = μ_D
-    radio_gain: float         # absolute DN→radiance gain = 1 / cal_gain
+    band: str  # canonical S2 band id, e.g. "B03" / "B8A"
+    nuc_gain: np.ndarray  # (n_det,) NUC correction gain g_d
+    nuc_offset: np.ndarray  # (n_det,) NUC offset o_d
+    dark_offset: float  # per-band dark k = μ_D
+    radio_gain: float  # absolute DN→radiance gain = 1 / cal_gain
     radio_offset: float = 0.0  # absolute DN→radiance offset
-    esun: float = 0.0         # ESUN solar irradiance (W·m⁻²·µm⁻¹), for the toa reflectance step
+    esun: float = (
+        0.0  # ESUN solar irradiance (W·m⁻²·µm⁻¹), for the toa reflectance step
+    )
     noise_alpha: float = 0.0  # σ = √(α² + β·DN)
     noise_beta: float = 0.0
 
@@ -97,12 +98,14 @@ def nuc_two_point(
 def _write_vector(group, name: str, values: np.ndarray) -> None:
     """Write a 1-D ``(detector,)`` float32 array under ``group/name`` (zarr v2/v3 compatible)."""
     from . import _zarrio
+
     _zarrio.put_array(group, name, values, dtype="float32")
 
 
 def _write_scalar(group, name: str, value: float) -> None:
     """Write a 0-d float32 scalar under ``group/name`` (``float(...)``-able by the processor)."""
     from . import _zarrio
+
     _zarrio.put_array(group, name, np.float32(value), dtype="float32")
 
 
@@ -127,20 +130,19 @@ def write_calibration_db(
     source: str = "derived (CSM diffuser + dark calibration)",
     include_spectral: bool = True,
     include_noise: bool = True,
-    acquisitions: dict[str, tuple[np.ndarray, np.ndarray]] | None = None,
 ) -> list[Path]:
     """Write the EOPF zarr ADF set (``nuc`` / ``dark`` / ``radiometric`` [+ ``spectral`` + ``noise``]).
 
-    ``acquisitions`` maps ``band -> (dark_frame, flatfield_frame)`` — the raw calibration
-    *acquisitions* (2-D ``(line, detector)``) behind the derived coefficients. When given,
-    ``flatfield.zarr`` (``/{band}``) is written and ``dark.zarr`` additionally carries
-    ``/frame/{band}``: exactly the inputs the consumer's ``radiometric`` **calibration mode**
-    needs to derive its own NUC (dark + flatfield mandatory ADFs).
+    The raw calibration *acquisitions* behind these coefficients are not ADF side-files:
+    the pipeline's calibration mode packages them as real downlink L0 products
+    (``S02MSIDCA`` dark, ``S02MSISCA`` sun-diffuser) — see the ICD.
 
     Returns the list of written ``.zarr`` paths. A ``PROVENANCE.md`` is written beside them.
     """
     if zarr is None:
-        raise ImportError("zarr is required to write the calibration database: `uv pip install zarr`")
+        raise ImportError(
+            "zarr is required to write the calibration database: `uv pip install zarr`"
+        )
     from . import _zarrio
 
     out = Path(out_dir)
@@ -151,7 +153,9 @@ def write_calibration_db(
     # nuc.zarr — per-detector NUC correction (default-mode mandatory ADF).
     nuc_path = out / "nuc.zarr"
     root = _zarrio.open_group_w(nuc_path)
-    root.attrs.update(_provenance(unit, "nuc", "per-detector NUC gain g_d and offset o_d", source))
+    root.attrs.update(
+        _provenance(unit, "nuc", "per-detector NUC gain g_d and offset o_d", source)
+    )
     g_grp, o_grp = root.create_group("gain"), root.create_group("offset")
     for c in cals:
         _write_vector(g_grp, c.band, c.nuc_gain)
@@ -161,23 +165,25 @@ def write_calibration_db(
     # dark.zarr — per-band dark offset k (mandatory ADF).
     dark_path = out / "dark.zarr"
     root = _zarrio.open_group_w(dark_path)
-    root.attrs.update(_provenance(unit, "dark", "per-band dark offset k = mean dark", source))
+    root.attrs.update(
+        _provenance(unit, "dark", "per-band dark offset k = mean dark", source)
+    )
     do_grp = root.create_group("dark_offset")
     for c in cals:
         _write_scalar(do_grp, c.band, c.dark_offset)
-    if acquisitions:
-        fr_grp = root.create_group("frame")
-        for c in cals:
-            if c.band in acquisitions:
-                from . import _zarrio as _z
-                _z.put_array(fr_grp, c.band, np.asarray(acquisitions[c.band][0], dtype=np.float32),
-                             dtype="float32")
     written.append(dark_path)
 
     # radiometric.zarr — absolute DN→radiance gain/offset (TOA-unit mandatory ADF).
     rad_path = out / "radiometric.zarr"
     root = _zarrio.open_group_w(rad_path)
-    root.attrs.update(_provenance(unit, "radiometric", "absolute DN->radiance gain (1/cal_gain), offset", source))
+    root.attrs.update(
+        _provenance(
+            unit,
+            "radiometric",
+            "absolute DN->radiance gain (1/cal_gain), offset",
+            source,
+        )
+    )
     g_grp, o_grp = root.create_group("gain"), root.create_group("offset")
     for c in cals:
         _write_scalar(g_grp, c.band, c.radio_gain)
@@ -188,46 +194,51 @@ def write_calibration_db(
     if include_spectral:
         spec_path = out / "spectral.zarr"
         root = _zarrio.open_group_w(spec_path)
-        root.attrs.update(_provenance(
-            unit, "spectral",
-            "per-band ESUN (solar irradiance, W m-2 um-1); operationally within ADF_RABCA / L1C SOLAR_IRRADIANCE",
-            "Thuillier 2003 (ATBD Annex A.3)"))
+        root.attrs.update(
+            _provenance(
+                unit,
+                "spectral",
+                "per-band ESUN (solar irradiance, W m-2 um-1); operationally within ADF_RABCA / L1C SOLAR_IRRADIANCE",
+                "Thuillier 2003 (ATBD Annex A.3)",
+            )
+        )
         e_grp = root.create_group("esun")
         for c in cals:
             _write_scalar(e_grp, c.band, c.esun)
         written.append(spec_path)
 
-    # flatfield.zarr — the raw diffuser acquisition (consumer calibration-mode mandatory ADF).
-    if acquisitions:
-        flat_path = out / "flatfield.zarr"
-        root = _zarrio.open_group_w(flat_path)
-        root.attrs.update(_provenance(
-            unit, "flatfield",
-            "per-band diffuser (flat-field) acquisition frames (line, detector); consumer "
-            "calibration mode derives NUC as gain = mean(F)/colmean(F)", source))
-        for c in cals:
-            if c.band in acquisitions:
-                _zarrio.put_array(root, c.band, np.asarray(acquisitions[c.band][1], dtype=np.float32),
-                                  dtype="float32")
-        written.append(flat_path)
-
     # noise.zarr — E2ES-side noise model (RNOMO); msi-processor does not read it.
     if include_noise:
         noise_path = out / "noise.zarr"
         root = _zarrio.open_group_w(noise_path)
-        root.attrs.update(_provenance(unit, "noise", "noise model sigma=sqrt(alpha^2 + beta*DN); E2ES-side", source))
+        root.attrs.update(
+            _provenance(
+                unit,
+                "noise",
+                "noise model sigma=sqrt(alpha^2 + beta*DN); E2ES-side",
+                source,
+            )
+        )
         a_grp, b_grp = root.create_group("alpha"), root.create_group("beta")
         for c in cals:
             _write_scalar(a_grp, c.band, c.noise_alpha)
             _write_scalar(b_grp, c.band, c.noise_beta)
         written.append(noise_path)
 
-    _write_provenance_md(out / "PROVENANCE.md", unit, source, cals, include_spectral, include_noise)
+    _write_provenance_md(
+        out / "PROVENANCE.md", unit, source, cals, include_spectral, include_noise
+    )
     return written
 
 
-def _write_provenance_md(path: Path, unit: str, source: str, cals: list[BandCal],
-                         include_spectral: bool, include_noise: bool) -> None:
+def _write_provenance_md(
+    path: Path,
+    unit: str,
+    source: str,
+    cals: list[BandCal],
+    include_spectral: bool,
+    include_noise: bool,
+) -> None:
     """Write a human-readable manifest beside the artifacts (like ``data/psf/PROVENANCE.md``)."""
     bands = ", ".join(c.band for c in cals)
     rows = [
@@ -236,30 +247,36 @@ def _write_provenance_md(path: Path, unit: str, source: str, cals: list[BandCal]
         "| `radiometric.zarr` | `/gain/<band>`, `/offset/<band>` | float32 scalar | msi-processor toa unit |",
     ]
     if include_spectral:
-        rows.append("| `spectral.zarr` | `/esun/<band>` | float32 scalar | msi-processor toa unit (reflectance) |")
+        rows.append(
+            "| `spectral.zarr` | `/esun/<band>` | float32 scalar | msi-processor toa unit (reflectance) |"
+        )
     if include_noise:
-        rows.append("| `noise.zarr` | `/alpha/<band>`, `/beta/<band>` | float32 scalar | E2ES-side (RNOMO); not read by msi-processor |")
-    text = "\n".join([
-        "# Calibration database (EOPF ADF set) — PROVENANCE",
-        "",
-        f"Generated by `s2_msi_raw_generator` v{__version__} (Sentinel-2 MSI Synthetic Raw Data Generator).",
-        f"Unit: **{unit}**.  Bands: {bands}.",
-        f"Source: {source}.",
-        "",
-        "## Artifacts (zarr v2, EOPF `AuxiliaryDataFile` convention)",
-        "",
-        "| file | groups | shape | consumer |",
-        "|---|---|---|---|",
-        *rows,
-        "",
-        "## Convention",
-        "",
-        "NUC `gain`/`offset` follow the processor's two-point form (`estimate_nuc`): from a synthetic",
-        "dark frame D and diffuser flat F, `g_d = (muF-muD)/(Fbar_d-Dbar_d)`, `o_d = muF - g_d*Fbar_d`,",
-        "and the per-band dark `k = muD`. Absolute `radiometric.gain` is diffuser-derived",
-        "(`l_diff/(muF-muD)` ~ `1/cal_gain`, `offset = 0`) so the processor's `apply_nuc` then",
-        "`dn_to_radiance` recover `A*L` then `L`. Coefficients are **derived** (not the truth ADF)",
-        "— the round-trip is non-tautological (inverse-crime cure).",
-        "",
-    ])
+        rows.append(
+            "| `noise.zarr` | `/alpha/<band>`, `/beta/<band>` | float32 scalar | E2ES-side (RNOMO); not read by msi-processor |"
+        )
+    text = "\n".join(
+        [
+            "# Calibration database (EOPF ADF set) — PROVENANCE",
+            "",
+            f"Generated by `s2_msi_raw_generator` v{__version__} (Sentinel-2 MSI Synthetic Raw Data Generator).",
+            f"Unit: **{unit}**.  Bands: {bands}.",
+            f"Source: {source}.",
+            "",
+            "## Artifacts (zarr v2, EOPF `AuxiliaryDataFile` convention)",
+            "",
+            "| file | groups | shape | consumer |",
+            "|---|---|---|---|",
+            *rows,
+            "",
+            "## Convention",
+            "",
+            "NUC `gain`/`offset` follow the processor's two-point form (`estimate_nuc`): from a synthetic",
+            "dark frame D and diffuser flat F, `g_d = (muF-muD)/(Fbar_d-Dbar_d)`, `o_d = muF - g_d*Fbar_d`,",
+            "and the per-band dark `k = muD`. Absolute `radiometric.gain` is diffuser-derived",
+            "(`l_diff/(muF-muD)` ~ `1/cal_gain`, `offset = 0`) so the processor's `apply_nuc` then",
+            "`dn_to_radiance` recover `A*L` then `L`. Coefficients are **derived** (not the truth ADF)",
+            "— the round-trip is non-tautological (inverse-crime cure).",
+            "",
+        ]
+    )
     path.write_text(text)
