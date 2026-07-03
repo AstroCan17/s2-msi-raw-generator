@@ -4,6 +4,14 @@ All notable changes to the Sentinel-2 MSI reverse E2ES (`s2_msi_raw_generator`).
 
 ## [Unreleased]
 
+### Added
+- **Calibration acquisitions in the cal-DB** — `build-caldb` now also writes the raw
+  calibration *acquisitions* behind the derived coefficients: `flatfield.zarr`
+  (per-band diffuser frames) and `dark.zarr:/frame/<band>` (dark frames) — exactly the
+  mandatory ADFs of the consumer's `radiometric` **calibration mode**, closing the
+  producer-acquires / consumer-derives loop. `naming.TYPE_CODES` gains `S02MSIL1C` and
+  `S02MSIL2A` for the consumer pipeline's product names.
+
 ### Changed
 - **Ground decode delegated to the consumer** — the pipeline's `ground-decode` phase now
   uses msi-processor's `ground_decode` (the operational, L1A-side decompression) when

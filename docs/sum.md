@@ -67,7 +67,9 @@ python scripts/run_pipeline.py <store> --phases preflight,package,ground-decode 
 # synthetic flat-field chain into the repo's tracked data store
 python scripts/run_pipeline.py data/output --synthetic
 
-# full 13-band derived Option-Y cal-DB (nuc/dark/radiometric/spectral[+noise] ADFs)
+# full 13-band derived Option-Y cal-DB (nuc/dark/radiometric/spectral[+noise] ADFs
+# + the raw calibration acquisitions: flatfield.zarr and dark.zarr /frame — the consumer's
+# radiometric calibration-mode inputs)
 python scripts/run_pipeline.py <store> --phases build-caldb
 
 # real per-detector PRNU (+ dark from a dark-calibration granule) → .npz for BandADF.from_product
@@ -100,7 +102,8 @@ Phases are idempotent and re-runnable individually; each writes its JSON under
   `quality/d{DD}/b{BB}/mask` (uint8), optional `conditions/anc_data/s{APID}/` ISP telemetry, and root
   STAC + `sensor_configuration` + `processing_history.adf_provenance` metadata. See the ICD (`icd.md`).
 - **Open-container L0 + cal-DB + L1B** — the processor handoff products (PSFD `_OC` suffix; ADF set
-  `nuc/dark/radiometric/spectral[/noise].zarr`; PSFD-named L1B reflectance).
+  `nuc/dark/radiometric/spectral[/noise].zarr` + calibration acquisitions `flatfield.zarr`,
+  `dark.zarr:/frame`; PSFD-named L1B reflectance).
 - **V&V evidence** — per-phase JSONs + `e2e_report.md` under `<store>/report/`
   (`radiometric-vv` = the GIPP round-trip table).
 - **Images** — `quicklook/` PNGs and the `figures` phase's stage-by-stage set
