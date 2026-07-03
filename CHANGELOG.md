@@ -28,6 +28,13 @@ All notable changes to the Sentinel-2 MSI reverse E2ES (`s2_msi_raw_generator`).
   `S02MSIL2A` for the consumer pipeline's product names.
 
 ### Changed
+- **Multi-core data generation (`S2_E2ES_JOBS`, default: all cores)** — the per-band CPU
+  work fans out to a process pool: CCSDS-122 compression + ISP packetization + SAD in
+  `write_l0_product` (package / cal-package) and the decode-and-verify step of
+  `ground-decode` (`l0product.decode_verify_band`). Processes, not threads — the codec's
+  entropy coder is pure-Python and GIL-bound. zarr writes stay in-process and the products
+  are bit-identical to a serial run (`tests/test_parallel_write.py`); the S3 fetch thread
+  pool reuses the same setting.
 - **Mode-only CLI, environment-driven configuration** — `run_pipeline.py` now takes just
   the mode (`nominal` default | `calibration`); the store root comes from `$S2_DATA_STORE`
   (default `~/data-store`) and every tuning knob is an `S2_E2ES_*` variable

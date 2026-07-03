@@ -49,6 +49,8 @@ Configuration is environment-only — the CLI takes just the mode::
     S2_E2ES_LINES          line window, 0 = full     S2_E2ES_BANDS      band list
     S2_E2ES_SEED           RNG seed                  S2_E2ES_NDET       cal detector width
     S2_E2ES_CAL_LINES      cal lines per frame
+    S2_E2ES_JOBS           parallel workers (default: all cores) — CCSDS-122 compress
+                           (package/cal-package), ground-decode, S3 fetch threads
     S2_E2ES_L1A  S2_E2ES_DARK  S2_E2ES_GIPP_DIR  S2_E2ES_L1B           input paths
     S2_E2ES_PUBLISH_NAME  S2_E2ES_PUBLISH_VERSION  S2_E2ES_PUBLISH_LAYER  publish-store
 
@@ -336,6 +338,7 @@ def phase_package(store: dict[str, Path], args) -> None:
         with_isp=True,
         isp_max_payload=args.max_payload,
         store_decoded=args.store_decoded,
+        jobs=args.jobs,
     )
     del frames
     print(f"[package] canonical L0 → {out}")
@@ -348,32 +351,44 @@ def phase_ground_decode(store: dict[str, Path], args) -> None:
     canon = str(store["l0"] / pre["product_names"]["l0"])
     # Operational decoder = the CONSUMER's (msi-processor ground_decode — the real-chain
     # L1A-side decompression); the generator's read_l0_isp_dn stays as the E2ES-side
-    # reference decoder and cross-checks it when the consumer is importable.
-    try:
-        from msi_processor.computing.l0_decode.ground_decode import decode_canonical_l0
-    except ImportError:
-        decode_canonical_l0 = None
+    # reference decoder and cross-checks it when the consumer is importable. The codec's
+    # decompression is pure-Python/GIL-bound → bands fan out to worker processes.
+    jobs = min(args.jobs, len(pre["bands"]))
+    if jobs > 1:
+        import multiprocessing
+        from concurrent.futures import ProcessPoolExecutor
+
+        # spawn: fork from a multi-threaded parent is deprecated (3.12+) / deadlock-prone
+        ctx = multiprocessing.get_context("spawn")
+        with ProcessPoolExecutor(max_workers=jobs, mp_context=ctx) as pool:
+            futures = {
+                bn: pool.submit(
+                    l0product.decode_verify_band,
+                    canon,
+                    DETECTOR,
+                    bn,
+                    l1a,
+                    args.line_slice,
+                )
+                for bn in pre["bands"]
+            }
+            decoded = {bn: fut.result() for bn, fut in futures.items()}
+    else:
+        decoded = {
+            bn: l0product.decode_verify_band(canon, DETECTOR, bn, l1a, args.line_slice)
+            for bn in pre["bands"]
+        }
     rt = {}
     band_frames = {}
     for bn in pre["bands"]:
-        rec_ref = l0product.read_l0_isp_dn(canon, DETECTOR, bn)
-        cross = None
-        if decode_canonical_l0 is not None:
-            rec = decode_canonical_l0(canon, DETECTOR, bn)
-            cross = bool(np.array_equal(rec, rec_ref))
-            if not cross:
-                raise SystemExit(
-                    f"[ground-decode] {bn}: consumer and reference decoders disagree"
-                )
-        else:
-            rec = rec_ref
-        orig = gio.read_l1a_raw(
-            l1a, DETECTOR, bn, lines=args.line_slice, dtype=np.uint16
-        )
-        ok = bool(np.array_equal(rec, orig))
+        rec, ok, cross = decoded[bn]
+        if cross is False:
+            raise SystemExit(
+                f"[ground-decode] {bn}: consumer and reference decoders disagree"
+            )
         rt[bn] = {
             "bit_exact": ok,
-            "decoder": "msi-processor" if decode_canonical_l0 else "e2es-reference",
+            "decoder": "msi-processor" if cross is not None else "e2es-reference",
             "decoder_cross_check": cross,
         }
         if not ok:
@@ -381,7 +396,6 @@ def phase_ground_decode(store: dict[str, Path], args) -> None:
                 f"[ground-decode] {bn}: reconstructed DN != original — codec fault"
             )
         band_frames[bn] = rec
-        del orig
         print(
             f"[ground-decode] {bn}: bit-exact OK"
             + (f" (consumer decoder, cross-check {cross})" if cross is not None else "")
@@ -803,6 +817,7 @@ def phase_cal_package(store: dict[str, Path], args) -> None:
             eopf_type=eopf_type,
             operation_mode=op_mode,
             datatake_type=dt_type,
+            jobs=args.jobs,
         )
         import zarr
 
@@ -1421,11 +1436,11 @@ def _settings(mode: str) -> argparse.Namespace:
     s.seed = _env_int("S2_E2ES_SEED", 0)
     s.n_det = _env_int("S2_E2ES_NDET", 400)
     s.cal_lines = _env_int("S2_E2ES_CAL_LINES", 256)
+    s.jobs = _env_int("S2_E2ES_JOBS", os.cpu_count() or 8)
     # fixed internals — formerly niche flags no consumer ever overrode
     s.detectors = "1-12"
     s.band_groups = 1
     s.max_payload = isp.DEFAULT_MAX_PAYLOAD
-    s.jobs = 8
     s.store_decoded = True
     s.fig_l1b = e("S2_E2ES_L1B") or None
     s.fig_band, s.fig_detector = "B04", 7
