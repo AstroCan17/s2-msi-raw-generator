@@ -5,6 +5,11 @@ All notable changes to the Sentinel-2 MSI reverse E2ES (`s2_msi_raw_generator`).
 ## [Unreleased]
 
 ### Added
+- **`notebooks/compare_real_l0.ipynb`** — real vs synthetic L0 comparison: for every band,
+  the official public L0 (`inputs/public-data/level-0/S02MSIL0__*.zarr.zip`,
+  `measurements/dNN/bNN/img`) next to our canonical L0 window with overlaid DN histograms
+  (μ/σ/p2–p98), an all-band mean±σ summary, a column-profile FPN/PRNU signature check, and
+  an inventory of the `S02MSIL0P_*` annotation companions (geometry/quality, no image DN).
 - **`notebooks/pipeline_walkthrough.ipynb`** — the full processing chain step by step with
   an image per stage: real-L1A window → `forward_radiometric` radiance bridge → S1/S6/S7/
   S13/S11/S12/S14 panels (+ coefficient profiles, blur/noise difference maps), CCSDS-122
