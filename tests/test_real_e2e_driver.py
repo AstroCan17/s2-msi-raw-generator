@@ -52,14 +52,21 @@ def pdi_l1a(tmp_path):
     return str(path)
 
 
-def _run(store, pdi_l1a, phases, extra=()):
-    argv = [str(store), "--phases", phases, "--l1a", pdi_l1a, "--bands", ",".join(BANDS), *extra]
-    assert drv.main(argv) == 0
+def _run(monkeypatch, store, pdi_l1a, phases, lines=None):
+    monkeypatch.setenv("S2_DATA_STORE", str(store))
+    monkeypatch.setenv("S2_E2ES_PHASES", phases)
+    monkeypatch.setenv("S2_E2ES_L1A", pdi_l1a)
+    monkeypatch.setenv("S2_E2ES_BANDS", ",".join(BANDS))
+    if lines is None:
+        monkeypatch.delenv("S2_E2ES_LINES", raising=False)  # hermetic vs dev shells
+    else:
+        monkeypatch.setenv("S2_E2ES_LINES", str(lines))
+    assert drv.main([]) == 0
 
 
-def test_preflight_package_ground_decode(tmp_path, pdi_l1a):
+def test_preflight_package_ground_decode(tmp_path, pdi_l1a, monkeypatch):
     store = tmp_path / "store"
-    _run(store, pdi_l1a, "preflight,package,ground-decode")
+    _run(monkeypatch, store, pdi_l1a, "preflight,package,ground-decode")
     pre = json.loads((store / "report/preflight.json").read_text())
     assert pre["bit_depth"] == 12 and pre["n_lines"] == 64
     assert pre["per_band"]["B02"]["trailing_zero_lines"] == 2
@@ -80,19 +87,19 @@ def test_preflight_package_ground_decode(tmp_path, pdi_l1a):
                               np.asarray(src[f"measurements/DD01/{b}/l1a_raw_image"]))
 
 
-def test_line_windowing(tmp_path, pdi_l1a):
+def test_line_windowing(tmp_path, pdi_l1a, monkeypatch):
     store = tmp_path / "store"
-    _run(store, pdi_l1a, "preflight,package,ground-decode", extra=("--lines", "32"))
+    _run(monkeypatch, store, pdi_l1a, "preflight,package,ground-decode", lines=32)
     pre = json.loads((store / "report/preflight.json").read_text())
     assert pre["n_lines"] == 32
 
 
-def test_l0_decode_validate_sde(tmp_path, pdi_l1a):
+def test_l0_decode_validate_sde(tmp_path, pdi_l1a, monkeypatch):
     """Full chain incl. msi-processor — runs where eopf + msi_processor are installed."""
     pytest.importorskip("eopf")
     pytest.importorskip("msi_processor")
     store = tmp_path / "store"
-    _run(store, pdi_l1a, "preflight,package,ground-decode,l0-decode,validate")
+    _run(monkeypatch, store, pdi_l1a, "preflight,package,ground-decode,l0-decode,validate")
     va = json.loads((store / "report/validate.json").read_text())
     assert set(va) == set(BANDS)
     for b, v in va.items():

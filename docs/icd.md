@@ -59,10 +59,11 @@ Dependency direction: `sensor` (leaf) → `adf`/`gipp` → `reverse`/`forward_ra
 - **IF-IN-L1A** — Sentinel-2 **L1A** raw counts, EOPF Zarr. Path `measurements/DD{nn}/B{xx}/l1a_raw_image`,
   `float64` DN (offset $\approx 48$, saturation sentinel 32768). Read by `io.read_l1a_raw`.
 - **IF-IN-GIPP** — operational S2A GIPP, directory of `S2A_OPER_GIP_<TYPE>_*.xml`
+  (R2EQOG ×13, R2DEPI, BLINDP, R2PARA, R2CRCO). Read by `gipp.load_gipp_set`.
 - **IF-OUT-L0-CAL** — calibration-campaign L0 products: dark `S02MSIDCA…zarr` (operation
   mode `DASC`) and sun-diffuser `S02MSISCA…zarr` (`ABSR`) — same canonical carrier as
-  ICD-IF-L0 (CCSDS-122 compressed ISPs, PSFD naming, full root metadata)
-  (R2EQOG ×13, R2DEPI, BLINDP, R2PARA, R2CRCO). Read by `gipp.load_gipp_set`.
+  ICD-IF-L0 (CCSDS-122 compressed ISPs, PSFD naming, full root metadata); written under
+  `<store>/caldb/` next to the cal-DB ADFs.
 - **IF-IN-ADF** — packaged PSF matrices (`s2_msi_raw_generator/data/psf/{S2A,S2B,S2C}/*.csv`, 33×33 oversampled).
 - **IF-OUT-L0** — synthetic **L0 RAW** EOProduct (Zarr v2) — see ICD-IF-L0 below.
 - **IF-MMI** — man-machine: command-line scripts (`scripts/*.py`); stdout reports.
@@ -73,7 +74,7 @@ Dependency direction: `sensor` (leaf) → `adf`/`gipp` → `reverse`/`forward_ra
 |---|---|
 | SW-to-SW | EOPF Zarr in (L1A/L1B) and out (L0 RAW), zarr v2 for processor interoperability; GIPP XML in. Realizes **REQ-IF-001**, **REQ-IF-002**, **REQ-IF-003**. |
 | SW-to-HW | Not applicable — pure software, no hardware interface. |
-| Man-machine | the single CLI driver `scripts/run_pipeline.py` (phase-structured); plain-text stdout + JSON phase reports. |
+| Man-machine | the single CLI driver `scripts/run_pipeline.py` (mode-only CLI `nominal\|calibration`; configuration via `S2_DATA_STORE`/`S2_E2ES_*` environment variables); plain-text stdout + JSON phase reports. |
 | Database | Not applicable — file-based products only. |
 | Error behaviour | Unknown band/unit → `KeyError`; frame not `uint16`/out-of-range → `TypeError`; missing GIPP file → `FileNotFoundError`. |
 
