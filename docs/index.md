@@ -57,7 +57,7 @@ PSF re-blur, PRNU, noise, dark, onboard equalization), generated 12-bit RAW (S14
 256×256 cloud-edge crops; impressed noise matches the product model to **+1.4 %**,
 quantization RMSE is the theory value **0.29 DN**, full-chain radiance recovery
 **PSNR 45.1 dB** (bias +0.02 %). Full strips, metric tables and the reproduce command:
-repository `README.md` §Result (`scripts/run_pipeline.py --phases figures`).
+repository `README.md` §Result (`S2_E2ES_PHASES=figures scripts/run_pipeline.py`).
 
 | original — ideal DN | effects impressed | RAW L0 DN |
 |---|---|---|

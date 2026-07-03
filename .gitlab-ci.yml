@@ -39,8 +39,12 @@ pipeline-calibration:
   before_script:
     - pip install -q numpy zarr
     - pip install -q -e . --no-deps
+  variables:
+    S2_DATA_STORE: cal-store
+    S2_E2ES_NDET: "64"
+    S2_E2ES_CAL_LINES: "64"
   script:
-    - python scripts/run_pipeline.py cal-store --mode calibration --n-det 64 --cal-lines 64
+    - python scripts/run_pipeline.py calibration
   artifacts:
     paths:
       - cal-store/report/
@@ -66,10 +70,12 @@ e2e-real-l1a:
     - git clone --depth 1 "https://gitlab-ci-token:${CI_JOB_TOKEN}@${CI_SERVER_HOST}/ipf/msi-processor.git" /tmp/msi-processor
     - pip install -q "eopf==2.8.1" /tmp/msi-processor
     - pip install -q -e . pytest
+  variables:
+    S2_DATA_STORE: e2e-real-store
+    S2_E2ES_PHASES: fetch-l1a,preflight,package,ground-decode,l0-decode,validate,quicklook,report
+    S2_E2ES_LINES: "4096"
   script:
-    - python scripts/run_pipeline.py e2e-real-store
-        --phases fetch-l1a,preflight,package,ground-decode,l0-decode,validate,quicklook,report
-        --lines 4096
+    - python scripts/run_pipeline.py
   artifacts:
     when: always
     paths:
@@ -80,25 +86,22 @@ e2e-real-l1a:
     - when: manual
       allow_failure: true
 
-# Publish the authoritative real-data E2E results from the SDE store (the runner shares the
-# Studio filesystem): products → Generic Package Registry (CI_JOB_TOKEN, PSFD .zarr.zip names),
-# report + quicklooks → job artifacts. Manual; set PUBLISH_STORE if the store moved.
-# Publish the SDE store to the shared ipf/data-store registry (manual). PKG/VER are
-# job variables (set them when triggering); the phase zips products, uploads them with
-# the job token (allowlisted on ipf/data-store) and refreshes the manifest.
+# Publish the SDE store to the shared ipf/data-store registry (manual; the runner shares the
+# Studio filesystem). The knobs are job variables (override when triggering): S2_DATA_STORE
+# if the store moved, S2_E2ES_PUBLISH_NAME/VERSION for the immutable package; the phase zips
+# products, uploads them with the job token (allowlisted on ipf/data-store) and refreshes
+# the manifest (provenance is stamped from CI_JOB_URL automatically).
 publish-datastore:
   stage: docs
   variables:
-    PUBLISH_STORE: /home/jovyan/data-store
-    PKG: e2e-real
-    VER: 0.3.0
-    LAYER: products
+    S2_DATA_STORE: /home/jovyan/data-store
+    S2_E2ES_PHASES: publish-store
+    S2_E2ES_PUBLISH_NAME: e2e-real
+    S2_E2ES_PUBLISH_VERSION: "0.3.0"
+    S2_E2ES_PUBLISH_LAYER: products
   script:
-    - test -d "$PUBLISH_STORE/report" || { echo "store not found - $PUBLISH_STORE"; exit 1; }
-    - >-
-      python scripts/run_pipeline.py "$PUBLISH_STORE" --phases publish-store
-      --publish-name "$PKG" --publish-version "$VER" --publish-layer "$LAYER"
-      --publish-source "SDE store publish ($CI_JOB_URL)"
+    - test -d "$S2_DATA_STORE/report" || { echo "store not found - $S2_DATA_STORE"; exit 1; }
+    - python scripts/run_pipeline.py
   rules:
     - when: manual
       allow_failure: true
