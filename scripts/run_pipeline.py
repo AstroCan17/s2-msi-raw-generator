@@ -29,11 +29,12 @@ L0 and pushed through msi-processor ``l0_decode`` → **L1A′** (bit-identical 
     fetch-l1a fetch-l0 preflight package ground-decode l0-decode validate
     radiometric-vv scan-l0 quicklook report
 
-**Calibration mode** (``--mode calibration``; REQ-FUNC-048). Synthesizes the calibration
-campaign — a dark acquisition (CSM closed / deep space; ``DASC``) and a Lambertian
-sun-diffuser acquisition (``ABSR``) — and packages each **as a real downlink L0 product**
-(CCSDS-122 compressed ISPs, PSFD type codes ``S02MSIDCA`` / ``S02MSISCA``, operation-mode
-metadata), then derives the Option-Y cal-DB ADFs from the same frames::
+**Calibration mode** (the ``calibration`` positional; REQ-FUNC-048). Synthesizes the
+calibration campaign — a dark acquisition (CSM closed / deep space; ``DASC``) and a
+Lambertian sun-diffuser acquisition (``ABSR``) — and packages each **as a real downlink
+L0 product** (CCSDS-122 compressed ISPs, PSFD type codes ``S02MSIDCA`` / ``S02MSISCA``,
+operation-mode metadata), then derives the Option-Y cal-DB ADFs from the same frames.
+Every calibration product lands under ``<store>/caldb/`` (nominal L0s under ``l0/``)::
 
     cal-acquire cal-package build-caldb report
 
@@ -41,12 +42,22 @@ metadata), then derives the Option-Y cal-DB ADFs from the same frames::
 PRNU/dark from matched products, → ``BandADF.from_product``), ``figures`` (the single-band
 stage-by-stage README/docs figures + quality metrics).
 
+Configuration is environment-only — the CLI takes just the mode::
+
+    S2_DATA_STORE          store root (default ~/data-store)
+    S2_E2ES_PHASES         comma phase list (default set follows the mode)
+    S2_E2ES_LINES          line window, 0 = full     S2_E2ES_BANDS      band list
+    S2_E2ES_SEED           RNG seed                  S2_E2ES_NDET       cal detector width
+    S2_E2ES_CAL_LINES      cal lines per frame
+    S2_E2ES_L1A  S2_E2ES_DARK  S2_E2ES_GIPP_DIR  S2_E2ES_L1B           input paths
+    S2_E2ES_PUBLISH_NAME  S2_E2ES_PUBLISH_VERSION  S2_E2ES_PUBLISH_LAYER  publish-store
+
 Examples::
 
-    python scripts/run_pipeline.py ~/data-store                              # real chain
-    python scripts/run_pipeline.py <store> --phases preflight,package --lines 4096
-    python scripts/run_pipeline.py <store> --mode calibration                  # cal campaign
-    python scripts/run_pipeline.py <store> --phases figures --fig-l1b <L1B.zarr[.zip]>
+    python scripts/run_pipeline.py                    # real chain → ~/data-store
+    python scripts/run_pipeline.py calibration        # cal campaign → <store>/caldb/
+    S2_E2ES_PHASES=preflight,package S2_E2ES_LINES=4096 python scripts/run_pipeline.py
+    S2_E2ES_PHASES=figures S2_E2ES_L1B=<L1B.zarr[.zip]> python scripts/run_pipeline.py
 
 The eopf/msi_processor imports are lazy (``ground-decode``/``l0-decode``/``validate``), so
 every other phase — and this module's import — works in the plain generator environment (CI).
@@ -595,12 +606,12 @@ def phase_fetch_store(store: dict[str, Path], args) -> None:
 def phase_publish_store(store: dict[str, Path], args) -> None:
     """Publish the local store's products to the shared registry + refresh the manifest.
 
-    Packages are immutable versions (``--publish-name/--publish-version``); only the
+    Packages are immutable versions (``S2_E2ES_PUBLISH_NAME``/``_VERSION``); only the
     ``manifest/latest`` entry is replaced in place. The "git push" of the data DB.
     """
     if not args.publish_version:
         raise SystemExit(
-            "[publish-store] needs --publish-version (immutable package version)"
+            "[publish-store] needs S2_E2ES_PUBLISH_VERSION (immutable package version)"
         )
     name, version = args.publish_name, args.publish_version
     headers = _store_auth_headers()
@@ -767,6 +778,7 @@ def phase_cal_package(store: dict[str, Path], args) -> None:
     Two canonical L0 products — dark ``S02MSIDCA`` (operation mode ``DASC``) and
     sun-diffuser ``S02MSISCA`` (``ABSR``) — with the same CCSDS-122 + space-packet
     carrier, PSFD naming and metadata as any nominal datatake (ICD-IF-L0-CAL).
+    Calibration products live under ``<store>/caldb/`` (nominal L0s under ``l0/``).
     """
     acq = _ctx_acq.get(id(store["report"]))
     if acq is None:
@@ -780,7 +792,7 @@ def phase_cal_package(store: dict[str, Path], args) -> None:
     report = {}
     for kind, idx, eopf_type, op_mode, dt_type in specs:
         frames = {(1, bn): acq[bn][idx].astype(np.uint16) for bn in acq}
-        out = str(store["l0"] / names[kind])
+        out = str(store["caldb"] / names[kind])
         l0product.write_l0_product(
             out,
             frames,
@@ -825,7 +837,7 @@ def phase_build_caldb(store: dict[str, Path], args) -> None:
 
     Inside the calibration mode the coefficients come from the very frames just
     packaged as L0 products (:func:`s2_msi_raw_generator.caldb.derive_from_acquisitions`);
-    standalone (``--phases build-caldb``) it synthesizes deterministically-identical
+    standalone (``S2_E2ES_PHASES=build-caldb``) it synthesizes deterministically-identical
     frames via :func:`s2_msi_raw_generator.caldb.build` — same numbers either way.
     """
     acq = _ctx_acq.get(id(store["report"]))
@@ -878,7 +890,7 @@ def phase_derive_adf(store: dict[str, Path], args) -> None:
     """
     src = args.l1a or os.environ.get("S2_E2ES_L1A")
     if not src:
-        raise SystemExit("[derive-adf] needs --l1a (a real L1A/L1B .zarr[.zip])")
+        raise SystemExit("[derive-adf] needs $S2_E2ES_L1A (a real L1A/L1B .zarr[.zip])")
     sl = slice(0, args.lines or 2048)
     tables: dict[str, np.ndarray] = {}
     for det in _parse_detectors(args.detectors):
@@ -900,7 +912,7 @@ def phase_derive_adf(store: dict[str, Path], args) -> None:
     has_dark = any(k.endswith("_dark") for k in tables)
     print(
         f"[derive-adf] wrote {out} ({len(tables)} arrays; "
-        f"dark={'real' if has_dark else 'NOT derived — pass a --dark granule'})"
+        f"dark={'real' if has_dark else 'NOT derived — set $S2_E2ES_DARK'})"
     )
 
 
@@ -941,7 +953,7 @@ def phase_figures(store: dict[str, Path], args) -> None:
     """
     src = args.fig_l1b or os.environ.get("S2_E2ES_L1B")
     if not src:
-        print("[figures] skipped (needs --fig-l1b, a real L1B .zarr[.zip])")
+        print("[figures] skipped (needs $S2_E2ES_L1B, a real L1B .zarr[.zip])")
         return
     b = sensor.band(args.fig_band)
     radiance = gio.read_l1b_band(
@@ -1060,7 +1072,7 @@ def phase_radiometric_vv(store: dict[str, Path], args) -> None:
         _jdump(
             {"skipped": "no GIPP dir supplied"}, store["report"] / "radiometric_vv.json"
         )
-        print("[radiometric-vv] skipped (no --gipp)")
+        print("[radiometric-vv] skipped (no $S2_E2ES_GIPP_DIR)")
         return
     from s2_msi_raw_generator import forward_radiometric_atbd as fwd, gipp as gipp_mod
 
@@ -1383,106 +1395,78 @@ def phase_report(store: dict[str, Path], args) -> None:
 # ---------------------------------------------------------------------------
 
 
+def _env_int(name: str, default: int) -> int:
+    return int(os.environ.get(name) or default)
+
+
+def _settings(mode: str) -> argparse.Namespace:
+    """The pipeline's knobs — environment-only; the CLI takes just the mode.
+
+    Returns a namespace with the exact attribute names the phase functions expect;
+    unset variables fall back to the documented defaults (module docstring).
+    """
+    e = os.environ.get
+    s = argparse.Namespace(mode=mode)
+    s.phases = e("S2_E2ES_PHASES") or None
+    s.l1a = e("S2_E2ES_L1A") or None
+    s.dark = e("S2_E2ES_DARK") or None
+    s.gipp = e("S2_E2ES_GIPP_DIR") or None
+    s.bands = [
+        b.strip().upper()
+        for b in (e("S2_E2ES_BANDS") or ",".join(sensor.BANDS)).split(",")
+        if b.strip()
+    ]
+    s.lines = _env_int("S2_E2ES_LINES", 0)
+    s.line_slice = slice(0, s.lines) if s.lines else None
+    s.seed = _env_int("S2_E2ES_SEED", 0)
+    s.n_det = _env_int("S2_E2ES_NDET", 400)
+    s.cal_lines = _env_int("S2_E2ES_CAL_LINES", 256)
+    # fixed internals — formerly niche flags no consumer ever overrode
+    s.detectors = "1-12"
+    s.band_groups = 1
+    s.max_payload = isp.DEFAULT_MAX_PAYLOAD
+    s.jobs = 8
+    s.store_decoded = True
+    s.fig_l1b = e("S2_E2ES_L1B") or None
+    s.fig_band, s.fig_detector = "B04", 7
+    s.fig_line_start, s.fig_lines = 8450, 650
+    s.fig_zoom_line, s.fig_zoom_col, s.fig_zoom_size = 0, 0, 256
+    s.fig_out = None
+    # data-store sync (ipf/data-store registry)
+    s.publish_name = e("S2_E2ES_PUBLISH_NAME") or "products"
+    s.publish_version = e("S2_E2ES_PUBLISH_VERSION") or None
+    s.publish_layer = e("S2_E2ES_PUBLISH_LAYER") or "products"
+    if s.publish_layer not in ("products", "inputs"):
+        raise SystemExit(
+            f"S2_E2ES_PUBLISH_LAYER must be products|inputs, got {s.publish_layer!r}"
+        )
+    job = e("CI_JOB_URL")
+    s.publish_source = (
+        f"run_pipeline publish-store ({job})" if job else "run_pipeline publish-store"
+    )
+    return s
+
+
 def main(argv=None) -> int:
-    ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    ap.add_argument(
-        "store", help="data-store working-copy root (e.g. ~/data-store on the SDE)"
+    ap = argparse.ArgumentParser(
+        description=__doc__.splitlines()[0],
+        epilog="store root: $S2_DATA_STORE (default ~/data-store); "
+        "tuning via S2_E2ES_* env vars (module docstring)",
     )
     ap.add_argument(
-        "--phases",
-        default=None,
-        help=f"comma list from {PHASES} (default set follows --mode)",
-    )
-    ap.add_argument(
-        "--mode",
+        "mode",
+        nargs="?",
         default="nominal",
         choices=("nominal", "calibration"),
-        help="nominal: real S2 product -> synthetic RAW downlink; "
-        "calibration: campaign acquisitions -> S02MSIDCA/S02MSISCA L0 products",
+        help="nominal (default): real S2 product -> synthetic RAW downlink; "
+        "calibration: campaign acquisitions -> S02MSIDCA/S02MSISCA L0 + cal-DB "
+        "under <store>/caldb/",
     )
-    ap.add_argument(
-        "--l1a",
-        default=None,
-        help="override L1A path (else store download / $S2_E2ES_L1A)",
-    )
-    ap.add_argument(
-        "--dark", default=None, help="dark-calibration granule for derive-adf"
-    )
-    ap.add_argument(
-        "--gipp", default=None, help="GIPP dir (radiometric-vv / figures phases)"
-    )
-    ap.add_argument("--bands", default=",".join(sensor.BANDS))
-    ap.add_argument("--detectors", default="1-12", help="detector list for derive-adf")
-    ap.add_argument(
-        "--lines", type=int, default=0, help="window: first N lines (0 = full)"
-    )
-    ap.add_argument("--band-groups", type=int, default=1, dest="band_groups")
-    ap.add_argument(
-        "--max-payload", type=int, default=isp.DEFAULT_MAX_PAYLOAD, dest="max_payload"
-    )
-    ap.add_argument("--jobs", type=int, default=8)
-    ap.add_argument("--seed", type=int, default=0)
-    ap.add_argument(
-        "--n-det",
-        type=int,
-        default=400,
-        dest="n_det",
-        help="campaign / cal-DB detector width",
-    )
-    ap.add_argument(
-        "--cal-lines",
-        type=int,
-        default=256,
-        dest="cal_lines",
-        help="calibration-acquisition lines per frame",
-    )
-    ap.add_argument(
-        "--store-decoded", default="yes", choices=("yes", "no"), dest="store_decoded_s"
-    )
-    # data-store sync (ipf/data-store registry)
-    ap.add_argument("--publish-name", default="products", dest="publish_name")
-    ap.add_argument(
-        "--publish-version",
-        default=None,
-        dest="publish_version",
-        help="immutable package version for publish-store (required by the phase)",
-    )
-    ap.add_argument(
-        "--publish-layer",
-        default="products",
-        choices=("products", "inputs"),
-        dest="publish_layer",
-    )
-    ap.add_argument(
-        "--publish-source", default="run_pipeline publish-store", dest="publish_source"
-    )
-    # figures phase
-    ap.add_argument(
-        "--fig-l1b",
-        default=None,
-        dest="fig_l1b",
-        help="real L1B .zarr[.zip] for the figures phase (or $S2_E2ES_L1B)",
-    )
-    ap.add_argument("--fig-band", default="B04", dest="fig_band")
-    ap.add_argument("--fig-detector", type=int, default=7, dest="fig_detector")
-    ap.add_argument("--fig-line-start", type=int, default=8450, dest="fig_line_start")
-    ap.add_argument("--fig-lines", type=int, default=650, dest="fig_lines")
-    ap.add_argument("--fig-zoom-line", type=int, default=0, dest="fig_zoom_line")
-    ap.add_argument("--fig-zoom-col", type=int, default=0, dest="fig_zoom_col")
-    ap.add_argument("--fig-zoom-size", type=int, default=256, dest="fig_zoom_size")
-    ap.add_argument(
-        "--fig-out",
-        default=None,
-        dest="fig_out",
-        help="figures output dir (default: <store>/figures; the committed set "
-        "lives in docs/_static/showcase)",
-    )
-    args = ap.parse_args(argv)
-    args.bands = [b.strip().upper() for b in args.bands.split(",") if b.strip()]
-    args.line_slice = slice(0, args.lines) if args.lines else None
-    args.store_decoded = args.store_decoded_s == "yes"
+    args = _settings(ap.parse_args(argv).mode)
 
-    store = _store_paths(Path(os.path.expanduser(args.store)))
+    store = _store_paths(
+        Path(os.environ.get("S2_DATA_STORE") or "~/data-store").expanduser()
+    )
     default_phases = (
         CALIBRATION_PHASES if args.mode == "calibration" else NOMINAL_PHASES
     )
@@ -1493,7 +1477,7 @@ def main(argv=None) -> int:
     ]
     unknown = [p for p in todo if p not in PHASES]
     if unknown:
-        ap.error(f"unknown phases: {unknown} (choose from {PHASES})")
+        ap.error(f"unknown phases: {unknown} (S2_E2ES_PHASES: choose from {PHASES})")
     fns = {
         "fetch-store": phase_fetch_store,
         "publish-store": phase_publish_store,

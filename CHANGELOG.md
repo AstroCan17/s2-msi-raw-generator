@@ -5,7 +5,7 @@ All notable changes to the Sentinel-2 MSI reverse E2ES (`s2_msi_raw_generator`).
 ## [Unreleased]
 
 ### Added
-- **Calibration mode (`--mode calibration`, REQ-FUNC-048)** — synthesizes the calibration
+- **Calibration mode (the `calibration` positional, REQ-FUNC-048)** — synthesizes the calibration
   campaign (dark / CSM-closed + Lambertian sun-diffuser) and packages each acquisition as a
   **real downlink L0 product**: CCSDS-122 compressed ISPs under the PSFD §3 calibration type
   codes `S02MSIDCA` (DASC) / `S02MSISCA` (ABSR), with the new `msi:datatake_type` and
@@ -28,6 +28,20 @@ All notable changes to the Sentinel-2 MSI reverse E2ES (`s2_msi_raw_generator`).
   `S02MSIL2A` for the consumer pipeline's product names.
 
 ### Changed
+- **Mode-only CLI, environment-driven configuration** — `run_pipeline.py` now takes just
+  the mode (`nominal` default | `calibration`); the store root comes from `$S2_DATA_STORE`
+  (default `~/data-store`) and every tuning knob is an `S2_E2ES_*` variable
+  (`PHASES`/`LINES`/`BANDS`/`SEED`/`NDET`/`CAL_LINES`/`L1A`/`DARK`/`GIPP_DIR`/`L1B`/
+  `PUBLISH_NAME`/`PUBLISH_VERSION`/`PUBLISH_LAYER`). The 28 CLI flags are removed; the
+  never-overridden knobs (`--detectors`, `--band-groups`, `--max-payload`, `--jobs`,
+  `--store-decoded`, the nine `--fig-*` flags, `--publish-source`) are deleted outright
+  with their defaults hardcoded (publish provenance now stamps `CI_JOB_URL`
+  automatically). CI jobs configure via `variables:` instead of flags.
+- **Calibration products land under `<store>/caldb/`** — the campaign L0s
+  (`S02MSIDCA`/`S02MSISCA`) move from `l0/` next to the cal-DB ADFs, so `l0/` holds only
+  nominal products. **Breaking** for consumers that resolved cal products under `l0/`;
+  msi-processor's `cal-decode` is updated in lockstep (caldb-first with an `l0/` fallback
+  for already-published legacy store packages).
 - **Ground decode delegated to the consumer** — the pipeline's `ground-decode` phase now
   uses msi-processor's `ground_decode` (the operational, L1A-side decompression) when
   installed, and cross-checks it bit-exactly against this repo's `read_l0_isp_dn`
@@ -39,7 +53,7 @@ All notable changes to the Sentinel-2 MSI reverse E2ES (`s2_msi_raw_generator`).
   `publish-store` (job-token/`glab`-token push + `manifest/latest` refresh); the
   `publish-e2e-real` CI job becomes `publish-datastore` (parameterised PKG/VER/LAYER).
   The repo's `data/` tracking is removed again in favour of the store (`data/` is
-  gitignored; pull with `--phases fetch-store`).
+  gitignored; pull with the `fetch-store` phase).
 - **Single pipeline driver** — the ten `scripts/` entry points are consolidated into one
   phase-structured `scripts/run_pipeline.py` (real chain = the former `run_e2e_real_l1a.py`
   phases; `--synthetic` = the former `run_e2e_l0_to_l1b.py` chain; on-demand phases

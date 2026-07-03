@@ -30,26 +30,20 @@ BANDS = ["B03", "B04"]
 @pytest.fixture(scope="module")
 def cal_store(tmp_path_factory):
     store = tmp_path_factory.mktemp("calstore")
-    drv.main(
-        [
-            str(store),
-            "--mode",
-            "calibration",
-            "--n-det",
-            "32",
-            "--cal-lines",
-            "16",
-            "--bands",
-            ",".join(BANDS),
-            "--seed",
-            "3",
-        ]
-    )
+    with pytest.MonkeyPatch.context() as mp:
+        mp.setenv("S2_DATA_STORE", str(store))
+        mp.setenv("S2_E2ES_NDET", "32")
+        mp.setenv("S2_E2ES_CAL_LINES", "16")
+        mp.setenv("S2_E2ES_BANDS", ",".join(BANDS))
+        mp.setenv("S2_E2ES_SEED", "3")
+        mp.delenv("S2_E2ES_PHASES", raising=False)
+        mp.delenv("S2_E2ES_LINES", raising=False)
+        assert drv.main(["calibration"]) == 0
     return store
 
 
 def _product(store, prefix):
-    hits = sorted((store / "l0").glob(f"{prefix}*.zarr"))
+    hits = sorted((store / "caldb").glob(f"{prefix}*.zarr"))
     assert len(hits) == 1
     return hits[0]
 
