@@ -65,7 +65,7 @@ python scripts/run_pipeline.py ~/data-store --gipp <GIPP_dir>
 python scripts/run_pipeline.py <store> --phases preflight,package,ground-decode --lines 4096
 
 # synthetic flat-field chain into the repo's tracked data store
-python scripts/run_pipeline.py data/output --synthetic
+python scripts/run_pipeline.py <store> --synthetic
 
 # full 13-band derived Option-Y cal-DB (nuc/dark/radiometric/spectral[+noise] ADFs
 # + the raw calibration acquisitions: flatfield.zarr and dark.zarr /frame — the consumer's
