@@ -39,6 +39,7 @@ def derive_band_cal(
     n_det: int = 400,
     n_frames: int = 256,
     seed: int = 0,
+    _acq_sink: dict | None = None,
 ) -> adf_writer.BandCal:
     """Derive one band's cal-DB coefficients from synthetic dark + diffuser acquisitions.
 
@@ -52,6 +53,8 @@ def derive_band_cal(
     l_diff = 1.5 * b.lref
     dark = calibration.synth_dark_acquisition(truth, n_frames, rng)
     flat = calibration.synth_diffuser_acquisition(truth, l_diff, n_frames, rng)
+    if _acq_sink is not None:
+        _acq_sink[band_name] = (dark, flat)
     gain, offset, dark_offset = adf_writer.nuc_two_point(dark, flat)
     # Absolute DN->radiance gain, *derived from the diffuser*: the NUC maps the flat to the uniform
     # signal (muF - muD), which corresponds to the known diffuser radiance l_diff. This is
@@ -80,7 +83,10 @@ def build(
     include_noise: bool = True,
 ) -> list[Path]:
     """Derive all 13 bands and write the cal-DB to ``out_dir``. Returns the written ADF paths."""
-    cals = [derive_band_cal(bn, unit=unit, n_det=n_det, seed=seed) for bn in sensor.BANDS]
-    return adf_writer.write_calibration_db(out_dir, cals, unit=unit, include_noise=include_noise)
+    acq: dict = {}
+    cals = [derive_band_cal(bn, unit=unit, n_det=n_det, seed=seed, _acq_sink=acq)
+            for bn in sensor.BANDS]
+    return adf_writer.write_calibration_db(out_dir, cals, unit=unit, include_noise=include_noise,
+                                           acquisitions=acq)
 
 
