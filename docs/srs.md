@@ -127,11 +127,11 @@ correct → reverse impress → raw′, residual $\approx 0$) on S2 data with th
 - **REQ-FUNC-037 — SAD content.** *The software shall decode/synthesise the Satellite Ancillary Data — AOCS
   attitude quaternion, orbit ephemeris and detector thermal — and pack it as real CCSDS ISP into
   `conditions/anc_data/s{APID}/isp` (replacing the placeholder zero payload).* **V: T** (`sad`, `test_sad`). realized
-- **REQ-FUNC-042 — Open-container L0 handoff + L0→L1B E2E.** *The software shall additionally emit an
+- **REQ-FUNC-042 — Open-container L0 handoff.** *The software shall additionally emit an
   open-container L0 (`measurements/detector/<band>` + `quality/l0_flags/<band>` + `conditions/*`) that the
-  `msi-processor` `l0_decode` unit ingests, and provide an L0→L1B driver (radiometric + toa reflectance),
-  with `nuc.gain[band]` length matching the detector-axis width.* **V: T** (CI: schema, `test_e2e_l1b`; full chain in the manual `e2e-l1b` CI job),
-  **V: I** (SDE real run, `scripts/run_pipeline.py --synthetic`). realized
+  `msi-processor` `l0_decode` unit ingests (produced by the nominal chain's ground-decode phase),
+  with `nuc.gain[band]` length matching the detector-axis width.* **V: T** (`test_l0_handoff`),
+  **V: I** (consumer pipeline runs on the shared data-store). realized
 - **REQ-FUNC-045 — ADF provenance.** *The software shall record per-component ADF provenance in the output
   metadata.* **V: I** (`l0product` `adf_provenance`). realized
 
@@ -166,6 +166,13 @@ correct → reverse impress → raw′, residual $\approx 0$) on S2 data with th
   bit-identity on kept lines, line-loss accounting, compression ratios, the GIPP radiometric
   round-trip and a structural comparison against a real PSD L0 product.* **V: T** (driver
   fixture tests), **V: I** (SDE full-frame run, `scripts/run_pipeline.py`). realized
+
+- **REQ-FUNC-048 — Calibration-campaign L0 products.** *The software shall synthesize the
+  calibration-campaign acquisitions — dark (CSM closed / deep space) and Lambertian
+  sun-diffuser — and package each as a real downlink L0 product: CCSDS-122-compressed ISPs,
+  PSFD §3 calibration type codes (`S02MSIDCA` / `S02MSISCA`) and operation-mode metadata
+  (`DASC` / `ABSR`, ICD-IF-L0-CAL), with the Option-Y cal-DB derived from the same frames.*
+  **V: T** (`test_cal_mode`). realized
 
 ### 3.5 Deferred functional requirements (specified, not yet realized)
 - **REQ-FUNC-043 — Credentialed ADF API.** Load ADFs via the EOPF ADF service. deferred
