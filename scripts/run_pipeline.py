@@ -43,7 +43,7 @@ Examples::
 
     python scripts/run_pipeline.py ~/data-store                              # real chain
     python scripts/run_pipeline.py <store> --phases preflight,package --lines 4096
-    python scripts/run_pipeline.py data/output --synthetic                    # synthetic chain
+    python scripts/run_pipeline.py <store> --synthetic                        # synthetic chain
     python scripts/run_pipeline.py <store> --phases figures --fig-l1b <L1B.zarr[.zip]>
 
 The eopf/msi_processor imports are lazy (``l0-decode``/``validate``/``l0-to-l1b`` only), so
@@ -564,7 +564,7 @@ def build_inputs(work_dir=None, *, n_det: int = SYNTH_N_DET, n_lines: int = SYNT
                  bands=SYNTH_BANDS, seed: int = 0):
     """Build the cal-DB (with ESUN) + a synthetic open-container L0 at a common ``n_det``.
 
-    Pure numpy/zarr. Writes to ``work_dir`` (default: the repo's ``data/output/``):
+    Pure numpy/zarr. Writes to ``work_dir`` (default: an untracked local ``data/output/``):
     ``l0/<PSFD>_OC.zarr`` + ``caldb/``. Returns ``(l0_path, caldb_dir, band_frames)``.
     This is the CI-verified half of the synthetic E2E (``tests/test_e2e_l1b.py``).
     """
@@ -1128,7 +1128,7 @@ def phase_report(store: dict[str, Path], args) -> None:
 
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    ap.add_argument("store", help="data-store root (e.g. ~/data-store on the SDE, or data/output)")
+    ap.add_argument("store", help="data-store working-copy root (e.g. ~/data-store on the SDE)")
     ap.add_argument("--phases", default=None,
                     help=f"comma list from {PHASES} (default: the real chain, "
                          "or the synthetic chain with --synthetic)")
