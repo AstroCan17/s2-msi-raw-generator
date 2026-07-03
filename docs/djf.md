@@ -146,6 +146,21 @@ keeps the generator self-testable (codec unit tests) and adds an independent-dec
 **Evidence:** consumer fixture tests decode the producer stream bit-exactly; the pipeline
 cross-check reports per band in `ground_decode.json`.
 
+### DEC-13 — Calibration acquisitions as downlink L0 products (not ADF side-files)
+**Alternatives:** ship the raw dark/flat-field acquisitions as bare zarr ADFs next to the
+cal-DB (the interim approach) vs package them as real downlink L0 products.
+**Decision:** L0 products — dark `S02MSIDCA` (DASC) and sun-diffuser `S02MSISCA` (ABSR),
+carried exactly like any nominal datatake (CCSDS-122 compressed ISPs, PSFD §3 type codes,
+operation-mode metadata); the interim `flatfield.zarr`/`dark:/frame` ADF path is removed.
+**Rationale:** mission-faithful — a calibration campaign (Lambertian diffuser view, dark /
+deep-space view, and in the real mission vicarious ocean-site or lunar views) is itself a
+datatake that is downlinked to the ground segment as source packets and archived like any
+acquisition; the consumer then ground-decodes it and derives its own coefficients. One
+carrier, one naming system, one metadata vocabulary for every datatake kind.
+**Evidence:** `test_cal_mode` — PSFD name round-trips, operation-mode metadata, bit-exact
+ISP round-trips, and consumer-formula agreement of the shipped cal-DB with the decoded
+frames.
+
 ## 3. Traceability
 
 Every DEC above cites its verifying evidence; requirement-level closure is in the

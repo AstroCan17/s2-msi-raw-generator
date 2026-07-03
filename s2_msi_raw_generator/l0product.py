@@ -37,12 +37,22 @@ DEFAULT_FOOTPRINT: dict = {
     "bbox": [8.999, 44.637, 10.291, 45.637],
     "geometry": {
         "type": "Polygon",
-        "coordinates": [[
-            [8.999, 44.637], [10.291, 44.637], [10.291, 45.637], [8.999, 45.637], [8.999, 44.637],
-        ]],
+        "coordinates": [
+            [
+                [8.999, 44.637],
+                [10.291, 44.637],
+                [10.291, 45.637],
+                [8.999, 45.637],
+                [8.999, 44.637],
+            ]
+        ],
     },
 }
-DEFAULT_ORBIT: dict = {"relative_orbit": 122, "absolute_orbit": 34803, "orbit_state": "descending"}
+DEFAULT_ORBIT: dict = {
+    "relative_orbit": 122,
+    "absolute_orbit": 34803,
+    "orbit_state": "descending",
+}
 
 
 def _datastrip_id(platform: str, epoch, orbit: dict) -> str:
@@ -63,7 +73,9 @@ def reverse_to_l0_frames(
     adfs = adfs or {}
     for (det, bname), radiance in l1b_frames.items():
         n_det = radiance.shape[1]
-        adf = adfs.get(bname) or synthesize(sensor.band(bname, unit), n_det=n_det, seed=seed)
+        adf = adfs.get(bname) or synthesize(
+            sensor.band(bname, unit), n_det=n_det, seed=seed
+        )
         # crc32, not hash(): the latter is salted per process (PYTHONHASHSEED) — irreproducible.
         rng = np.random.default_rng(seed + det * 100 + zlib.crc32(bname.encode()) % 97)
         out[(det, bname)] = reverse_mvp(radiance, adf, rng)
@@ -78,12 +90,23 @@ def build_root_metadata(
     active_detectors: list[int],
     footprint: dict | None = None,
     orbit: dict | None = None,
+    eopf_type: str = "S2MSIL0_",
+    operation_mode: str = "NOBS",
+    datatake_type: str = "INS-NOBS",
 ) -> dict:
-    """Root STAC + sensor-configuration metadata (values; REQ-FUNC-033/034/035/038)."""
+    """Root STAC + sensor-configuration metadata (values; REQ-FUNC-033/034/035/038/048).
+
+    ``eopf_type``/``operation_mode``/``datatake_type`` identify the datatake kind
+    (PSFD §3 vocabulary): nominal observation ``NOBS``/``INS-NOBS`` (default), dark
+    calibration ``DASC``/``INS-DASC`` (``S2MSIDCA``), sun-diffuser calibration
+    ``ABSR``/``INS-ABSR`` (``S2MSISCA``) — see ICD-IF-L0-CAL for the source notes.
+    """
     datation = datation or Datation()
     fp = footprint or DEFAULT_FOOTPRINT
     orb = {**DEFAULT_ORBIT, **(orbit or {})}
-    tdi = {sensor.band_number(b): "APPLIED" for b in sensor.BANDS if b in sensor.TDI_BANDS}
+    tdi = {
+        sensor.band_number(b): "APPLIED" for b in sensor.BANDS if b in sensor.TDI_BANDS
+    }
     det_str = ",".join(f"{d:02d}" for d in sorted(active_detectors))
     unit = sensor.unit_from_platform(platform)
     start_iso, end_iso = datation.span_utc(n_lines)
@@ -97,9 +120,10 @@ def build_root_metadata(
                 "platform": platform,
                 "constellation": "sentinel-2",
                 "instrument": "Multi Spectral Imager MSI",
-                "eopf:type": "S2MSIL0_",
+                "eopf:type": eopf_type,
                 "eopf:datastrip_id": _datastrip_id(platform, datation.epoch, orb),
-                "product:type": "S2MSIL0_",
+                "product:type": eopf_type,
+                "msi:datatake_type": datatake_type,
                 "processing:level": "L0",
                 "processing:software": {"s2_msi_raw_generator": __version__},
                 "sat:relative_orbit": orb["relative_orbit"],
@@ -118,6 +142,7 @@ def build_root_metadata(
             "orbit_ephemeris_stop": eph_stop,
             "sensor_configuration": {
                 "acquisition_configuration": {
+                    "operation_mode": operation_mode,
                     "active_detectors_list": det_str,
                     "compress_mode": True,
                     "equalization_mode": True,
@@ -166,6 +191,9 @@ def write_l0_product(
     with_isp: bool = False,
     isp_max_payload: int = isp.DEFAULT_MAX_PAYLOAD,
     store_decoded: bool = True,
+    eopf_type: str = "S2MSIL0_",
+    operation_mode: str = "NOBS",
+    datatake_type: str = "INS-NOBS",
 ) -> str:
     """Write the L0 RAW EOProduct Zarr to ``out_path`` and return it.
 
@@ -186,23 +214,37 @@ def write_l0_product(
     (SentiWiki: L0 = compressed ISPs; ground L1A decompresses via :func:`read_l0_isp_dn`).
     """
     if zarr is None:
-        raise ImportError("zarr is required to write L0 products: `uv pip install zarr`")
+        raise ImportError(
+            "zarr is required to write L0 products: `uv pip install zarr`"
+        )
     from . import _zarrio
 
     if not store_decoded and not with_isp:
-        raise ValueError("store_decoded=False requires with_isp=True (nothing would be stored)")
+        raise ValueError(
+            "store_decoded=False requires with_isp=True (nothing would be stored)"
+        )
     if datation is None:
         datation = Datation(epoch_utc=datetime_iso) if datetime_iso else Datation()
     detectors = sorted({det for det, _ in frames})
     n_lines = max((dn.shape[0] for dn in frames.values()), default=1)
     root = _zarrio.open_group_w(out_path)
     meta = build_root_metadata(
-        platform=platform, datation=datation, n_lines=n_lines,
-        active_detectors=detectors, footprint=footprint, orbit=orbit)
+        platform=platform,
+        datation=datation,
+        n_lines=n_lines,
+        active_detectors=detectors,
+        footprint=footprint,
+        orbit=orbit,
+        eopf_type=eopf_type,
+        operation_mode=operation_mode,
+        datatake_type=datatake_type,
+    )
 
     m = root.create_group("measurements")
     q = root.create_group("quality")
-    cond = root.create_group("conditions").create_group("anc_data") if with_isp else None
+    cond = (
+        root.create_group("conditions").create_group("anc_data") if with_isp else None
+    )
     line_period_s = datation.line_period_s
     achieved_ratio: dict[str, float] = {}
 
@@ -227,15 +269,21 @@ def write_l0_product(
 
         if with_isp:
             apid = isp.apid_for(det, sensor.BANDS.index(bname))
-            t0 = datation.line_time_gps(0, bname)  # real GPS/OBT epoch of this band's first line
+            t0 = datation.line_time_gps(
+                0, bname
+            )  # real GPS/OBT epoch of this band's first line
             depth = 16 if int(dn.max(initial=0)) > sensor.DN_MAX else 12
             payload, stats = ccsds122.compress_frame(dn, pixel_bit_depth=depth)
             bounds = ccsds122.segment_byte_bounds(payload)
             # one codec segment = one 8-image-line block row → its CUC time is that row's first line
             seg_times = t0 + np.arange(len(bounds)) * (8 * line_period_s)
             stream, offsets, plens = isp.packetize_stream(
-                payload, apid, segment_bounds=bounds, segment_times_gps=seg_times,
-                max_payload=isp_max_payload)
+                payload,
+                apid,
+                segment_bounds=bounds,
+                segment_times_gps=seg_times,
+                max_payload=isp_max_payload,
+            )
             _zarrio.put_array(mg, "isp", stream, dtype="uint8")
             _zarrio.put_array(mg, "isp_offsets", offsets, dtype="uint64")
             _zarrio.put_array(mg, "packet_data_length", plens, dtype="uint32")
@@ -250,20 +298,26 @@ def write_l0_product(
                 "compressed_bytes": stats.compressed_bytes,
                 "ratio": round(stats.ratio, 4),
             }
-            achieved_ratio[bname] = max(achieved_ratio.get(bname, 0.0), round(stats.ratio, 4))
+            achieved_ratio[bname] = max(
+                achieved_ratio.get(bname, 0.0), round(stats.ratio, 4)
+            )
             # SAD telemetry for this APID: real AOCS quaternion + orbit ephemeris + thermal (not zeros)
             n_sad = max(dn.shape[0] // 8, 1)
             sad_times = datation.gps_epoch_s + np.arange(n_sad) * (line_period_s * 8)
-            sad_arr, sad_len = sad.pack_sad_isp(sad.synth_orbit_attitude(sad_times), apid)
+            sad_arr, sad_len = sad.pack_sad_isp(
+                sad.synth_orbit_attitude(sad_times), apid
+            )
             sg = cond.require_group(f"s{apid}")
             _zarrio.put_array(sg, "isp", sad_arr, dtype="uint8")
             _zarrio.put_array(sg, "packet_data_length", sad_len, dtype="uint16")
 
     # Achieved (real) compression ratios replace the static datasheet rates (REQ-FUNC-092).
     if achieved_ratio:
-        info = meta["other_metadata"]["sensor_configuration"]["acquisition_configuration"]
+        info = meta["other_metadata"]["sensor_configuration"][
+            "acquisition_configuration"
+        ]
         info["compression_scheme"] = "CCSDS 122.0-B lossless subset"
-        sbi = info["spectral_band_info"]           # keyed by band number ("03", "8A", …)
+        sbi = info["spectral_band_info"]  # keyed by band number ("03", "8A", …)
         for bname, ratio in achieved_ratio.items():
             sbi[sensor.band_number(bname)]["compression_rate"] = ratio
     root.attrs.update(meta)
@@ -271,7 +325,8 @@ def write_l0_product(
     # EOPF EOQC-style per-product quality report, embedded in the quality group (REQ-FUNC-041).
     if emit_qc:
         q.attrs["qc"] = quality_report.build_qc_report(
-            meta, product_name=Path(out_path).name, has_measurements=bool(frames))
+            meta, product_name=Path(out_path).name, has_measurements=bool(frames)
+        )
 
     return out_path
 
@@ -297,7 +352,9 @@ def frames_to_strip(frames: dict[FrameKey, np.ndarray]) -> dict[str, np.ndarray]
     """Reduce the 156-array ``{(det, band): frame}`` to one representative ``(line, detector)`` per band."""
     by_band: dict[str, np.ndarray] = {}
     for (_det, bname), arr in sorted(frames.items()):
-        by_band.setdefault(bname, np.asarray(arr))   # first (lowest-index) detector per band
+        by_band.setdefault(
+            bname, np.asarray(arr)
+        )  # first (lowest-index) detector per band
     return by_band
 
 
@@ -321,14 +378,23 @@ def write_l0_opencontainer(
     ``measurements/detector/<band>``'s detector-axis width — so build the cal-DB at the same ``n_det``.
     """
     if zarr is None:
-        raise ImportError("zarr is required to write L0 products: `uv pip install zarr`")
+        raise ImportError(
+            "zarr is required to write L0 products: `uv pip install zarr`"
+        )
     from . import _zarrio
+
     if datation is None:
         datation = Datation()
     n_lines = max((np.asarray(f).shape[0] for f in band_frames.values()), default=1)
     root = _zarrio.open_group_w(out_path)
-    meta = build_root_metadata(platform=platform, datation=datation, n_lines=n_lines,
-                               active_detectors=[1], footprint=footprint, orbit=orbit)
+    meta = build_root_metadata(
+        platform=platform,
+        datation=datation,
+        n_lines=n_lines,
+        active_detectors=[1],
+        footprint=footprint,
+        orbit=orbit,
+    )
     root.attrs.update(meta)
 
     det = root.create_group("measurements").create_group("detector")
@@ -351,5 +417,6 @@ def write_l0_opencontainer(
 
     if emit_qc:
         root["quality"].attrs["qc"] = quality_report.build_qc_report(
-            meta, product_name=Path(out_path).name, has_measurements=bool(band_frames))
+            meta, product_name=Path(out_path).name, has_measurements=bool(band_frames)
+        )
     return out_path

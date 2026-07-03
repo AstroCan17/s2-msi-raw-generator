@@ -28,33 +28,29 @@ unit-tests:
 # generator L0 + cal-DB → l0_decode → radiometric → enhancement → toa → persisted L1B + quicklooks.
 # Manual (heavy env install); msi-processor is cloned with CI_JOB_TOKEN — the generator project is on
 # ipf/msi-processor's job-token allowlist. Artifacts carry the L1B product + the quicklook PNGs.
-e2e-l1b:
+# Calibration campaign smoke (REQ-FUNC-048) — numpy+zarr only, no eopf needed: synthesizes
+# the dark (DASC) + sun-diffuser (ABSR) acquisitions, packages them as real downlink L0
+# products (S02MSIDCA/S02MSISCA, compressed ISPs) and derives the Option-Y cal-DB.
+pipeline-calibration:
   stage: test
-  image: python:3.11-slim
+  image: python:3.12-slim
   interruptible: true
-  timeout: 30m
+  timeout: 15m
   before_script:
-    - apt-get update -qq && apt-get install -y -qq git >/dev/null
-    - python -m pip install -q --upgrade pip
-    # the shell runner persists /tmp between jobs — drop any stale clone first
-    - rm -rf /tmp/msi-processor
-    - git clone --depth 1 "https://gitlab-ci-token:${CI_JOB_TOKEN}@${CI_SERVER_HOST}/ipf/msi-processor.git" /tmp/msi-processor
-    - pip install -q "eopf==2.8.1" /tmp/msi-processor
-    - pip install -q -e . pytest
+    - pip install -q numpy zarr
+    - pip install -q -e . --no-deps
   script:
-    - python scripts/run_pipeline.py e2e-store --synthetic
-    # Full suite under the eopf env (zarr 2.18) — locks in the dual-zarr (2/3) compatibility promise.
-    - python -m pytest tests/ -q
+    - python scripts/run_pipeline.py cal-store --mode calibration --n-det 64 --cal-lines 64
   artifacts:
     paths:
-      - e2e-store/quicklook/
-      - e2e-store/l1b/
+      - cal-store/report/
+      - cal-store/quicklook/
     expire_in: 1 week
   rules:
     - when: manual
       allow_failure: true
 
-# Windowed real-L1A E2E (REQ-FUNC-093): bucket L1A (first 4096 lines) → compressed-ISP L0 →
+# Windowed nominal-chain E2E (REQ-FUNC-093): bucket L1A (first 4096 lines) → compressed-ISP L0 →
 # ground decode → msi-processor l0_decode → L1A′ bit-identity + report. Manual (downloads
 # ~500 MB + builds the eopf env); the authoritative full-frame run happens on the SDE store.
 e2e-real-l1a:
