@@ -5,6 +5,13 @@ All notable changes to the Sentinel-2 MSI reverse E2ES (`s2_msi_raw_generator`).
 ## [Unreleased]
 
 ### Added
+- **`notebooks/pipeline_walkthrough.ipynb`** — the full processing chain step by step with
+  an image per stage: real-L1A window → `forward_radiometric` radiance bridge → S1/S6/S7/
+  S13/S11/S12/S14 panels (+ coefficient profiles, blur/noise difference maps), CCSDS-122
+  DWT subbands + segment/packet statistics (S15), bit-exact ground-decode, and the same
+  steps compared against the store's persisted phase outputs. Synthetic-scene fallback
+  when no store is present; both notebooks now self-install the package into the kernel
+  env on first run (one-time cell + kernel restart).
 - **`notebooks/inspect_products.ipynb`** — interactive data-store explorer: product
   inventory + zarr tree, STAC/compression metadata, stored-DN band images, ISP
   ground-decode verification, calibration campaign + NUC gain plots, quicklooks and
