@@ -8,10 +8,8 @@ venv/
 .mypy_cache/
 .ruff_cache/
 
-# The data/ working store is NOT tracked — products/inputs live in the shared
-# ipf/data-store registry (fetch-store/publish-store pipeline phases sync it).
-data/*
-!data/README.md
+# All data lives in the shared ipf/data-store registry; local working stores are untracked.
+data/
 
 # Build / docs
 build/
