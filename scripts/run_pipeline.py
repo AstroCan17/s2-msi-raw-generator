@@ -497,8 +497,11 @@ def phase_publish_store(store: dict[str, Path], args) -> None:
 
     entries = []
     if args.publish_layer == "inputs":
-        # auxiliary inputs (e.g. the operational GIPP) live under inputs/
+        # auxiliary inputs (e.g. the operational GIPP) live under inputs/; products the
+        # pipeline can re-fetch itself (bucket .zarr, real_l0 tars) stay external
         for d in sorted((root / "inputs").iterdir()) if (root / "inputs").is_dir() else []:
+            if d.name.endswith(".zarr") or d.name == "real_l0":
+                continue
             if d.is_dir() and any(d.iterdir()):
                 zp = stage / f"{d.name}.zip"
                 _zip_dir(d, zp)
