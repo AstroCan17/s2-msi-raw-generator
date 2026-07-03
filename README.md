@@ -198,7 +198,8 @@ R2CRCO); the L1A is an EOPF L1A Zarr (`measurements/DDnn/Bxx/l1a_raw_image`). Pr
 live in the shared [ipf/data-store](https://gitlab.eopf.copernicus.eu/ipf/data-store) registry —
 pull a working copy with `S2_E2ES_PHASES=fetch-store`. Real-data tests run
 when `S2_E2ES_GIPP_DIR` / `S2_E2ES_L1A` are set. The full variable reference is in
-`docs/sum.md` §4.
+`docs/sum.md` §4. For interactive inspection of the generated products (band images, ISP
+decode checks, cal-DB gains, reports) open `notebooks/inspect_products.ipynb` in JupyterLab.
 
 ## Status
 
