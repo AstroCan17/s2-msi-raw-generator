@@ -100,6 +100,7 @@ S2_E2ES_GIPP_DIR=<GIPP_dir> S2_E2ES_L1A=<L1A.zarr> pytest tests/ -q
 | `S2_E2ES_SEED` | `0` | RNG seed (cal-acquire, build-caldb, figures) |
 | `S2_E2ES_NDET` | `400` | campaign / cal-DB detector width (cal-acquire, build-caldb) |
 | `S2_E2ES_CAL_LINES` | `256` | calibration-acquisition lines per frame (cal-acquire, cal-package) |
+| `S2_E2ES_JOBS` | all cores | parallel workers: per-band CCSDS-122 compress/packetize (package, cal-package), ground-decode verification, S3 fetch threads |
 | `S2_E2ES_L1A` | store download | L1A path override (preflight chain, derive-adf) |
 | `S2_E2ES_DARK` | — | dark-calibration granule (derive-adf) |
 | `S2_E2ES_GIPP_DIR` | — | operational GIPP dir (radiometric-vv, figures) |
