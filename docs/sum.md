@@ -44,38 +44,40 @@ tests. Real-data runs need an EOPF L1A/L1B `.zarr` and the operational GIPP fold
 
 All operations run through the **single driver** `scripts/run_pipeline.py`: a phase-structured,
 idempotent pipeline over one data-store root (`inputs/ caldb/ l0/ l1a_prime/ l1b/ quicklook/
-figures/ report/`). Every product file name follows the EOPF PSFD §3 convention
+figures/ report/`; `$S2_DATA_STORE`, default `~/data-store`). Nominal L0s land under `l0/`;
+every calibration product (the `S02MSIDCA`/`S02MSISCA` campaign L0s + the cal-DB ADFs) under
+`caldb/`. Every product file name follows the EOPF PSFD §3 convention
 (`s2_msi_raw_generator.naming`, REQ-FUNC-091).
 
 | Phase set | Phases | Needs |
 |---|---|---|
 | **Nominal mode** (default; REQ-FUNC-093) | `fetch-l1a fetch-l0 preflight package ground-decode l0-decode validate radiometric-vv scan-l0 quicklook report` — real S2 product → synthetic RAW downlink | numpy+zarr; `ground-decode`/`l0-decode`/`validate` need `eopf==2.8.1` + `msi_processor` |
-| **Calibration mode** (`--mode calibration`; REQ-FUNC-048) | `cal-acquire cal-package build-caldb report` — dark (DASC) + sun-diffuser (ABSR) campaign → **real downlink L0 products** `S02MSIDCA`/`S02MSISCA` + Option-Y cal-DB | numpy+zarr only |
+| **Calibration mode** (`calibration`; REQ-FUNC-048) | `cal-acquire cal-package build-caldb report` — dark (DASC) + sun-diffuser (ABSR) campaign → **real downlink L0 products** `S02MSIDCA`/`S02MSISCA` + Option-Y cal-DB, all under `<store>/caldb/` | numpy+zarr only |
 | **On demand** | `derive-adf` · `figures` | numpy+zarr only |
 | **Data-store sync** | `fetch-store` (pull, anonymous) · `publish-store` (push, job/`glab` token) | numpy+stdlib; DB = the [ipf/data-store](https://gitlab.eopf.copernicus.eu/ipf/data-store) registry |
 
 ```bash
-# pull the shared data-store into a local working directory
-python scripts/run_pipeline.py <store> --phases fetch-store
+# pull the shared data-store into the local working copy ($S2_DATA_STORE, default ~/data-store)
+S2_E2ES_PHASES=fetch-store python scripts/run_pipeline.py
 
 # real chain, all phases (fetch → package → decode → validate → report)
-python scripts/run_pipeline.py ~/data-store --gipp <GIPP_dir>
+S2_E2ES_GIPP_DIR=<GIPP_dir> python scripts/run_pipeline.py
 
 # re-run individual phases (idempotent; JSON per phase under <store>/report/)
-python scripts/run_pipeline.py <store> --phases preflight,package,ground-decode --lines 4096
+S2_E2ES_PHASES=preflight,package,ground-decode S2_E2ES_LINES=4096 python scripts/run_pipeline.py
 
 # calibration campaign: dark + sun-diffuser acquisitions as REAL downlink L0 products
-# (S02MSIDCA / S02MSISCA, compressed ISPs) + the Option-Y cal-DB derived from the same frames
-python scripts/run_pipeline.py <store> --mode calibration
+# (S02MSIDCA / S02MSISCA, compressed ISPs) + the Option-Y cal-DB — everything → <store>/caldb/
+python scripts/run_pipeline.py calibration
 
 # standalone Option-Y cal-DB (same numbers as the campaign derivation — deterministic seeds)
-python scripts/run_pipeline.py <store> --phases build-caldb
+S2_E2ES_PHASES=build-caldb python scripts/run_pipeline.py
 
 # real per-detector PRNU (+ dark from a dark-calibration granule) → .npz for BandADF.from_product
-python scripts/run_pipeline.py <store> --phases derive-adf --l1a <L1A.zarr> [--dark <dark.zarr>]
+S2_E2ES_PHASES=derive-adf S2_E2ES_L1A=<L1A.zarr> [S2_E2ES_DARK=<dark.zarr>] python scripts/run_pipeline.py
 
 # README/docs single-band stage figures + quality metrics table
-python scripts/run_pipeline.py <store> --phases figures --fig-l1b <L1B.zarr[.zip]>
+S2_E2ES_PHASES=figures S2_E2ES_L1B=<L1B.zarr[.zip]> python scripts/run_pipeline.py
 ```
 
 Run the gated tests on real data:
@@ -84,12 +86,25 @@ Run the gated tests on real data:
 S2_E2ES_GIPP_DIR=<GIPP_dir> S2_E2ES_L1A=<L1A.zarr> pytest tests/ -q
 ```
 
-## 4. CLI reference
+## 4. CLI + configuration reference
 
-`run_pipeline.py <store> [--mode nominal|calibration] [--phases …] [--l1a PATH] [--dark PATH]
-[--gipp DIR] [--bands …] [--detectors 1-12] [--lines N] [--band-groups N] [--max-payload N]
-[--jobs N] [--seed N] [--n-det N] [--cal-lines N] [--store-decoded yes|no] [--fig-l1b PATH] [--fig-band B04]
-[--fig-detector N] [--fig-line-start N] [--fig-lines N] [--fig-zoom-*] [--fig-out DIR]`
+`run_pipeline.py [nominal|calibration]` — the CLI takes **only the mode** (default
+`nominal`). Everything else is environment-driven:
+
+| Variable | Default | Meaning (consuming phases) |
+|---|---|---|
+| `S2_DATA_STORE` | `~/data-store` | data-store root (all phases) |
+| `S2_E2ES_PHASES` | mode's default set | comma phase list, e.g. `preflight,package` |
+| `S2_E2ES_LINES` | `0` (full) | first-N-lines window (preflight→validate, quicklook, derive-adf) |
+| `S2_E2ES_BANDS` | all 13 | band list, e.g. `B03,B04` (preflight chain, cal-acquire, derive-adf) |
+| `S2_E2ES_SEED` | `0` | RNG seed (cal-acquire, build-caldb, figures) |
+| `S2_E2ES_NDET` | `400` | campaign / cal-DB detector width (cal-acquire, build-caldb) |
+| `S2_E2ES_CAL_LINES` | `256` | calibration-acquisition lines per frame (cal-acquire, cal-package) |
+| `S2_E2ES_L1A` | store download | L1A path override (preflight chain, derive-adf) |
+| `S2_E2ES_DARK` | — | dark-calibration granule (derive-adf) |
+| `S2_E2ES_GIPP_DIR` | — | operational GIPP dir (radiometric-vv, figures) |
+| `S2_E2ES_L1B` | — | real L1B for the `figures` phase |
+| `S2_E2ES_PUBLISH_NAME` / `_VERSION` / `_LAYER` | `products` / — / `products` | publish-store package coordinates (`_VERSION` is required by the phase) |
 
 Phases are idempotent and re-runnable individually; each writes its JSON under
 `<store>/report/` and the final `report` phase assembles `e2e_report.md`. See

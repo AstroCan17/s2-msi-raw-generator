@@ -122,9 +122,9 @@ quantization error is exactly the uniform-quantizer theory value; recovering rad
 generated RAW returns the input to 45 dB with a +0.02 % bias — the only irreversible losses are
 the modelled ones (noise, 12-bit clipping of the saturated cloud cores, quantization). The DN
 pedestal (mean 1363 → 1843) is the re-applied dark signal + onboard equalization. Reproduce
-locally (numpy+zarr only): `python scripts/run_pipeline.py <store> --phases figures --fig-l1b <L1B.zarr[.zip]>`. In this run
+locally (numpy+zarr only): `S2_E2ES_PHASES=figures S2_E2ES_L1B=<L1B.zarr[.zip]> python scripts/run_pipeline.py`. In this run
 the PSF/SRF/noise model are real ESA data; the per-pixel dark/PRNU are the synthetic fallback
-(run with `--gipp <dir>` for the operational-GIPP versions).
+(set `S2_E2ES_GIPP_DIR=<dir>` for the operational-GIPP versions).
 
 ## Package
 
@@ -169,32 +169,36 @@ pytest                                   # full suite
 ```
 
 Everything runs through the **single pipeline driver** `scripts/run_pipeline.py`
-(phase-structured, idempotent, one data-store root; all product names PSFD §3):
+(phase-structured, idempotent; all product names PSFD §3). The CLI takes **only the mode** —
+the store root is `$S2_DATA_STORE` (default `~/data-store`) and every knob is an
+`S2_E2ES_*` environment variable:
 
 ```bash
-# nominal mode (default): real S2 product → synthetic RAW downlink
+# nominal mode (default): real S2 product → synthetic RAW downlink → <store>/l0/
 # (fetch → package → ground-decode → l0_decode → validate → report)
-python scripts/run_pipeline.py ~/data-store --gipp $S2_E2ES_GIPP_DIR
+python scripts/run_pipeline.py
 
 # calibration mode: dark (DASC) + sun-diffuser (ABSR) campaign acquisitions packaged as
-# REAL downlink L0 products (S02MSIDCA / S02MSISCA, compressed ISPs) + Option-Y cal-DB
-python scripts/run_pipeline.py <store> --mode calibration
+# REAL downlink L0 products (S02MSIDCA / S02MSISCA, compressed ISPs) + Option-Y cal-DB,
+# everything → <store>/caldb/
+python scripts/run_pipeline.py calibration
 
 # shared data-store (ipf/data-store registry): pull / push the product DB
-python scripts/run_pipeline.py <store> --phases fetch-store
-python scripts/run_pipeline.py <store> --phases publish-store --publish-version <X.Y.Z>
+S2_E2ES_PHASES=fetch-store python scripts/run_pipeline.py
+S2_E2ES_PHASES=publish-store S2_E2ES_PUBLISH_VERSION=<X.Y.Z> python scripts/run_pipeline.py
 
 # on-demand phases
-python scripts/run_pipeline.py <store> --phases build-caldb                       # Option-Y cal-DB ADFs
-python scripts/run_pipeline.py <store> --phases derive-adf --l1a <L1A.zarr>       # real PRNU/dark → npz
-python scripts/run_pipeline.py <store> --phases figures --fig-l1b <L1B.zarr.zip>  # Result figures
+S2_E2ES_PHASES=build-caldb python scripts/run_pipeline.py                        # Option-Y cal-DB ADFs
+S2_E2ES_PHASES=derive-adf S2_E2ES_L1A=<L1A.zarr> python scripts/run_pipeline.py  # real PRNU/dark → npz
+S2_E2ES_PHASES=figures S2_E2ES_L1B=<L1B.zarr.zip> python scripts/run_pipeline.py # Result figures
 ```
 
 The GIPP folder holds the `S2A_OPER_GIP_*.xml` files (R2EQOG ×13, R2DEPI, BLINDP, R2PARA,
 R2CRCO); the L1A is an EOPF L1A Zarr (`measurements/DDnn/Bxx/l1a_raw_image`). Products and inputs
 live in the shared [ipf/data-store](https://gitlab.eopf.copernicus.eu/ipf/data-store) registry —
-pull a working copy with `--phases fetch-store`. Real-data tests run
-when `S2_E2ES_GIPP_DIR` / `S2_E2ES_L1A` are set.
+pull a working copy with `S2_E2ES_PHASES=fetch-store`. Real-data tests run
+when `S2_E2ES_GIPP_DIR` / `S2_E2ES_L1A` are set. The full variable reference is in
+`docs/sum.md` §4.
 
 ## Status
 
