@@ -54,6 +54,8 @@ TYPE_CODES: dict[str, str] = {
     "S02MSIL0_": "MSI Level-0 RAW",
     "S02MSIL1A": "MSI Level-1A",
     "S02MSIL1B": "MSI Level-1B",
+    "S02MSIL1C": "MSI Level-1C",
+    "S02MSIL2A": "MSI Level-2A",
     "S02MSIISP": "MSI CCSDS instrument source packets",
     "S02SADISP": "Satellite ancillary data packets",
 }

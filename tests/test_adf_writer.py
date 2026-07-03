@@ -128,7 +128,7 @@ def test_build_all_bands_and_consume(tmp_path):
     """Full 13-band build; feed the ADFs back through the processor formulas -> recover radiance."""
     out = tmp_path / "caldb"
     paths = build_cal_db.build(out, n_det=64, seed=3)
-    assert len(paths) == 5
+    assert len(paths) == 6  # nuc, dark, radiometric, spectral, flatfield, noise
 
     nuc = zarr.open_group(str(out / "nuc.zarr"), mode="r")
     assert set(nuc["gain"].array_keys()) == set(sensor.BANDS)   # 13 bands
@@ -153,3 +153,27 @@ def test_build_all_bands_and_consume(tmp_path):
     radiance = _dn_to_radiance(corrected, rg, 0.0)
     # derived coefficients + sensor noise -> realistic (non-zero) residual, mean recovers the input
     assert float(np.nanmean(radiance)) == pytest.approx(float(scene.mean()), rel=0.1)
+
+
+def test_calibration_acquisitions_feed_consumer_cal_mode(tmp_path):
+    """flatfield/dark-frame acquisitions match the consumer calibration-mode contract.
+
+    The consumer derives gain = mean(F) / colmean(F) from the flatfield; applied to the
+    flatfield itself this must flatten it (the two-point NUC identity), and the dark frame
+    must sit at the dark pedestal.
+    """
+    from s2_msi_raw_generator import caldb as build_cal_db
+
+    out = tmp_path / "caldb"
+    build_cal_db.build(out, n_det=32, seed=5)
+    flat = zarr.open_group(str(out / "flatfield.zarr"), mode="r")
+    dark = zarr.open_group(str(out / "dark.zarr"), mode="r")
+    f = np.asarray(flat["B04"])
+    assert f.ndim == 2 and f.dtype == np.float32 and f.shape[1] == 32
+    mu = float(f.mean())
+    gain = mu / f.mean(axis=0)                       # consumer formula (mode="calibration")
+    corrected = f * gain[np.newaxis, :]
+    assert np.allclose(corrected.mean(axis=0), mu, rtol=1e-5)
+    d = np.asarray(dark["frame/B04"])
+    assert d.shape == f.shape
+    assert abs(float(d.mean()) - float(np.asarray(dark["dark_offset/B04"]))) < 1.0

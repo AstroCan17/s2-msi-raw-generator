@@ -52,6 +52,7 @@ ADF_TYPES = {
     "radiometric": "ADF_RABCA",
     "spectral": "ADF_SPECT",
     "noise": "ADF_RNOMO",
+    "flatfield": "ADF_RDIFF",
 }
 
 
@@ -126,8 +127,15 @@ def write_calibration_db(
     source: str = "derived (CSM diffuser + dark calibration)",
     include_spectral: bool = True,
     include_noise: bool = True,
+    acquisitions: dict[str, tuple[np.ndarray, np.ndarray]] | None = None,
 ) -> list[Path]:
     """Write the EOPF zarr ADF set (``nuc`` / ``dark`` / ``radiometric`` [+ ``spectral`` + ``noise``]).
+
+    ``acquisitions`` maps ``band -> (dark_frame, flatfield_frame)`` — the raw calibration
+    *acquisitions* (2-D ``(line, detector)``) behind the derived coefficients. When given,
+    ``flatfield.zarr`` (``/{band}``) is written and ``dark.zarr`` additionally carries
+    ``/frame/{band}``: exactly the inputs the consumer's ``radiometric`` **calibration mode**
+    needs to derive its own NUC (dark + flatfield mandatory ADFs).
 
     Returns the list of written ``.zarr`` paths. A ``PROVENANCE.md`` is written beside them.
     """
@@ -157,6 +165,13 @@ def write_calibration_db(
     do_grp = root.create_group("dark_offset")
     for c in cals:
         _write_scalar(do_grp, c.band, c.dark_offset)
+    if acquisitions:
+        fr_grp = root.create_group("frame")
+        for c in cals:
+            if c.band in acquisitions:
+                from . import _zarrio as _z
+                _z.put_array(fr_grp, c.band, np.asarray(acquisitions[c.band][0], dtype=np.float32),
+                             dtype="float32")
     written.append(dark_path)
 
     # radiometric.zarr — absolute DN→radiance gain/offset (TOA-unit mandatory ADF).
@@ -181,6 +196,20 @@ def write_calibration_db(
         for c in cals:
             _write_scalar(e_grp, c.band, c.esun)
         written.append(spec_path)
+
+    # flatfield.zarr — the raw diffuser acquisition (consumer calibration-mode mandatory ADF).
+    if acquisitions:
+        flat_path = out / "flatfield.zarr"
+        root = _zarrio.open_group_w(flat_path)
+        root.attrs.update(_provenance(
+            unit, "flatfield",
+            "per-band diffuser (flat-field) acquisition frames (line, detector); consumer "
+            "calibration mode derives NUC as gain = mean(F)/colmean(F)", source))
+        for c in cals:
+            if c.band in acquisitions:
+                _zarrio.put_array(root, c.band, np.asarray(acquisitions[c.band][1], dtype=np.float32),
+                                  dtype="float32")
+        written.append(flat_path)
 
     # noise.zarr — E2ES-side noise model (RNOMO); msi-processor does not read it.
     if include_noise:
