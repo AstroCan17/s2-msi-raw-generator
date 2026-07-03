@@ -5,6 +5,10 @@ All notable changes to the Sentinel-2 MSI reverse E2ES (`s2_msi_raw_generator`).
 ## [Unreleased]
 
 ### Added
+- **`notebooks/inspect_products.ipynb`** — interactive data-store explorer: product
+  inventory + zarr tree, STAC/compression metadata, stored-DN band images, ISP
+  ground-decode verification, calibration campaign + NUC gain plots, quicklooks and
+  phase-report summaries. Runs in the plain generator env (numpy + zarr + matplotlib).
 - **Calibration mode (the `calibration` positional, REQ-FUNC-048)** — synthesizes the calibration
   campaign (dark / CSM-closed + Lambertian sun-diffuser) and packages each acquisition as a
   **real downlink L0 product**: CCSDS-122 compressed ISPs under the PSFD §3 calibration type
