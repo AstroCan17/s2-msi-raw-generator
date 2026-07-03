@@ -32,7 +32,7 @@ sub-set derives the coefficients from synthetic CSM sun-diffuser + dark acquisit
 inverse-crime cure). Implemented from the public L1 ATBD and the GIPP data only.
 
 Source repository:
-[gitlab.eopf.copernicus.eu/e2es/s2-msi-raw-generator](https://gitlab.eopf.copernicus.eu/e2es/s2-msi-raw-generator)
+[gitlab.eopf.copernicus.eu/ipf/s2-msi-raw-generator](https://gitlab.eopf.copernicus.eu/ipf/s2-msi-raw-generator)
 
 ## Real-data E2E (authoritative run, SDE 2026-07-02)
 
@@ -99,6 +99,6 @@ qr
 sum
 srn
 API Reference <api/s2_msi_raw_generator>
-Source Repository (GitLab) <https://gitlab.eopf.copernicus.eu/e2es/s2-msi-raw-generator>
+Source Repository (GitLab) <https://gitlab.eopf.copernicus.eu/ipf/s2-msi-raw-generator>
 license
 ```

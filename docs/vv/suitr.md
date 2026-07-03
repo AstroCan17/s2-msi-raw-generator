@@ -23,7 +23,7 @@ current baseline; validation-level results (real-data E2E) are in the
 
 ## 1. Configuration baseline under test
 
-- Repository `e2es/s2-msi-raw-generator`, branch `main` (v0.3.0 release baseline, 2026-07-02, plus
+- Repository `ipf/s2-msi-raw-generator`, branch `main` (v0.3.0 release baseline, 2026-07-02, plus
   documentation-only changes).
 - Latest `main` pipeline: **#31052 — success** (2026-07-02); blocking jobs `unit-tests` and `pages`
   both green.
