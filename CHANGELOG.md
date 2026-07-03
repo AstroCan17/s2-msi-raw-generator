@@ -5,6 +5,21 @@ All notable changes to the Sentinel-2 MSI reverse E2ES (`s2_msi_raw_generator`).
 ## [Unreleased]
 
 ### Added
+- **Calibration mode (`--mode calibration`, REQ-FUNC-048)** — synthesizes the calibration
+  campaign (dark / CSM-closed + Lambertian sun-diffuser) and packages each acquisition as a
+  **real downlink L0 product**: CCSDS-122 compressed ISPs under the PSFD §3 calibration type
+  codes `S02MSIDCA` (DASC) / `S02MSISCA` (ABSR), with the new `msi:datatake_type` and
+  `acquisition_configuration.operation_mode` metadata (nominal products now stamp
+  `NOBS`/`INS-NOBS`); the Option-Y cal-DB is derived from the same frames
+  (`caldb.derive_from_acquisitions`).
+
+### Removed
+- **The `--synthetic` flat-field demo chain** (`build-l0-synth`/`l0-to-l1b` phases,
+  `build_inputs`/`run_processor`/`write_l1b`, the `e2e-l1b` CI job, `test_e2e_l1b`) — the
+  consumer chain lives in msi-processor's own pipeline; the OC handoff contract is now
+  asserted by `test_l0_handoff`. The interim calibration-acquisition ADFs
+  (`flatfield.zarr`, `dark.zarr:/frame`) are superseded by the calibration L0 products
+  (DJF DEC-13).
 - **Calibration acquisitions in the cal-DB** — `build-caldb` now also writes the raw
   calibration *acquisitions* behind the derived coefficients: `flatfield.zarr`
   (per-band diffuser frames) and `dark.zarr:/frame/<band>` (dark frames) — exactly the

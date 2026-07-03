@@ -56,6 +56,8 @@ TYPE_CODES: dict[str, str] = {
     "S02MSIL1B": "MSI Level-1B",
     "S02MSIL1C": "MSI Level-1C",
     "S02MSIL2A": "MSI Level-2A",
+    "S02MSISCA": "MSI sun-diffuser calibration (ABSR)",
+    "S02MSIDCA": "MSI dark calibration (DASC)",
     "S02MSIISP": "MSI CCSDS instrument source packets",
     "S02SADISP": "Satellite ancillary data packets",
 }
@@ -155,23 +157,29 @@ def psfd_name(
     'S02MSIL0__20240403T102415_0033_A045_T1A2.zarr'
     """
     if len(product_type) != 9:
-        raise ValueError(f"product_type must be exactly 9 characters, got {product_type!r}")
+        raise ValueError(
+            f"product_type must be exactly 9 characters, got {product_type!r}"
+        )
     if product_type not in TYPE_CODES:
         raise ValueError(
-            f"unknown product type code {product_type!r}; expected one of {sorted(TYPE_CODES)}")
+            f"unknown product type code {product_type!r}; expected one of {sorted(TYPE_CODES)}"
+        )
     if not (len(unit) == 1 and unit in string.ascii_uppercase):
         raise ValueError(f"unit must be a single upper-case letter A-Z, got {unit!r}")
     if not 1 <= relative_orbit <= 143:
         raise ValueError(f"relative_orbit must be in 1..143, got {relative_orbit}")
     if consolidation not in CONSOLIDATION_FLAGS:
         raise ValueError(
-            f"consolidation must be one of {sorted(CONSOLIDATION_FLAGS)}, got {consolidation!r}")
+            f"consolidation must be one of {sorted(CONSOLIDATION_FLAGS)}, got {consolidation!r}"
+        )
     if ext not in EXTENSIONS:
         raise ValueError(f"ext must be one of {sorted(EXTENSIONS)}, got {ext!r}")
 
     duration = _round_half_up(duration_s)
     if duration > 9999:
-        raise ValueError(f"duration {duration_s} s exceeds the 4-digit field maximum (9999 s)")
+        raise ValueError(
+            f"duration {duration_s} s exceeds the 4-digit field maximum (9999 s)"
+        )
     duration = max(duration, 1)
 
     start_str = _fmt_start(start_utc)
@@ -180,14 +188,18 @@ def psfd_name(
         discriminator = f"{zlib.crc32(seed.encode('utf-8')):03X}"[-3:]
     elif not re.fullmatch(r"[0-9A-F]{3}", discriminator):
         raise ValueError(
-            f"discriminator must be three upper-case hex characters, got {discriminator!r}")
+            f"discriminator must be three upper-case hex characters, got {discriminator!r}"
+        )
 
-    name = (f"{product_type}_{start_str}_{duration:04d}"
-            f"_{unit}{relative_orbit:03d}_{consolidation}{discriminator}")
+    name = (
+        f"{product_type}_{start_str}_{duration:04d}"
+        f"_{unit}{relative_orbit:03d}_{consolidation}{discriminator}"
+    )
     if z_suffix is not None:
         if not re.fullmatch(r"[A-Za-z0-9_]+", z_suffix):
             raise ValueError(
-                f"z_suffix must be letters, digits or underscores, got {z_suffix!r}")
+                f"z_suffix must be letters, digits or underscores, got {z_suffix!r}"
+            )
         name += f"_{z_suffix}"
     return name + ext
 
