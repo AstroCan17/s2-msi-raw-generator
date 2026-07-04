@@ -30,7 +30,7 @@ The Software Configuration File documents the inventory, baseline, build means a
 | Name | Sentinel-2 MSI Synthetic Raw Data Generator |
 | Package | `s2_msi_raw_generator` |
 | Version | `0.3.0` (`s2_msi_raw_generator/__init__.py`) |
-| Repository | `gitlab.eopf` `e2es/s2-msi-raw-generator`, branch `main` |
+| Repository | `gitlab.eopf` `ipf/s2-msi-raw-generator`, branch `main` |
 | License | Apache-2.0 |
 | Language / runtime | Python ≥ 3.11 |
 | Build backend | `flit_core` (`pyproject.toml`) |
