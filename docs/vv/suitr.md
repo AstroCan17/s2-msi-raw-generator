@@ -49,7 +49,7 @@ current baseline; validation-level results (real-data E2E) are in the
 The 5 skips are the `S2_E2ES_GIPP_DIR` / `S2_E2ES_L1A`-gated tests (SUITP §2); they **pass when the data
 is supplied** — verified on the SDE with the operational GIPP and the real bucket L1A (evidence:
 [Real-L1A E2E validation](real_e2e.md) and the v0.3.0 run artifacts in the registry package
-`s2-msi-e2e-real/0.3.0`).
+`e2e-real/0.3.0`).
 
 ## 4. Results by area
 

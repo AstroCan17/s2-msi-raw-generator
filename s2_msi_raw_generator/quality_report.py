@@ -61,7 +61,8 @@ def build_qc_report(
         "Datation_Sync": float(ts.get("acquisition_epoch_gps_s") or 0.0) > 0.0,
         "Time_Correlation": "acquisition_epoch_utc" in ts,
         "Relative_Orbit": isinstance(rel, int) and 1 <= rel <= 143,
-        "Absolute_Orbit": isinstance(ab, int) and ab > 0,
+        # A000000 is the explicit placeholder orbit used when source STAC has no absolute orbit.
+        "Absolute_Orbit": isinstance(ab, int) and ab >= 0,
         "Product_Structure": bool(has_measurements),
     }
     inspection = inspection_time or _now_iso()

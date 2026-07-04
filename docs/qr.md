@@ -65,7 +65,7 @@ dispositioned and risk-tracked.
   radiometric round-trip RMSE 2.8e-16…1.5e-14 (gate 1e-6); EOQC OK on both L0 forms; ISP self-parse
   100 % (30 642 packets); PSFD naming round-trip on every product.
 - **Release evidence:** GitLab Release v0.3.0; products + run reports frozen in the generic package
-  registry `s2-msi-e2e-real/0.3.0`; docs site published (strict-build pipeline).
+  registry `e2e-real/0.3.0`; docs site published (strict-build pipeline).
 
 ## 4. Open items & dispositions
 
