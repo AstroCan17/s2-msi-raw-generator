@@ -30,8 +30,12 @@ from __future__ import annotations
 import numpy as np
 import zarr
 
-# zarr major version (3 on local/CI, 2 in the eopf==2.8.1 SDE env).
-ZARR_MAJOR = int(zarr.__version__.split(".")[0])
+# zarr major version (3 on local/CI, 2 in the eopf==2.8.1 SDE env). Guarded so importing this
+# module under a mocked ``zarr`` (Sphinx autodoc) does not blow up on a non-numeric __version__.
+try:
+    ZARR_MAJOR = int(str(zarr.__version__).split(".")[0])
+except (TypeError, ValueError, AttributeError, IndexError):
+    ZARR_MAJOR = 3  # docs/mock build: assume the modern zarr 3 API
 _V3 = ZARR_MAJOR >= 3
 
 
