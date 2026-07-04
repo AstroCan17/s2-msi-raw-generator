@@ -43,7 +43,7 @@ document, SRelD). Full history: `../CHANGELOG.md`.
 canonical L0 (`isp.packetize_stream`, ground decode `read_l0_isp_dn`); EOPF PSFD §3 naming
 (`naming.py`, ICD-IF-NAME); real-L1A E2E driver + authoritative SDE run — **L1A′ bit-identical 13/13
 bands**, lossless 3.66×, GIPP round-trip ≈ 1e-14 (`docs/vv/real_e2e.md`); products in the package
-registry `s2-msi-e2e-real/0.3.0`; Release v0.3.0.
+registry `e2e-real/0.3.0`; Release v0.3.0.
 
 - **Real operational GIPP** → per-pixel dark + relative response (replaces the DQR-summary dark / seeded
   PRNU).

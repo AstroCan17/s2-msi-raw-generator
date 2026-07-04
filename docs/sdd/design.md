@@ -92,7 +92,7 @@ SEQ_FIRST/CONT/LAST grammar), `build_sad_packets()`; `frame_isp_headers()` is le
 `parse_list_xml()`, `save_manifest()`.
 
 ### io.py — product reader (REQ-IF-001, REQ-FUNC-001)
-`read_l1b_band()`, `read_l1a_raw()`, `read_platform()`.
+`read_l1b_band()`, `read_l1a_raw()`.
 
 ### l0product.py — L0 RAW assembly (REQ-FUNC-030..-034, -045; REQ-IF-002)
 `reverse_to_l0_frames()`, `build_root_metadata()`, `write_l0_product()`.

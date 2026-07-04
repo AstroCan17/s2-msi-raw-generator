@@ -74,7 +74,8 @@ def test_stac_geometry_orbit_and_datation(tmp_path):
     assert disc["geometry"]["type"] == "Polygon" and ring[0] == ring[-1] and len(ring) >= 4
     # orbit + product identity
     p = disc["properties"]
-    assert p["sat:relative_orbit"] == 122 and p["sat:orbit_state"] == "descending"
+    assert p["sat:relative_orbit"] == 45 and p["sat:absolute_orbit"] == 0
+    assert p["sat:orbit_state"] == "descending"
     assert p["constellation"] == "sentinel-2" and p["product:type"] == "S2MSIL0_"
     assert p["eopf:datastrip_id"].startswith("S2A_OPER_MSI_L0__DS_2024")
     # real datetime span (Zulu, ordered, not the old placeholder)

@@ -26,7 +26,7 @@ decompresses) — the real L1A DN ``X`` is CCSDS-122 lossless-compressed and pac
 the canonical L0, ground-decoded back (``X′ == X`` bit-exact), written as the open-container
 L0 and pushed through msi-processor ``l0_decode`` → **L1A′** (bit-identical on kept lines)::
 
-    fetch-l1a fetch-l0 preflight package ground-decode l0-decode validate
+    fetch-l1a fetch-l0 import-l0 preflight package ground-decode l0-decode validate
     radiometric-vv scan-l0 quicklook report
 
 **Calibration mode** (the ``calibration`` positional; REQ-FUNC-048). Synthesizes the
@@ -38,9 +38,10 @@ Every calibration product lands under ``<store>/caldb/`` (nominal L0s under ``l0
 
     cal-acquire cal-package build-caldb report
 
-**On-demand phases** (never in a default set): ``derive-adf`` (real per-detector
-PRNU/dark from matched products, → ``BandADF.from_product``), ``figures`` (the single-band
-stage-by-stage README/docs figures + quality metrics).
+**On-demand phases** (never in a default set): ``inventory`` (metadata-only store report),
+``import-l0`` (public-L0 same-scene bridge), ``derive-adf`` (real per-detector PRNU/dark from
+matched products, → ``BandADF.from_product``), ``figures`` (the single-band stage-by-stage
+README/docs figures + quality metrics).
 
 Configuration is environment-only — the CLI takes just the mode::
 
@@ -51,7 +52,8 @@ Configuration is environment-only — the CLI takes just the mode::
     S2_E2ES_CAL_LINES      cal lines per frame
     S2_E2ES_JOBS           parallel workers (default: all cores) — CCSDS-122 compress
                            (package/cal-package), ground-decode, S3 fetch threads
-    S2_E2ES_L1A  S2_E2ES_DARK  S2_E2ES_GIPP_DIR  S2_E2ES_L1B           input paths
+    S2_E2ES_L1A  S2_E2ES_PUBLIC_L0  S2_E2ES_IMPORT_DETECTOR            input paths
+    S2_E2ES_DARK  S2_E2ES_GIPP_DIR  S2_E2ES_L1B
     S2_E2ES_PUBLISH_NAME  S2_E2ES_PUBLISH_VERSION  S2_E2ES_PUBLISH_LAYER  publish-store
 
 Examples::
@@ -77,12 +79,16 @@ from pathlib import Path
 import numpy as np
 
 from s2_msi_raw_generator import (
+    _fsutil,
+    _parallel,
     adf as adfmod,
     caldb as caldb_mod,
     ccsds122,
     datation,
     io as gio,
     isp,
+    import_l0,
+    inventory,
     l0product,
     naming,
     quicklook,
@@ -124,6 +130,7 @@ PHASES = [
     "fetch-store",
     "fetch-l1a",
     "fetch-l0",
+    "import-l0",
     "preflight",
     "cal-acquire",
     "cal-package",
@@ -139,6 +146,7 @@ PHASES = [
     "figures",
     "report",
     "publish-store",
+    "inventory",
 ]
 #: Default phase sets per --mode: the nominal (real-data) chain and the calibration campaign.
 NOMINAL_PHASES = [
@@ -155,6 +163,29 @@ NOMINAL_PHASES = [
     "report",
 ]
 CALIBRATION_PHASES = ["cal-acquire", "cal-package", "build-caldb", "report"]
+
+#: Baked-in run defaults so the pipeline runs with a bare
+#: ``python scripts/run_pipeline.py [nominal|calibration]`` — no shell ``export`` needed.
+#: Paths hang off ``~/data-store`` (the store symlink in $HOME), so this works on any machine
+#: whose home holds that link. Anything already set in the environment wins, so
+#: ``export S2_E2ES_GIPP_DIR=...`` (etc.) still overrides a value here for a one-off run.
+_LOCAL_STORE = Path.home() / "data-store"
+LOCAL_ENV_DEFAULTS: dict[str, str] = {
+    "S2_DATA_STORE": str(_LOCAL_STORE),
+    "S2_E2ES_GIPP_DIR": str(_LOCAL_STORE / "inputs/s2-sensor/GIPP"),
+    "S2_E2ES_PUBLIC_L0": str(
+        _LOCAL_STORE
+        / "inputs/public-data/level-0/S02MSIL0__20230216T182840_0001_A123_T000.zarr.zip"
+    ),
+    "S2_E2ES_IMPORT_DETECTOR": "1",
+    "S2_E2ES_JOBS": "16",
+}
+#: Default phase chain applied for ``nominal`` mode only (the public-L0 same-scene bridge +
+#: inventory alongside the standard package/decode/validate chain).
+LOCAL_NOMINAL_PHASES = (
+    "import-l0,preflight,package,ground-decode,l0-decode,validate,"
+    "radiometric-vv,inventory,report"
+)
 
 _SENTINEL_SATURATED = 32768  # IF-IN-L1A saturation sentinel in the real product
 
@@ -244,6 +275,38 @@ def phase_fetch_l0(store: dict[str, Path], args) -> None:
     )
 
 
+def _default_public_l0(store: dict[str, Path]) -> Path | None:
+    candidates = sorted(
+        (store["inputs"] / "public-data" / "level-0").glob("S02MSIL0__*.zarr.zip"),
+        key=lambda p: p.stat().st_mtime,
+    )
+    return candidates[-1] if candidates else None
+
+
+def phase_import_l0(store: dict[str, Path], args) -> None:
+    """Import a public distribution L0 image product as the same-scene pipeline L1A input."""
+    src = Path(args.public_l0) if args.public_l0 else _default_public_l0(store)
+    if src is None:
+        raise SystemExit(
+            "[import-l0] needs $S2_E2ES_PUBLIC_L0 or "
+            "inputs/public-data/level-0/S02MSIL0__*.zarr.zip"
+        )
+    report = import_l0.convert(
+        src,
+        store["inputs"],
+        detector=args.import_detector,
+        bands=args.bands,
+        jobs=args.jobs,
+    )
+    _jdump(report, store["report"] / "import_l0.json")
+    os.environ["S2_E2ES_L1A"] = report["output"]
+    args.l1a = report["output"]
+    print(
+        f"[import-l0] d{args.import_detector:02d} {len(report['bands'])} bands → "
+        f"{report['output']}"
+    )
+
+
 def _l1a_path(store: dict[str, Path], args) -> str:
     return (
         args.l1a
@@ -276,6 +339,7 @@ def phase_preflight(store: dict[str, Path], args) -> None:
     max_dn = max(b["max"] for b in per_band.values())
     bit_depth = 12 if max_dn <= sensor.DN_MAX else 16
     line_period_s = sensor.LINE_PERIOD_MS / 1e3
+    acq = naming.acquisition_context(attrs)
     l0_name, info = naming.from_l1a_context(
         attrs, n_lines=n_lines, line_period_s=line_period_s, product_type="S02MSIL0_"
     )
@@ -307,6 +371,13 @@ def phase_preflight(store: dict[str, Path], args) -> None:
             "start_utc": parsed["start_utc"],
             "relative_orbit": parsed["relative_orbit"],
             "unit": parsed["unit"],
+            "platform": acq["platform"],
+            "orbit": {
+                "relative_orbit": acq["relative_orbit"],
+                "absolute_orbit": acq["absolute_orbit"],
+                "orbit_state": acq["orbit_state"],
+            },
+            "orbit_fallbacks": acq.get("orbit_derived_from_defaults", []),
         },
         store["report"] / "preflight.json",
     )
@@ -338,6 +409,8 @@ def phase_package(store: dict[str, Path], args) -> None:
         with_isp=True,
         isp_max_payload=args.max_payload,
         store_decoded=args.store_decoded,
+        platform=pre.get("platform", "Sentinel-2A"),
+        orbit=pre.get("orbit"),
         jobs=args.jobs,
     )
     del frames
@@ -355,24 +428,16 @@ def phase_ground_decode(store: dict[str, Path], args) -> None:
     # decompression is pure-Python/GIL-bound → bands fan out to worker processes.
     jobs = min(args.jobs, len(pre["bands"]))
     if jobs > 1:
-        import multiprocessing
-        from concurrent.futures import ProcessPoolExecutor
-
-        # spawn: fork from a multi-threaded parent is deprecated (3.12+) / deadlock-prone
-        ctx = multiprocessing.get_context("spawn")
-        with ProcessPoolExecutor(max_workers=jobs, mp_context=ctx) as pool:
-            futures = {
-                bn: pool.submit(
+        decoded = _parallel.run_in_process_pool(
+            {
+                bn: (
                     l0product.decode_verify_band,
-                    canon,
-                    DETECTOR,
-                    bn,
-                    l1a,
-                    args.line_slice,
+                    (canon, DETECTOR, bn, l1a, args.line_slice),
                 )
                 for bn in pre["bands"]
-            }
-            decoded = {bn: fut.result() for bn, fut in futures.items()}
+            },
+            jobs,
+        )
     else:
         decoded = {
             bn: l0product.decode_verify_band(canon, DETECTOR, bn, l1a, args.line_slice)
@@ -411,7 +476,13 @@ def phase_ground_decode(store: dict[str, Path], args) -> None:
     _jdump(rt, store["report"] / "ground_decode.json")
     # the real-chain order: the open container is written from the RECONSTRUCTED DN
     oc = str(store["l0"] / pre["product_names"]["l0_oc"])
-    l0product.write_l0_opencontainer(oc, band_frames, datation=d)
+    l0product.write_l0_opencontainer(
+        oc,
+        band_frames,
+        datation=d,
+        platform=pre.get("platform", "Sentinel-2A"),
+        orbit=pre.get("orbit"),
+    )
     print(f"[ground-decode] open-container L0 → {oc}")
 
 
@@ -427,14 +498,10 @@ def phase_l0_decode(store: dict[str, Path], args) -> None:
     g = zarr.open_group(oc, mode="r")
     bands = sorted(g["measurements/detector"].array_keys())
     # resolution groups keep 'line' uniform within each persisted product (real products mix
-    # 10 m / 20 m / 60 m line counts); --band-groups > 1 subdivides them further for RAM.
-    groups: list[list[str]] = []
-    for res_bands in RES_GROUPS.values():
-        grp = [b for b in bands if b in res_bands]
-        if args.band_groups > 1:
-            groups += [grp[i :: args.band_groups] for i in range(args.band_groups)]
-        else:
-            groups.append(grp)
+    # 10 m / 20 m / 60 m line counts).
+    groups: list[list[str]] = [
+        [b for b in bands if b in res_bands] for res_bands in RES_GROUPS.values()
+    ]
     groups += [[b for b in bands if not any(b in r for r in RES_GROUPS.values())]]
     outdir = store["l1a_prime"]
     stem = pre["product_names"]["l1a_prime"].removesuffix(".zarr")
@@ -471,7 +538,8 @@ def phase_l0_decode(store: dict[str, Path], args) -> None:
         del prod, l1a
         print(f"[l0-decode] group {gi} ({len(grp)} bands) → {outdir}/{stem}.g{gi}.zarr")
     _jdump(
-        {"lines_lost": lost, "groups": len(groups)}, store["report"] / "l0_decode.json"
+        {"lines_lost": lost, "groups": sum(1 for g_ in groups if g_)},
+        store["report"] / "l0_decode.json",
     )
 
 
@@ -564,15 +632,6 @@ def _sha256_file(path: Path) -> str:
     return h.hexdigest()
 
 
-def _zip_dir(src: Path, dest_zip: Path) -> None:
-    import zipfile
-
-    with zipfile.ZipFile(dest_zip, "w", zipfile.ZIP_DEFLATED) as zf:
-        for p in sorted(src.rglob("*")):
-            if p.is_file():
-                zf.write(p, p.relative_to(src.parent))
-
-
 def phase_fetch_store(store: dict[str, Path], args) -> None:
     """Pull the shared data-store (manifest → missing packages → sha256 → unpack).
 
@@ -644,20 +703,20 @@ def phase_publish_store(store: dict[str, Path], args) -> None:
                 continue
             if d.is_dir() and any(d.iterdir()):
                 zp = stage / f"{d.name}.zip"
-                _zip_dir(d, zp)
+                _fsutil.zip_dir(d, zp, base="parent")
                 entries.append((zp, f"inputs/{d.name}.zip"))
     else:
         # product zarr dirs → PSFD .zarr.zip; plain dirs (caldb/quicklook/…) → dir.zip
         for sub in ("l0", "l1a_prime", "l1b"):
             for z in sorted((root / sub).glob("*.zarr")):
                 zp = stage / f"{z.name}.zip"
-                _zip_dir(z, zp)
+                _fsutil.zip_dir(z, zp, base="parent")
                 entries.append((zp, f"{sub}/{z.name}.zip"))
         for sub in ("caldb", "quicklook", "report", "figures"):
             d = root / sub
             if d.is_dir() and any(d.iterdir()):
                 zp = stage / f"{sub}.zip"
-                _zip_dir(d, zp)
+                _fsutil.zip_dir(d, zp, base="parent")
                 entries.append((zp, f"{sub}.zip"))
     if not entries:
         raise SystemExit(f"[publish-store] nothing to publish under {root}")
@@ -721,6 +780,16 @@ def phase_publish_store(store: dict[str, Path], args) -> None:
         data=json.dumps(manifest, indent=2).encode(),
     )
     print(f"[publish-store] manifest updated — {len(manifest['packages'])} packages")
+
+
+def phase_inventory(store: dict[str, Path], args) -> None:
+    """Write metadata-only inventory and consistency reports for the data store."""
+    del args
+    payload = inventory.write_outputs(store["report"].parent)
+    print(
+        f"[inventory] {len(payload['records'])} items, {len(payload['findings'])} findings → "
+        f"{store['report'].parent/'INVENTORY.md'}"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -1424,6 +1493,8 @@ def _settings(mode: str) -> argparse.Namespace:
     s = argparse.Namespace(mode=mode)
     s.phases = e("S2_E2ES_PHASES") or None
     s.l1a = e("S2_E2ES_L1A") or None
+    s.public_l0 = e("S2_E2ES_PUBLIC_L0") or None
+    s.import_detector = _env_int("S2_E2ES_IMPORT_DETECTOR", 1)
     s.dark = e("S2_E2ES_DARK") or None
     s.gipp = e("S2_E2ES_GIPP_DIR") or None
     s.bands = [
@@ -1439,7 +1510,6 @@ def _settings(mode: str) -> argparse.Namespace:
     s.jobs = _env_int("S2_E2ES_JOBS", os.cpu_count() or 8)
     # fixed internals — formerly niche flags no consumer ever overrode
     s.detectors = "1-12"
-    s.band_groups = 1
     s.max_payload = isp.DEFAULT_MAX_PAYLOAD
     s.store_decoded = True
     s.fig_l1b = e("S2_E2ES_L1B") or None
@@ -1462,11 +1532,12 @@ def _settings(mode: str) -> argparse.Namespace:
     return s
 
 
-def main(argv=None) -> int:
+def main(argv=None, *, use_local_defaults: bool = False) -> int:
     ap = argparse.ArgumentParser(
         description=__doc__.splitlines()[0],
-        epilog="store root: $S2_DATA_STORE (default ~/data-store); "
-        "tuning via S2_E2ES_* env vars (module docstring)",
+        epilog="runs with no exports via the baked-in LOCAL_ENV_DEFAULTS (store root, GIPP dir, "
+        "public L0, detector, jobs); export any S2_E2ES_* / S2_DATA_STORE var to override "
+        "(full list in the module docstring)",
     )
     ap.add_argument(
         "mode",
@@ -1477,7 +1548,17 @@ def main(argv=None) -> int:
         "calibration: campaign acquisitions -> S02MSIDCA/S02MSISCA L0 + cal-DB "
         "under <store>/caldb/",
     )
-    args = _settings(ap.parse_args(argv).mode)
+    mode = ap.parse_args(argv).mode
+    # Command-line runs (``use_local_defaults``, set from ``__main__``) get the baked-in
+    # LOCAL_ENV_DEFAULTS so a bare ``python scripts/run_pipeline.py`` needs no shell exports;
+    # an already-exported value always wins (setdefault). Programmatic callers (tests) opt out
+    # so the process environment stays clean. Phases default per mode.
+    if use_local_defaults:
+        for key, value in LOCAL_ENV_DEFAULTS.items():
+            os.environ.setdefault(key, value)
+        if mode == "nominal":
+            os.environ.setdefault("S2_E2ES_PHASES", LOCAL_NOMINAL_PHASES)
+    args = _settings(mode)
 
     store = _store_paths(
         Path(os.environ.get("S2_DATA_STORE") or "~/data-store").expanduser()
@@ -1496,8 +1577,10 @@ def main(argv=None) -> int:
     fns = {
         "fetch-store": phase_fetch_store,
         "publish-store": phase_publish_store,
+        "inventory": phase_inventory,
         "fetch-l1a": phase_fetch_l1a,
         "fetch-l0": phase_fetch_l0,
+        "import-l0": phase_import_l0,
         "preflight": phase_preflight,
         "cal-acquire": phase_cal_acquire,
         "cal-package": phase_cal_package,
@@ -1520,4 +1603,4 @@ def main(argv=None) -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    raise SystemExit(main(use_local_defaults=True))
