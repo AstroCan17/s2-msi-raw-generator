@@ -71,14 +71,3 @@ def read_l1a_raw(
     arr = g[f"measurements/DD{detector:02d}/{band.upper()}/l1a_raw_image"]
     data = arr[lines] if lines is not None else arr[:]
     return np.asarray(data) if dtype is None else np.asarray(data, dtype=dtype)
-
-
-def read_platform(path: str) -> str | None:
-    """Best-effort read of the platform id (e.g. ``"Sentinel-2A"``) from STAC metadata."""
-    g = _open(path)
-    try:
-        attrs = dict(g.attrs)
-        stac = attrs.get("stac_discovery", {})
-        return stac.get("stac_discovery", stac).get("properties", {}).get("platform")
-    except Exception:  # pragma: no cover - metadata layout varies by CPM version
-        return None

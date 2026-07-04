@@ -45,7 +45,7 @@ EOProduct. Auxiliary inputs (PSF matrices, SRF, operational GIPP) areS2 data.
 | `reverse` | `s1..s14` step functions, `reverse_mvp`, `reverse_full`, `reverse_radiometric`/`forward_radiometric` | NumPy reverse chain on `(lines, detector_columns)` arrays. |
 | `forward_radiometric_atbd` | `forward_correct`, `reverse_impress`, `forward_equalize`/`inverse_equalize`, `column_fpn` | Public-ATBD forward model + exact inverse (round-trip bridge). |
 | `calibration` | `calibrate`, `estimated_adf`, `synth_dark_acquisition`, `synth_diffuser_acquisition` | Two-reference calibration sub-set → derived coefficients. |
-| `io` | `read_l1b_band`, `read_l1a_raw`, `read_platform` | Lightweight Zarr reader (no full EOPF CPM). |
+| `io` | `read_l1b_band`, `read_l1a_raw` | Lightweight Zarr reader (no full EOPF CPM). |
 | `isp` | `frame_isp_headers`, `build_sad_packets`, `build_primary_header`, `apid_for` | CCSDS ISP / SAD telemetry (S15). |
 | `l0product` | `reverse_to_l0_frames`, `build_root_metadata`, `write_l0_product` | Top integrator → writes the ICD-IF-L0 product. |
 

@@ -46,6 +46,8 @@ import string
 import zlib
 from datetime import datetime, timezone
 
+from . import metadata
+
 #: The 9-character product type codes emitted by this generator (PSFD §3), mapped to a short label.
 #: The trailing ``_`` is the PSFD pad character (used when the level mnemonic is shorter than the
 #: 3-character ``CCC`` field), so e.g. ``S02MSIL0_`` plus the ``_`` field separator reads
@@ -253,6 +255,51 @@ def _unit_from_platform(platform: str) -> str | None:
     return token if len(token) == 1 and token in string.ascii_uppercase else None
 
 
+def acquisition_context(attrs: dict) -> dict:
+    """Extract acquisition identity fields from L1A/L1B root attributes.
+
+    Reads the acquisition start, relative orbit and platform unit from the STAC discovery metadata
+    (``attrs["stac_discovery"]["properties"]``). Any field that is absent falls back to a module
+    default (:data:`DEFAULT_START`, :data:`DEFAULT_RELATIVE_ORBIT`, :data:`DEFAULT_UNIT`) and is
+    recorded under ``"derived_from_defaults"``.
+    """
+    _, props, _ = metadata.normalise_stac(attrs if isinstance(attrs, dict) else {})
+    fallbacks: list[str] = []
+
+    start_utc = metadata.parse_iso(props.get("datetime") or props.get("start_datetime"))
+    if start_utc is None:
+        start_utc = DEFAULT_START
+        fallbacks.append("datetime")
+
+    relative_orbit = props.get("sat:relative_orbit")
+    if relative_orbit is None:
+        relative_orbit = DEFAULT_RELATIVE_ORBIT
+        fallbacks.append("sat:relative_orbit")
+
+    orbit_fallbacks: list[str] = []
+    absolute_orbit, _ = metadata.coerce_int(props.get("sat:absolute_orbit"))
+    if absolute_orbit is None:
+        absolute_orbit = 0
+        orbit_fallbacks.append("sat:absolute_orbit")
+
+    unit = _unit_from_platform(props.get("platform", ""))
+    if unit is None:
+        unit = DEFAULT_UNIT
+        fallbacks.append("platform")
+
+    platform = props.get("platform") or f"Sentinel-2{unit}"
+    return {
+        "start_utc": start_utc,
+        "relative_orbit": int(relative_orbit),
+        "absolute_orbit": absolute_orbit,
+        "orbit_state": props.get("sat:orbit_state") or "descending",
+        "unit": unit,
+        "platform": platform,
+        "derived_from_defaults": fallbacks,
+        "orbit_derived_from_defaults": orbit_fallbacks,
+    }
+
+
 def from_l1a_context(
     attrs: dict,
     *,
@@ -263,11 +310,8 @@ def from_l1a_context(
 ) -> tuple[str, dict]:
     """Derive a product name from an L1A / L1B product's root attributes.
 
-    Reads the acquisition start, relative orbit and platform unit from the STAC discovery metadata
-    (``attrs["stac_discovery"]["properties"]``) and computes the duration as
-    ``n_lines * line_period_s``. Any field that is absent falls back to a module default
-    (:data:`DEFAULT_START`, :data:`DEFAULT_RELATIVE_ORBIT`, :data:`DEFAULT_UNIT`) and is recorded in
-    the returned info dict under ``"derived_from_defaults"``.
+    Reads the acquisition context via :func:`acquisition_context` and computes the duration as
+    ``n_lines * line_period_s``.
 
     Parameters
     ----------
@@ -288,36 +332,13 @@ def from_l1a_context(
         The product name and an info dict ``{"derived_from_defaults": [field, ...]}`` naming each
         STAC field that fell back to a default.
     """
-    props: dict = {}
-    if isinstance(attrs, dict):
-        sd = attrs.get("stac_discovery")
-        if isinstance(sd, dict) and isinstance(sd.get("properties"), dict):
-            props = sd["properties"]
-    fallbacks: list[str] = []
-
-    iso = props.get("datetime") or props.get("start_datetime")
-    if iso:
-        start_utc = datetime.fromisoformat(str(iso).replace("Z", "+00:00"))
-    else:
-        start_utc = DEFAULT_START
-        fallbacks.append("datetime")
-
-    relative_orbit = props.get("sat:relative_orbit")
-    if relative_orbit is None:
-        relative_orbit = DEFAULT_RELATIVE_ORBIT
-        fallbacks.append("sat:relative_orbit")
-
-    unit = _unit_from_platform(props.get("platform", ""))
-    if unit is None:
-        unit = DEFAULT_UNIT
-        fallbacks.append("platform")
-
+    ctx = acquisition_context(attrs)
     name = psfd_name(
         product_type,
-        start_utc,
+        ctx["start_utc"],
         n_lines * line_period_s,
-        unit=unit,
-        relative_orbit=int(relative_orbit),
+        unit=ctx["unit"],
+        relative_orbit=ctx["relative_orbit"],
         ext=ext,
     )
-    return name, {"derived_from_defaults": fallbacks}
+    return name, {"derived_from_defaults": ctx["derived_from_defaults"]}

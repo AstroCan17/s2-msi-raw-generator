@@ -18,7 +18,7 @@ from pathlib import Path
 
 import numpy as np
 
-from . import __version__, ccsds122, isp, quality, quality_report, sad, sensor
+from . import __version__, _parallel, ccsds122, isp, quality, quality_report, sad, sensor
 from .adf import BandADF, synthesize
 from .datation import Datation
 from .reverse import reverse_mvp
@@ -32,7 +32,8 @@ except ImportError:  # pragma: no cover
 FrameKey = tuple[int, str]
 
 # Default synthetic S2A acquisition footprint + orbit (metadata realism; overridable per call).
-# Modelled on a real S2A tile (T32TQQ, relative orbit R122) so the STAC geometry is plausible.
+# The orbit default is aligned with naming.DEFAULT_RELATIVE_ORBIT so placeholder products do not
+# carry contradictory PSFD file-name and STAC identities.
 DEFAULT_FOOTPRINT: dict = {
     "bbox": [8.999, 44.637, 10.291, 45.637],
     "geometry": {
@@ -49,8 +50,8 @@ DEFAULT_FOOTPRINT: dict = {
     },
 }
 DEFAULT_ORBIT: dict = {
-    "relative_orbit": 122,
-    "absolute_orbit": 34803,
+    "relative_orbit": 45,
+    "absolute_orbit": 0,
     "orbit_state": "descending",
 }
 
@@ -325,20 +326,11 @@ def write_l0_product(
 
     # Per-band CPU work → worker processes (the codec's entropy coder is GIL-bound);
     # all zarr writes stay in this process, so the product is written serially below.
-    # spawn context: fork from a multi-threaded parent is deprecated (3.12+) / deadlock-prone.
     if jobs > 1 and len(items) > 1:
-        import multiprocessing
-        from concurrent.futures import ProcessPoolExecutor
-
-        ctx = multiprocessing.get_context("spawn")
-        with ProcessPoolExecutor(
-            max_workers=min(jobs, len(items)), mp_context=ctx
-        ) as pool:
-            futures = {
-                key: pool.submit(_band_payload, *_payload_args(*key, dn))
-                for key, dn in items
-            }
-            payloads = {key: fut.result() for key, fut in futures.items()}
+        payloads = _parallel.run_in_process_pool(
+            {key: (_band_payload, _payload_args(*key, dn)) for key, dn in items},
+            min(jobs, len(items)),
+        )
     else:
         payloads = {key: _band_payload(*_payload_args(*key, dn)) for key, dn in items}
 
@@ -443,16 +435,6 @@ def decode_verify_band(
 
     orig = gio.read_l1a_raw(l1a_path, det, bname, lines=line_slice, dtype=np.uint16)
     return rec, bool(np.array_equal(rec, orig)), cross
-
-
-def frames_to_strip(frames: dict[FrameKey, np.ndarray]) -> dict[str, np.ndarray]:
-    """Reduce the 156-array ``{(det, band): frame}`` to one representative ``(line, detector)`` per band."""
-    by_band: dict[str, np.ndarray] = {}
-    for (_det, bname), arr in sorted(frames.items()):
-        by_band.setdefault(
-            bname, np.asarray(arr)
-        )  # first (lowest-index) detector per band
-    return by_band
 
 
 def write_l0_opencontainer(

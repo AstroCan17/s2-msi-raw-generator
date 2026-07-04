@@ -80,7 +80,7 @@ CCSDS-122-compressed, real-space-packet **L0** (lossless ratio **3.66×**, 30 64
 packets), ground-decoded bit-exactly and pushed through msi-processor `l0_decode` —
 **L1A′ bit-identical to the original in 13/13 bands**; radiometric GIPP round-trip
 RMSE ≈ 1e-14. Numbers & criteria: `docs/vv/real_e2e.md`; products: GitLab package registry
-`s2-msi-e2e-real/0.3.0` (PSFD `.zarr.zip` names).
+`e2e-real/0.3.0` (PSFD `.zarr.zip` names).
 
 ![Real L1A scene — B04/B03/B02, raw per-detector geometry (band misregistration is real; co-registration happens at L1B/L1C)](docs/_static/showcase/real_l1a_rgb.png)
 
@@ -138,6 +138,8 @@ the PSF/SRF/noise model are real ESA data; the per-pixel dark/PRNU are the synth
 | `s2_msi_raw_generator/reverse.py` | Reverse chain steps **S1–S14** + `reverse_full` / `reverse_mvp` |
 | `s2_msi_raw_generator/isp.py` | **S15** — CCSDS ISP packet generation + SAD telemetry |
 | `s2_msi_raw_generator/io.py` | Real EOPF L1A/L1B Zarr reader (`zarr`) |
+| `s2_msi_raw_generator/import_l0.py` | Public L0 → PDI-style L1A same-scene bridge (`import-l0` phase) |
+| `s2_msi_raw_generator/inventory.py` | Metadata-only data-store inventory + consistency report (`inventory` phase) |
 | `s2_msi_raw_generator/l0product.py` | L0 RAW EOProduct assembly (156-array Zarr + STAC/sensor-config + ISP) |
 | `s2_msi_raw_generator/adf_writer.py` | **Calibration database** — writes derived coeffs as EOPF ADFs (`nuc`/`dark`/`radiometric`/`spectral`/`noise`) for the downstream L1PP processor |
 
@@ -188,6 +190,9 @@ S2_E2ES_PHASES=fetch-store python scripts/run_pipeline.py
 S2_E2ES_PHASES=publish-store S2_E2ES_PUBLISH_VERSION=<X.Y.Z> python scripts/run_pipeline.py
 
 # on-demand phases
+S2_E2ES_PHASES=inventory python scripts/run_pipeline.py                        # INVENTORY.md + report/inventory.json
+S2_E2ES_PHASES=import-l0,preflight,package,ground-decode,l0-decode,validate,report \
+  S2_E2ES_PUBLIC_L0=<S02MSIL0__.zarr.zip> python scripts/run_pipeline.py        # same-scene bridge
 S2_E2ES_PHASES=build-caldb python scripts/run_pipeline.py                        # Option-Y cal-DB ADFs
 S2_E2ES_PHASES=derive-adf S2_E2ES_L1A=<L1A.zarr> python scripts/run_pipeline.py  # real PRNU/dark → npz
 S2_E2ES_PHASES=figures S2_E2ES_L1B=<L1B.zarr.zip> python scripts/run_pipeline.py # Result figures
@@ -199,7 +204,8 @@ live in the shared [ipf/data-store](https://gitlab.eopf.copernicus.eu/ipf/data-s
 pull a working copy with `S2_E2ES_PHASES=fetch-store`. Real-data tests run
 when `S2_E2ES_GIPP_DIR` / `S2_E2ES_L1A` are set. The full variable reference is in
 `docs/sum.md` §4. For interactive inspection of the generated products (band images, ISP
-decode checks, cal-DB gains, reports) open `notebooks/inspect_products.ipynb` in JupyterLab.
+decode checks, cal-DB gains, reports) open `notebooks/inspect_products.ipynb` in JupyterLab;
+for a tabular store inventory use `notebooks/data_inventory.ipynb`.
 
 ## Status
 

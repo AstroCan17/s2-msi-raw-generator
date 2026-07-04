@@ -48,7 +48,7 @@ in 13/13 bands**, radiometric GIPP round-trip RMSE ≈ 1e-14.
 
 A dark ocean scene with cloud speckle; the band-to-band colour misregistration is *real* —
 L1A is raw per-detector geometry (co-registration happens at L1B/L1C). Products are published
-in the GitLab **Generic Package Registry** (`s2-msi-e2e-real/0.3.0`, PSFD `.zarr.zip` names).
+in the GitLab **Generic Package Registry** (`e2e-real/0.3.0`, PSFD `.zarr.zip` names).
 
 ### Single band, stage by stage (B04, real product)
 

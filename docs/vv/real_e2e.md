@@ -21,12 +21,33 @@ msi-processor **`l0_decode`** → **L1A′** → compare with `X`.
 | 4 | EOQC | both L0 products `OK` |
 | 5 | ISP self-parse | 100 % of generated packets walk via `iter_packets`; real `.bin` tiling reported (informative) |
 | 6 | Naming | every product name round-trips `parse_psfd_name`; fallbacks flagged |
+| 7 | Same-scene public L0 bridge | `import-l0` A0 copy is bit-exact; generated canonical L0 ground-decodes back to the imported public DN |
+
+## Same-scene validation bridge
+
+The public distribution L0 products under `inputs/public-data/level-0/` are different acquisitions
+from the historical generated products, so direct DN differences are cross-scene diagnostics only.
+For an apples-to-apples run, import the public L0 first:
+
+```bash
+S2_E2ES_PHASES=import-l0,preflight,package,ground-decode,l0-decode,validate,report \
+S2_E2ES_PUBLIC_L0=<S02MSIL0__.zarr.zip> \
+python scripts/run_pipeline.py
+```
+
+The bridge asserts four data-preservation checks:
+
+- **A0**: public L0 detector/band image equals the imported PDI-style L1A array.
+- **A1**: canonical L0 ground-decode equals the imported L1A DN.
+- **A2**: `l0_decode` L1A′ equals the imported L1A on kept lines.
+- **A3**: canonical L0 ground-decode is compared directly with the public source array, not only by
+  transitivity.
 
 ## Results — authoritative SDE full-frame run (2026-07-02)
 
 Input: the public-bucket `PDI_MSI_S2_L1A.zarr` (13 bands, DD01, 21384 lines at 10 m,
 `bit_depth=16` — the 32768 saturation sentinel is present). Products (registry package
-`s2-msi-e2e-real/0.3.0`): `S02MSIL0__20240403T102415_0033_A045_TC42.zarr` (canonical,
+`e2e-real/0.3.0`): `S02MSIL0__20240403T102415_0033_A045_TC42.zarr` (canonical,
 compressed ISPs) · `…_TC42_OC.zarr` (open container) · `S02MSIL1A_…_T6DE.g{0,1,2}.zarr`
 (L1A′ per resolution group). Naming fallbacks flagged: `datetime`, `sat:relative_orbit`,
 `platform` (the example L1A is a platform-agnostic granule without STAC discovery metadata).

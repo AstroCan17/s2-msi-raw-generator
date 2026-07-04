@@ -50,7 +50,7 @@ Milestone-relevant reviews held to date (full list: the repository MR history, 3
 | Design reviews per increment (PDR/CDR-equivalent) | !2–!4, !12, !18–!25 | real ADFs, calibration sub-set, cal-DB writer, L0 completion (datation/SAD/EOQC/open container) | merged on green CI |
 | Real-data E2E design + codec (CDR-equivalent) | !27, !28, !29 | CCSDS-122 codec, compressed-ISP L0, E2E driver + PSFD naming | merged; ICD-IF-C122/ISP/NAME controlled |
 | Verification reviews | !30, !31, !33 | accessible real-L0 references (GET-403 disposition), per-resolution-group decode fix, per-band statistics report | merged; limits recorded in `real_e2e.md` |
-| Qualification/release review (QR-equivalent) | !32 | v0.3.0 release: results, publish job, SRN | merged; Release v0.3.0 + registry `s2-msi-e2e-real/0.3.0` |
+| Qualification/release review (QR-equivalent) | !32 | v0.3.0 release: results, publish job, SRN | merged; Release v0.3.0 + registry `e2e-real/0.3.0` |
 | Documentation audit | !35, !36 | staleness sweep (29 findings), landing-page consolidation | merged; findings closed |
 
 ## 3. Schedule & logistics
