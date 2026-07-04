@@ -79,6 +79,10 @@ def test_preflight_package_ground_decode(tmp_path, pdi_l1a, monkeypatch):
     # both product forms exist under PSFD names
     assert (store / "l0" / pre["product_names"]["l0"]).is_dir()
     assert (store / "l0" / pre["product_names"]["l0_oc"]).is_dir()
+    canon = zarr.open_group(str(store / "l0" / pre["product_names"]["l0"]), mode="r")
+    cprops = dict(canon.attrs)["stac_discovery"]["properties"]
+    assert cprops["sat:relative_orbit"] == parsed["relative_orbit"] == 123
+    assert cprops["sat:absolute_orbit"] == pre["orbit"]["absolute_orbit"] == 0
     # the OC detector frames equal the fixture DN (packaging is transparent)
     g = zarr.open_group(str(store / "l0" / pre["product_names"]["l0_oc"]), mode="r")
     src = zarr.open_group(pdi_l1a, mode="r")

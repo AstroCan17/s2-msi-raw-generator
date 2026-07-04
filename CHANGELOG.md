@@ -5,6 +5,15 @@ All notable changes to the Sentinel-2 MSI reverse E2ES (`s2_msi_raw_generator`).
 ## [Unreleased]
 
 ### Added
+- **Data-store inventory and consistency report** — new `s2_msi_raw_generator.inventory`
+  module plus the on-demand `inventory` pipeline phase writes `<store>/INVENTORY.md` and
+  `report/inventory.json` from metadata-only scans of Zarr directories/zip archives, classifying
+  generated products, public L0/L0P references, cal-DB entries, reports, staging zips and broken
+  links while flagging cross-scene comparisons and name↔STAC identity mismatches.
+- **Public-L0 same-scene bridge** — new `s2_msi_raw_generator.import_l0` module and
+  `import-l0` phase convert a public distribution L0 detector (`measurements/dNN/bNN/img`) into
+  the PDI-style L1A layout consumed by the pipeline, preserving real STAC orbit/platform identity
+  and recording `import_provenance` plus per-band CRCs for A0 bit-exact copy checks.
 - **`notebooks/compare_real_l0.ipynb`** — real vs synthetic L0 comparison: for every band,
   the official public L0 (`inputs/public-data/level-0/S02MSIL0__*.zarr.zip`,
   `measurements/dNN/bNN/img`) next to our canonical L0 window with overlaid DN histograms
@@ -43,7 +52,24 @@ All notable changes to the Sentinel-2 MSI reverse E2ES (`s2_msi_raw_generator`).
   producer-acquires / consumer-derives loop. `naming.TYPE_CODES` gains `S02MSIL1C` and
   `S02MSIL2A` for the consumer pipeline's product names.
 
+### Internal
+- **Shared metadata helpers (`s2_msi_raw_generator.metadata`)** — the doubled `stac_discovery`
+  flattening, `"null"`/`Z`-tolerant ISO parsing, integer coercion and data-take-id absolute-orbit
+  recovery that `io`, `naming`, `inventory` and `import_l0` each re-implemented are consolidated into
+  one stdlib-only module. Callers keep their own field-preference order (`datetime` vs
+  `start_datetime`), so scan/report output is unchanged.
+- **Process-pool and zip helpers** — the spawn-context `ProcessPoolExecutor` fan-out (canonical L0
+  packaging and `ground-decode`) is unified in `s2_msi_raw_generator._parallel.run_in_process_pool`,
+  and the three `_zip_dir` copies (driver + tests) become `s2_msi_raw_generator._fsutil.zip_dir` with
+  a `base` selector for the publish (`parent`) vs Zarr-root (`self`) archive layouts.
+- **Dead code removed** — unused `io.read_platform` and `l0product.frames_to_strip`, plus the
+  never-exercised `--band-groups > 1` subdivision branch in `l0-decode`.
+
 ### Changed
+- **Orbit identity threading** — pipeline preflight now records platform/orbit acquisition
+  context and passes it into both canonical and open-container L0 writers, so PSFD names and STAC
+  `sat:*` fields stay aligned. Placeholder products now use relative orbit 45 with absolute orbit
+  0 (`A000000`) instead of mixing the A045 file-name default with an unrelated real orbit.
 - **Multi-core data generation (`S2_E2ES_JOBS`, default: all cores)** — the per-band CPU
   work fans out to a process pool: CCSDS-122 compression + ISP packetization + SAD in
   `write_l0_product` (package / cal-package) and the decode-and-verify step of
@@ -119,7 +145,7 @@ Real-data E2E release: the reverse E2ES now packages a **real bucket L1A** into 
 **CCSDS-122-lossless-compressed, real-CCSDS-space-packet L0**, ground-decodes it bit-exactly
 and proves **L1A′ ≡ L1A (13/13 bands bit-identical)** through msi-processor `l0_decode`, with
 the radiometric GIPP round-trip at RMSE ≈ 1e-14, EOPF **PSFD §3 product naming**
-(ICD-IF-NAME) and published products (`s2-msi-e2e-real/0.3.0` generic packages) + validation
+(ICD-IF-NAME) and published products (`e2e-real/0.3.0` generic packages) + validation
 report (`docs/vv/real_e2e.md`). Authoritative full-frame run on the SDE, 2026-07-02: overall
 lossless compression **3.66×** (637→174 MB, 16-bit base), 30 642 packets, EOQC OK.
 
