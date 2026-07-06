@@ -54,6 +54,7 @@ Configuration is environment-only — the CLI takes just the mode::
                            (package/cal-package), ground-decode, S3 fetch threads
     S2_E2ES_L1A  S2_E2ES_PUBLIC_L0  S2_E2ES_IMPORT_DETECTOR            input paths
     S2_E2ES_DARK  S2_E2ES_GIPP_DIR  S2_E2ES_L1B
+    S2_E2ES_EQOG_ADF       EOPF ADF_REQOG json = ESA NUC source (overrides XML GIPP equalization)
     S2_E2ES_PUBLISH_NAME  S2_E2ES_PUBLISH_VERSION  S2_E2ES_PUBLISH_LAYER  publish-store
 
 Examples::
@@ -180,6 +181,17 @@ LOCAL_ENV_DEFAULTS: dict[str, str] = {
     "S2_E2ES_IMPORT_DETECTOR": "1",
     "S2_E2ES_JOBS": "16",
 }
+
+
+def _eqog_adf_path(args) -> str | None:
+    """Optional EOPF ``ADF_REQOG`` json = ESA-provided NUC source (dark + PRNU) for the reverse chain.
+
+    Selected via ``S2_E2ES_EQOG_ADF`` (or ``args.eqog_adf``). When set to an existing file, the
+    equalization is read from this ESA ADF instead of the XML GIPP (see ``gipp.load_gipp_set``);
+    returns ``None`` (→ XML GIPP) when unset or the path is missing.
+    """
+    p = getattr(args, "eqog_adf", None) or os.environ.get("S2_E2ES_EQOG_ADF")
+    return p if (p and os.path.exists(p)) else None
 #: Default phase chain applied for ``nominal`` mode only (the public-L0 same-scene bridge +
 #: inventory alongside the standard package/decode/validate chain).
 LOCAL_NOMINAL_PHASES = (
@@ -1052,9 +1064,11 @@ def phase_figures(store: dict[str, Path], args) -> None:
     if gipp_dir:
         from s2_msi_raw_generator import gipp as gipp_mod
 
-        gs = gipp_mod.load_gipp_set(gipp_dir)
+        eqog_adf = _eqog_adf_path(args)
+        gs = gipp_mod.load_gipp_set(gipp_dir, eqog_adf=eqog_adf)
         a = adfmod.BandADF.from_gipp(b, args.fig_detector, gs, active_width=n_det)
-        adf_kind = "real operational GIPP (per-pixel dark + relative response)"
+        adf_kind = (f"ESA EOPF ADF_REQOG ({os.path.basename(eqog_adf)})" if eqog_adf
+                    else "real operational GIPP (per-pixel dark + relative response)")
     else:
         a = adfmod.synthesize(b, n_det=n_det, seed=2026)
         adf_kind = (
@@ -1161,8 +1175,19 @@ def phase_radiometric_vv(store: dict[str, Path], args) -> None:
     from s2_msi_raw_generator import forward_radiometric_atbd as fwd, gipp as gipp_mod
 
     pre = _jload(store["report"] / "preflight.json")
-    gs = gipp_mod.load_gipp_set(gipp_dir, bands=tuple(pre["bands"]))
+    eqog_adf = _eqog_adf_path(args)
+    gs = gipp_mod.load_gipp_set(gipp_dir, bands=tuple(pre["bands"]), eqog_adf=eqog_adf)
     out = {}
+    if eqog_adf:
+        print(f"[radiometric-vv] NUC source: ESA EOPF ADF_REQOG ({os.path.basename(eqog_adf)})")
+        epoch = gipp_mod.parse_eqog_adf_epoch(eqog_adf)
+        acq_utc = pre.get("start_utc")
+        if epoch and acq_utc:
+            tv = gipp_mod.temporal_validity(epoch, acq_utc)
+            out["_adf_temporal_validity"] = tv
+            print(f"[radiometric-vv] {'WARNING — ' if tv['warn'] else ''}temporal-validity: {tv['message']}")
+        else:
+            out["_adf_temporal_validity"] = {"skipped": "no ADF epoch or acquisition date"}
     for bn in pre["bands"]:
         try:
             eq = gs.band(bn).detectors[
@@ -1497,6 +1522,7 @@ def _settings(mode: str) -> argparse.Namespace:
     s.import_detector = _env_int("S2_E2ES_IMPORT_DETECTOR", 1)
     s.dark = e("S2_E2ES_DARK") or None
     s.gipp = e("S2_E2ES_GIPP_DIR") or None
+    s.eqog_adf = e("S2_E2ES_EQOG_ADF") or None
     s.bands = [
         b.strip().upper()
         for b in (e("S2_E2ES_BANDS") or ",".join(sensor.BANDS)).split(",")

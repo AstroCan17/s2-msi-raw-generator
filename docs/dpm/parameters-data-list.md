@@ -47,15 +47,17 @@ absolute coefficient $A$.
 
 ## Data items
 
-| Item | Type | Role |
-|---|---|---|
-| L1B radiance / L1A raw | EOPF Zarr (float) | input product |
-| operational GIPP | XML | auxiliary calibration data (per-pixel) |
-| PSF matrices | CSV (33×33) | auxiliary — optical kernel |
-| `BandADF` | in-memory dataclass | assembled per-band ADF (PSF, noise, dark, PRNU) |
-| signal/raw DN frames | `numpy` `(lines, cols)` | intermediate per step |
-| L0 RAW EOProduct | Zarr v2 (156 arrays + masks + ISP) | output product (ICD-IF-L0) |
-| derived calibration | `DerivedCalibration` | estimated dark/gain/A from the calibration sub-set |
+| Item | Type | Role | Directory | Consumed by (input to) |
+|---|---|---|---|---|
+| L1B radiance / L1A raw | EOPF Zarr (float) | input product | `<store>/inputs/` (`$S2_E2ES_L1A` / `$S2_E2ES_L1B`; public L0 under `inputs/public-data/level-0/`) | reverse-chain **S1** entry (`reverse.reverse_mvp`, radiance) via `phase_package`; sensor-model harvest (`sensor.py`) |
+| operational GIPP | XML | auxiliary calibration data (per-pixel) | `<store>/inputs/s2-sensor/GIPP/` (`$S2_E2ES_GIPP_DIR`) | `gipp.py` → `adf.BandADF.from_gipp`; reverse **S4/S5/S7/S9/S10/S11** + `radiometric-vv` round-trip |
+| PSF matrices | CSV (33×33) | auxiliary — optical kernel | `s2_msi_raw_generator/data/psf/{S2A,S2B,S2C}/` (packaged) | `adf.real_psf_kernel` → `BandADF.psf` → reverse **S6** (`reverse.s6_psf_reblur`) |
+| `BandADF` | in-memory dataclass | assembled per-band ADF (PSF, noise, dark, PRNU) | in-memory — `s2_msi_raw_generator/adf.py` | `reverse.reverse_mvp` (**S6–S13**: `psf`, `prnu_gain`, `dark_dn`, `eq_gain`, `noise_a/b`); `calibration` campaign |
+| signal/raw DN frames | `numpy` `(lines, cols)` | intermediate per step | in-memory — `s2_msi_raw_generator/reverse.py` | next reverse step → `ccsds122` compress + `isp` packetize (**S15**) → `l0product.write_l0_product` |
+| L0 RAW EOProduct | Zarr v2 (156 arrays + masks + ISP) | output product (ICD-IF-L0) | `<store>/l0/` (writer `l0product.write_l0_product`) | `l0product.read_l0_isp_dn` (`ground-decode`/`l0-decode` → `validate`); downstream **msi-processor** |
+| derived calibration | `DerivedCalibration` | estimated dark/gain/A from the calibration sub-set | `<store>/caldb/` (dataclass `s2_msi_raw_generator/calibration.py`) | downstream **msi-processor** (nuc/dark/radiometric/spectral ADFs); `calibration.estimated_adf` (test-only) |
+
+`<store>` = `$S2_DATA_STORE` (default `~/data-store`), with sub-dirs `inputs/ caldb/ l0/ l1a_prime/ l1b/ quicklook/ figures/ report/` (`scripts/run_pipeline.py`).
 
 **S15 compression/packetization parameters** (`ccsds122.py`, `isp.py`, `l0product.write_l0_product`):
 `pixel_bit_depth` (12, or 16 when DN > 4095 — e.g. the 32768 saturation sentinel; preflight-chosen),
