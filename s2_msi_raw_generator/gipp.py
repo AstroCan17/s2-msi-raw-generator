@@ -20,9 +20,11 @@ Band order follows ``sensor.BANDS`` (``band_id`` 0…12 → B01…B08, B8A, B09�
 from __future__ import annotations
 
 import glob
+import json
 import os
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass, field
+from functools import lru_cache
 
 import numpy as np
 
@@ -87,6 +89,7 @@ class BandEq:
     band: str
     tdi: bool
     detectors: dict[int, DetectorEq]  # detector 1..12
+    source: str = "GIPP R2EQOG"       # provenance: "GIPP R2EQOG" (XML) | "ESA EOPF ADF_REQOG"
 
     @property
     def npix(self) -> int:
@@ -125,6 +128,53 @@ def read_r2eqog_band(gipp_dir: str, band: str) -> BandEq:
             dark = _parse_coeff_d(bilinear.find("COEFF_D"))
             detectors[det] = DetectorEq("BILINEAR", dark, cf)
     return BandEq(band=band, tdi=tdi, detectors=detectors)
+
+
+# --- R2EQOG from an EOPF ADF (.json) -----------------------------------------------------
+
+@lru_cache(maxsize=4)
+def _load_eopf_adf(adf_json_path: str) -> dict:
+    """Parse an EOPF ADF json once (cached — the R2EQOG ADF is ~60 MB per satellite)."""
+    with open(adf_json_path, encoding="utf-8") as fh:
+        return json.load(fh)
+
+
+def read_r2eqog_eopf(adf_json_path: str, band: str) -> BandEq:
+    """Parse an EOPF ``ADF_REQOG`` (``S2[AB]_ADF_REQOG_…json``) → the same :class:`BandEq` as the
+    XML :func:`read_r2eqog_band`.
+
+    The EOPF ADF stores, per band ``<b>`` (lower-case; ``b8a`` for B8A) over 12 detectors: VNIR cubic
+    ``<b>/coeff_{a,b,c}`` (→ ``A,B,C``) or SWIR bilinear ``<b>/coeff_{a1,a2,zs}`` (→ ``A1,A2,Zs``),
+    plus ``<b>/coeff_d`` = dark signal. ``coeff_d`` may carry along-track sub-lines
+    (``(det, n_line, act)``); these are collapsed to their mean, matching the XML ``COEFF_D``
+    convention in :func:`_parse_coeff_d`.
+    """
+    dv = _load_eopf_adf(adf_json_path)["data_vars"]
+    bkey = band.lower()
+
+    def _arr(name: str) -> np.ndarray | None:
+        node = dv.get(f"{bkey}/{name}")
+        return None if node is None else np.asarray(node["data"], dtype=np.float64)
+
+    coeff_d = _arr("coeff_d")
+    if coeff_d is None:
+        raise KeyError(f"EOPF R2EQOG ADF has no band {band!r} ({adf_json_path!r})")
+    a1 = _arr("coeff_a1")
+    swir = a1 is not None
+    if swir:
+        a2, zs = _arr("coeff_a2"), _arr("coeff_zs")
+    else:
+        a, b, c = _arr("coeff_a"), _arr("coeff_b"), _arr("coeff_c")
+
+    detectors: dict[int, DetectorEq] = {}
+    for i in range(coeff_d.shape[0]):            # detector index 0..11 → detector_id 1..12
+        dk = coeff_d[i]
+        dark = dk.mean(axis=0) if dk.ndim == 2 else dk    # collapse sub-lines → (act,)
+        if swir:
+            detectors[i + 1] = DetectorEq("BILINEAR", dark, {"A1": a1[i], "A2": a2[i], "Zs": zs[i]})
+        else:
+            detectors[i + 1] = DetectorEq("CUBIC", dark, {"A": a[i], "B": b[i], "C": c[i]})
+    return BandEq(band=band, tdi=False, detectors=detectors, source="ESA EOPF ADF_REQOG")
 
 
 # --- R2DEPI (defective pixels) + BLINDP (blind pixels) -----------------------------------
@@ -231,11 +281,19 @@ class GippSet:
         return self.equalization[name]
 
 
-def load_gipp_set(gipp_dir: str, bands: tuple[str, ...] = sensor.BANDS) -> GippSet:
-    """Load the full GIPP set from ``gipp_dir`` (R2EQOG per band + R2DEPI/BLINDP/R2PARA/R2CRCO)."""
+def load_gipp_set(gipp_dir: str, bands: tuple[str, ...] = sensor.BANDS,
+                  eqog_adf: str | None = None) -> GippSet:
+    """Load the full GIPP set from ``gipp_dir`` (R2EQOG per band + R2DEPI/BLINDP/R2PARA/R2CRCO).
+
+    If ``eqog_adf`` is given (path to an EOPF ``ADF_REQOG`` json, e.g. the ESA
+    ``S2A_ADF_REQOG_…json``), the equalization (dark + PRNU) is read from that ESA ADF via
+    :func:`read_r2eqog_eopf` instead of the per-band XML — the rest (defective/blind/params/
+    crosstalk) still comes from ``gipp_dir``.
+    """
     gs = GippSet(gipp_dir=gipp_dir)
     for b in bands:
-        gs.equalization[b] = read_r2eqog_band(gipp_dir, b)
+        gs.equalization[b] = (read_r2eqog_eopf(eqog_adf, b) if eqog_adf
+                              else read_r2eqog_band(gipp_dir, b))
     gs.defective = read_r2depi(gipp_dir)
     gs.blind = read_blindp(gipp_dir)
     gs.params = read_r2para(gipp_dir)

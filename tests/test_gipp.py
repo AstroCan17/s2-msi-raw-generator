@@ -6,6 +6,7 @@ optional test runs against the operational GIPP when ``S2_E2ES_GIPP_DIR`` points
 
 from __future__ import annotations
 
+import json
 import os
 
 import numpy as np
@@ -142,6 +143,65 @@ def test_from_gipp_builds_real_adf(tiny_gipp):
     assert a.prnu_is_real and a.source == "GIPP R2EQOG"
     assert a.dark_dn.shape == (8,) and a.prnu_gain.shape == (8,)
     assert np.allclose(a.prnu_gain, 0.99)
+
+
+# --- EOPF ADF (.json) R2EQOG reader ------------------------------------------
+
+def _col(v, n):
+    return [round(float(v), 5)] * n
+
+
+@pytest.fixture
+def tiny_eqog_adf(tmp_path):
+    """Minimal EOPF ``ADF_REQOG`` json: VNIR cubic B03 (coeff_d w/ 3 sub-lines) + SWIR bilinear B11."""
+    nv, ns = 8, 4
+    dv = {
+        "b03/coeff_a": {"dims": ["detector", "px"], "data": [_col(0.0, nv)] * 2},
+        "b03/coeff_b": {"dims": ["detector", "px"], "data": [_col(0.0, nv)] * 2},
+        "b03/coeff_c": {"dims": ["detector", "px"], "data": [_col(0.99, nv)] * 2},
+        "b03/coeff_d": {"dims": ["detector", "line_3", "px"],
+                        "data": [[_col(440.0 + d, nv), _col(441.0 + d, nv), _col(442.0 + d, nv)]
+                                 for d in range(2)]},   # per-det mean -> 441+d
+        "b11/coeff_a1": {"dims": ["detector", "px"], "data": [_col(0.95, ns)] * 2},
+        "b11/coeff_a2": {"dims": ["detector", "px"], "data": [_col(0.96, ns)] * 2},
+        "b11/coeff_zs": {"dims": ["detector", "px"], "data": [_col(600.0, ns)] * 2},
+        "b11/coeff_d": {"dims": ["detector", "px"], "data": [_col(495.0 + d, ns) for d in range(2)]},
+    }
+    p = tmp_path / "S2A_ADF_REQOG_20240417T000000_21000101T000000_20240417T000000.json"
+    p.write_text(json.dumps({"attrs": {"eopf:type": "ADF_REQOG"}, "data_vars": dv}))
+    return str(p)
+
+
+def test_r2eqog_eopf_cubic(tiny_eqog_adf):
+    be = gipp.read_r2eqog_eopf(tiny_eqog_adf, "B03")
+    assert be.source == "ESA EOPF ADF_REQOG" and be.npix == 8
+    d1 = be.detectors[1]
+    assert d1.model == "CUBIC" and set(d1.coeffs) == {"A", "B", "C"}
+    assert np.allclose(d1.rel_gain, 0.99)                 # coeff_c
+    assert d1.dark.shape == (8,)
+    assert d1.dark.mean() == pytest.approx(441.0)          # mean of 3 sub-lines, det 1
+    assert be.detectors[2].dark.mean() == pytest.approx(442.0)
+
+
+def test_r2eqog_eopf_bilinear(tiny_eqog_adf):
+    d1 = gipp.read_r2eqog_eopf(tiny_eqog_adf, "B11").detectors[1]
+    assert d1.model == "BILINEAR" and set(d1.coeffs) == {"A1", "A2", "Zs"}
+    assert np.allclose(d1.rel_gain, 0.95)                 # coeff_a1
+    assert d1.dark.mean() == pytest.approx(495.0)
+
+
+def test_read_r2eqog_eopf_case_insensitive_band(tiny_eqog_adf):
+    assert gipp.read_r2eqog_eopf(tiny_eqog_adf, "b03").npix == 8   # lower-case band accepted
+
+
+def test_load_gipp_set_eqog_adf_override(tiny_gipp, tiny_eqog_adf):
+    """Equalization comes from the EOPF ADF; defective/blind/params still from the XML gipp_dir."""
+    gs = gipp.load_gipp_set(tiny_gipp, bands=("B03", "B11"), eqog_adf=tiny_eqog_adf)
+    assert gs.band("B03").source == "ESA EOPF ADF_REQOG"
+    assert np.allclose(gs.band("B03").detectors[1].rel_gain, 0.99)
+    assert list(gs.blind["B03"][1]) == [0, 1, 2, 3]        # still XML-sourced
+    a = adf.BandADF.from_gipp(sensor.band("B03"), 1, gs)
+    assert a.prnu_is_real and a.source == "ESA EOPF ADF_REQOG"
     # blind-column stripping to an active width
     a2 = adf.BandADF.from_gipp(sensor.band("B03"), 2, gs, active_width=4)
     assert a2.dark_dn.shape == (4,)
