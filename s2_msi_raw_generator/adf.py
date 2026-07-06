@@ -173,7 +173,8 @@ class BandADF:
         the GIPP across-track size, the blind columns (from BLINDP) are stripped so the arrays align to
         the active product width. PSF and noise stay (SentiWiki PSF, product noise model).
         """
-        deteq = gippset.band(b.name).detectors[detector]
+        band_eq = gippset.band(b.name)
+        deteq = band_eq.detectors[detector]
         dark = np.asarray(deteq.dark, dtype=float)
         gain = np.asarray(deteq.rel_gain, dtype=float)
         if active_width is not None and active_width != dark.size:
@@ -196,7 +197,7 @@ class BandADF:
             eq_gain=np.ones(n),
             eq_offset=np.zeros(n),
             prnu_is_real=True,
-            source="GIPP R2EQOG",
+            source=band_eq.source,
         )
 
     @classmethod
