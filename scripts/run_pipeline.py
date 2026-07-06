@@ -1177,9 +1177,17 @@ def phase_radiometric_vv(store: dict[str, Path], args) -> None:
     pre = _jload(store["report"] / "preflight.json")
     eqog_adf = _eqog_adf_path(args)
     gs = gipp_mod.load_gipp_set(gipp_dir, bands=tuple(pre["bands"]), eqog_adf=eqog_adf)
+    out = {}
     if eqog_adf:
         print(f"[radiometric-vv] NUC source: ESA EOPF ADF_REQOG ({os.path.basename(eqog_adf)})")
-    out = {}
+        epoch = gipp_mod.parse_eqog_adf_epoch(eqog_adf)
+        acq_utc = pre.get("start_utc")
+        if epoch and acq_utc:
+            tv = gipp_mod.temporal_validity(epoch, acq_utc)
+            out["_adf_temporal_validity"] = tv
+            print(f"[radiometric-vv] {'WARNING — ' if tv['warn'] else ''}temporal-validity: {tv['message']}")
+        else:
+            out["_adf_temporal_validity"] = {"skipped": "no ADF epoch or acquisition date"}
     for bn in pre["bands"]:
         try:
             eq = gs.band(bn).detectors[

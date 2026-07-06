@@ -202,9 +202,41 @@ def test_load_gipp_set_eqog_adf_override(tiny_gipp, tiny_eqog_adf):
     assert list(gs.blind["B03"][1]) == [0, 1, 2, 3]        # still XML-sourced
     a = adf.BandADF.from_gipp(sensor.band("B03"), 1, gs)
     assert a.prnu_is_real and a.source == "ESA EOPF ADF_REQOG"
-    # blind-column stripping to an active width
+    # blind-column stripping to an active width (EOPF-sourced BandEq + XML BLINDP)
     a2 = adf.BandADF.from_gipp(sensor.band("B03"), 2, gs, active_width=4)
     assert a2.dark_dn.shape == (4,)
+
+
+# --- ADF temporal validity ---------------------------------------------------
+
+_ADF_NAME = "S2A_ADF_REQOG_20240417T000000_21000101T000000_20240417T000000.json"
+
+
+def test_parse_eqog_adf_epoch():
+    ep = gipp.parse_eqog_adf_epoch("/store/esa-adf/" + _ADF_NAME)
+    assert ep["platform"] == "S2A" and ep["type"] == "REQOG"
+    assert ep["applicability_start"] == "2024-04-17T00:00:00Z"
+    assert ep["valid_stop"] == "2100-01-01T00:00:00Z"
+    assert gipp.parse_eqog_adf_epoch("not-an-adf.json") == {}
+
+
+def test_temporal_validity_flags_stale_adf():
+    ep = gipp.parse_eqog_adf_epoch(_ADF_NAME)
+    tv = gipp.temporal_validity(ep, "2018-08-20T08:36:01")   # turkey: 2018 vs 2024 ADF
+    assert tv["warn"] is True and tv["within_validity"] is False
+    assert tv["gap_years"] > 5
+
+
+def test_temporal_validity_accepts_contemporary_adf():
+    ep = gipp.parse_eqog_adf_epoch(_ADF_NAME)
+    tv = gipp.temporal_validity(ep, "2024-05-26T01:16:38")   # ~5 weeks after applicability
+    assert tv["warn"] is False and tv["within_validity"] is True
+    assert tv["gap_years"] < 1
+
+
+def test_temporal_validity_compact_date():
+    ep = gipp.parse_eqog_adf_epoch(_ADF_NAME)
+    assert gipp.temporal_validity(ep, "20240526T011638")["gap_years"] == pytest.approx(0.11, abs=0.02)
 
 
 # --- optional: operational GIPP -----------------------------------------
