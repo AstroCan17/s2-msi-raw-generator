@@ -37,7 +37,7 @@ chain, which is the V&V target.
 **Evidence:** the radiometric round-trip closes at machine precision without any geometric resampling
 (RMSE ≈ 1e-14, [V&V report](vv/report.md) §3).
 
-### DEC-02 — Real ESA-sourced ADFs vs fitted/synthetic instrument models
+### DEC-02 — real S2B-sourced ADFs vs fitted/synthetic instrument models
 **Alternatives:** parametric synthetic PSF/PRNU/noise vs official ESA data.
 **Decision:** every radiometric ADF in the realized path is real — official PSF matrices, SRF
 characterisation, product noise model, operational GIPP (MR !2, !3). A synthetic fallback exists but is

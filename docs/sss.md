@@ -68,7 +68,7 @@ L0 and the calibration-database ADFs), and the GitLab platform (CI, Pages, packa
 ### 2.2 General capabilities
 1. **L0 RAW generation** — reconstruct a focal-plane L0 (12 detectors × 13 bands, 12-bit DN) from an
    L1A/L1B entry, impressing PSF blur, relative response/PRNU, dark signal, onboard equalization, noise,
-   defects, SWIR arrangement and quantization from real ESA-sourced ADFs.
+   defects, SWIR arrangement and quantization from real S2B-sourced ADFs.
 2. **Downlink-representative packaging** — carry the image data as CCSDS-122-lossless-compressed
    payloads in real CCSDS space packets (canonical L0), with a bit-exact ground decode; emit the
    open-container L0 the `msi-processor` ingests.
@@ -82,7 +82,7 @@ L0 and the calibration-database ADFs), and the GitLab platform (CI, Pages, packa
   (REQ-QUAL-001). The E2E drivers use the CPM only on the processor side.
 - Originality: no external-processor source code; source-repository names do not appear in the
   deliverable (REQ-QUAL-003).
-- All instrument data is real ESA-sourced (official PSF, SRF, product noise model, operational GIPP);
+- All instrument data is real S2B-sourced (official PSF, SRF, product noise model, operational GIPP);
   nothing fitted or synthetic in the realized path.
 
 ### 2.4 Operational environment
@@ -104,7 +104,7 @@ System-level requirements; each is refined by the listed SRS requirements, where
   product from a real L1A/L1B entry, impressing the instrument effects the forward processor removes.*
   → REQ-FUNC-010…022 (chain), REQ-FUNC-030…034 (product). **V: T**.
 - **SYS-02 — Real-ADF fidelity.** *All radiometric instrument characteristics impressed by the system
-  shall originate from real ESA-published data (PSF, SRF, noise model, operational GIPP).*
+  shall originate from real S2B-published data (PSF, SRF, noise model, operational GIPP).*
   → REQ-FUNC-015/046, REQ-FUNC-044 (fallback flagged as such). **V: T/I**.
 - **SYS-03 — Processor interoperability.** *The system's L0 outputs shall be consumable by the
   `msi-processor` without modification of that processor.* → REQ-FUNC-042, REQ-IF-002. **V: T/I**.

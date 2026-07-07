@@ -25,3 +25,7 @@ scratchpad/
 /public/
 docs/_build/
 docs/api/
+
+.claude/
+CLAUDE.md
+graphify-out/
