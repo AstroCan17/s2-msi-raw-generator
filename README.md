@@ -11,7 +11,7 @@ back to a synthetic **L0 RAW** product (focal-plane DN, 12 detectors × 13 bands
    are exact inverses. Built from the public L1 ATBD — no external processor.
 3. **Real-L1B → L0 reverse** — the exact inverse of the *full* operational L0→L1B radiometric chain
    (offset, relative response, on-board equalization, dark, binning, **SWIR re-arrangement**,
-   defective, crosstalk), reconstructing L0 RAW from a real ESA L1B to **≤ 3 DN on all 13 bands**
+   defective, crosstalk), reconstructing L0 RAW from a real S2B L1B to **≤ 3 DN on all 13 bands**
    ([see below](#reverse-l1b--l0-full-chain--real-data-validation)).
 
 **Scope:** radiometric-only, 14-step chain (S1 radiance→DN … S15 ISP packets); input is
@@ -127,13 +127,13 @@ generated RAW returns the input to 45 dB with a +0.02 % bias — the only irreve
 the modelled ones (noise, 12-bit clipping of the saturated cloud cores, quantization). The DN
 pedestal (mean 1363 → 1843) is the re-applied dark signal + onboard equalization. Reproduce
 locally (numpy+zarr only): `S2_E2ES_PHASES=figures S2_E2ES_L1B=<L1B.zarr[.zip]> python scripts/run_pipeline.py`. In this run
-the PSF/SRF/noise model are real ESA data; the per-pixel dark/PRNU are the synthetic fallback
+the PSF/SRF/noise model are real S2B data; the per-pixel dark/PRNU are the synthetic fallback
 (set `S2_E2ES_GIPP_DIR=<dir>` for the operational-GIPP versions).
 
 ## Reverse L1B → L0 (full chain) — real-data validation
 
 The generator's headline capability is the **exact reverse of the operational L0→L1B radiometric
-chain**: given a real ESA **L1B** (digital counts), `forward_radiometric_atbd.reverse_l1b_to_l0`
+chain**: given a real S2B **L1B** (digital counts), `forward_radiometric_atbd.reverse_l1b_to_l0`
 reconstructs the **L0 RAW** by inverting *every* ON forward step, in reverse order — validated on the
 real **2024-04-08 S2B PPB** L0/L1B pair (detector d05, framing-aligned to the ADF_PRDLO
 co-registration crop):

@@ -47,7 +47,7 @@ absolute coefficient $A$.
 
 ## Real-L1B reverse path (`reverse-l1b` phase)
 
-The S1–S15 chain above enters from **synthetic radiance**. A real ESA **EOPF L1B is already digital
+The S1–S15 chain above enters from **synthetic radiance**. A real S2B **EOPF L1B is already digital
 counts** (`units: digital_counts`, not radiance), so the `reverse-l1b` phase
 (`forward_radiometric_atbd.reverse_l1b_to_l0`) enters in the **downlink DN domain** and inverts the
 **full** L0→L1B radiometric chain — every step ESA applies (`payload.yaml` `AllRadiometricCorrectionL1B`,

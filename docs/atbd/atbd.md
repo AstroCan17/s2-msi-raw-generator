@@ -358,7 +358,7 @@ the very reason an L1C entry was rejected; PRNU paper.)
 
 # 5.R REAL-L1B → L0 FULL REVERSE (`reverse_l1b_to_l0`)
 
-Steps 5.S1–S15 enter from **synthetic radiance**; a real ESA EOPF **L1B is already digital counts**, so
+Steps 5.S1–S15 enter from **synthetic radiance**; a real S2B EOPF **L1B is already digital counts**, so
 the operational reverse enters in the **downlink DN domain** and inverts the *full* L0→L1B radiometric
 chain (EOPF `AllRadiometricCorrectionL1B` — every `feature_flag_* = True` **except**
 deconvolution/denoising) in reverse order:
