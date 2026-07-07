@@ -163,3 +163,52 @@ applicability-start in **2024-04 (± days)**, so it is only temporally valid for
 snapshot is a point-in-time export of the *currently-valid* ADF versions, so for most types it holds a
 single epoch — the cadence column reflects the ESA APR (REQOG) and the multi-epoch evidence in the
 snapshot (RABCA, RDEPI), not a per-type derivation.
+
+## Selected validation datatake — 2024-04-08 S2B (`Validation/PPB`)
+
+The temporal-provenance gap above (stale or future NUC vs acquisition epoch — issue #1, !58 Phase 5 open
+item) is closed by selecting the input from the other direction: pick the datatake whose sensing epoch is
+*covered* by an ESA calibration set of the same platform. Inventorying an S3 listing of the ESA EOPF
+validation bucket (985 140 keys; filtered by file-name validity windows, never read in full) surfaced
+exactly **one real-datatake L0↔L1B pair**, under `Validation/PPB/`:
+
+| Product | Size | Objects |
+|---|---|---|
+| `S02MSIL0__20240408T053621_0566_B105_TC7D.zarr` (also as single-object `.zarr.zip`) | 60.3 GB | 88 966 |
+| `S02MSIL1B_20240408T053621_0566_B105_T5B0.zarr` | 57.9 GB | 31 114 |
+
+Datatake: **2024-04-08T05:36:21 UTC, 566 s, Sentinel-2B, relative orbit 105**. Per PSFD §3.2 the trailing
+`XVVV` field is *aux-consolidation + quasi-unique hex*, **not** an MGRS tile — the differing `TC7D`/`T5B0`
+suffixes do not indicate different scenes; product identity is the shared `sensing + duration + PRRR`
+triple (both are full d01–d12 datastrip products). The pair enables validation in both directions:
+real L1B → reverse chain → synthetic L0 ↔ real L0, and real L0 → msi-processor → synthetic L1B ↔ real L1B.
+
+Bundled with the pair: `GCPs.zip` (373 MB, geometric validation) and IERS `bulletina-xxxvii-014`
+(April 2024). The L0 zarr embeds its SAD under `conditions/ancillary_data/` (33 groups: attitudes,
+ephemeris, 29 SAD packet groups, thermal, time-correlation) — **no separate SADATA product is required**.
+
+### Temporally consistent S2B aux set
+
+Filtering the same listing by validity window (`V<start> ≤ 20240408T053621 ≤ <stop>`, parsed from file
+names) yields three format variants of the matching S2B calibration set:
+
+| Set | Path prefix | Count | Reverse-chain radiometric epoch |
+|---|---|---|---|
+| XML GIPP (S2B) | `Products/eschalk/adf/gipp/01_xml_gipps/` | 174 files, 26 types | `R2EQOG` **2023-12-11** (per band, ×13) |
+| EOPF ADF (S2B) | `Auxiliary/MSI/S02B_ADF_*` | 32 files, 20 types | `REQOG`/`RABCA` **2023-12-11**; `RDEPI` 2023-04-11 |
+| JSON GIPP (converted) | `Products/eschalk/adf/gipp/02_auto_converted_xml_gipps_to_json/` | 169 files, 37 types | same epochs as XML |
+
+Unlike the local S2A GIPP snapshot (`R2EQOG` epoch 2020-03-17, ~4 y stale) and the `dpr-common` ADF
+snapshot (applicability 2024-04-17 — *after* this sensing date), the S2B `R2EQOG`/`REQOG` epoch
+**2023-12-11 precedes and covers 2024-04-08**: the acquisition falls inside the ADF validity window, so
+the `_adf_temporal_validity` guard (!58) passes without a stale-NUC caveat. Every GIPP type the reverse
+chain consumes (`R2EQOG`, `BLINDP`, `R2CRCO`, `R2DEPI`, `R2PARA`, `R2BINN`) is present in the set. PSF
+remains the packaged `data/psf/S2B/` CSVs (12 bands; no B10 — identity kernel at S6, by design).
+
+### Known limitations
+
+- The listing holds **no real-datatake L1A** (placeholder products only) — validation runs L1B↔L0.
+- No `S02MSISCA`/`S02MSIDCA` products — calibration-mode (sun-diffuser/dark) verification cannot be fed
+  from this source.
+- The GIPP parser is validated against S2A files; the S2B set is structurally identical by naming
+  convention but must be confirmed on first parse.
