@@ -49,28 +49,41 @@ absolute coefficient $A$.
 
 The S1–S15 chain above enters from **synthetic radiance**. A real ESA **EOPF L1B is already digital
 counts** (`units: digital_counts`, not radiance), so the `reverse-l1b` phase
-(`forward_radiometric_atbd.reverse_l1b_to_l0`) enters in the **downlink DN domain** — the vault-canonical
-inverse of the L0→L1B chain (SentiWiki: `onboard-eq⁻¹ · dark · blind · crosstalk · relative-response ·
-SWIR-rearr · defective · restoration(off) · binning · −RADIO_ADD_OFFSET`):
+(`forward_radiometric_atbd.reverse_l1b_to_l0`) enters in the **downlink DN domain** and inverts the
+**full** L0→L1B radiometric chain — every step ESA applies (`payload.yaml` `AllRadiometricCorrectionL1B`,
+all `feature_flag_* = True` **except** deconvolution/denoising), undone in reverse order:
 
 $$X_\mathrm{L0} = G^{-1}\!\left(L1B + \mathrm{RADIO\_ADD\_OFFSET}\right) + D_\mathrm{L0}\cdot\frac{D}{\langle D\rangle}$$
 
-| Term | Meaning | Source |
-|---|---|---|
-| $\mathrm{RADIO\_ADD\_OFFSET}$ | product offset, −100 (L1B) per band | GIPP **R2PARA** (`radiance_offset_l1b`) |
-| $G^{-1}$ | impress relative response (cubic VNIR / bilinear SWIR) | GIPP **R2EQOG** (`inverse_equalize`) |
-| $D_\mathrm{L0}$ | **downlink-domain** dark ≈ 51 DN (blind-column floor) | `sensor.L0_DARK_LSB` (per-satellite) |
-| $D/\langle D\rangle$ | DSNU column *shape* only (COEFF_D normalized) | GIPP **R2EQOG** COEFF_D |
-| ×3 un-bin (S5) | 60 m B01/B09/B10 (replication) | `RES_GROUPS["r60m"]` |
+then the spatial / cross-band steps. Per (band, detector), in reverse order:
 
-The downlink-domain dark $D_\mathrm{L0}$ (≈51) is **not** the raw-detector COEFF_D (≈440, a different
-domain — near-unity onboard gain, `sensor.EQ_GAIN_STD`). **PSF re-blur (S6) and noise (S13) are not
-re-applied** — restoration is off in the forward chain and the noise realization is already in L1B (both
-are non-invertible terms). **SWIR re-arrangement (S8)** is not applied (image median unaffected; needs a
-per-column shift map). Blind columns are re-inserted from **BLINDP**. Validated against the real
-2024-04-08 S2B PPB pair (13 bands): median ≤ ~5 %, active-region column FPN matches, CCSDS-122/ISP
-round-trip bit-exact. 60 m sub-pixel structure is irrecoverable (binning averaged 3→1). Inputs:
-`$S2_E2ES_L1B` (real L1B `.zarr`), `$S2_E2ES_GIPP_DIR`, `$S2_E2ES_EQOG_ADF`; detectors via
+| Fwd step | Reverse op | Source (ADF/GIPP) | Notes |
+|---|---|---|---|
+| offset (12) | $+\,\mathrm{RADIO\_ADD\_OFFSET}$ (−100) | **R2PARA** `radiance_offset_l1b` | per band |
+| binning (11) | ×3 un-bin (replication, S5) | `RES_GROUPS["r60m"]` | 60 m B01/B09/B10; sub-pixel irrecoverable |
+| defective (7) | re-stamp defective columns → NoData (S10) | **R2DEPI** `singularity_columns` | destructive fwd → marker only; mostly empty for S2B |
+| SWIR-rearr (6) | re-introduce staggered readout (S8) | **RSWIR** `swir_band_list/swir_band/detector` (+`interpolation_filter/coefs`) | B11/B12 ±1-line roll (exact); B10 ±⅓-line 3-tap conv (lossy); edge rows lost |
+| rel-response (5) | impress $G^{-1}$ (cubic VNIR / bilinear SWIR, S7) | **R2EQOG** (`inverse_equalize`) | dominant PRNU term |
+| crosstalk (4) | add crosstalk back $X_k{+}{=}\sum_l \mathrm{dtalk}_{kl}X_l$ (S9) | **RCRCO** optical+electrical 13×13 | phase-level, same-res groups; ≈0 for S2A/B (optical 0, electrical ≤0.004) |
+| dark (2) | $+\,D_\mathrm{L0}\cdot D/\langle D\rangle$ (S11) | `sensor.L0_DARK_LSB` (≈51) + **R2EQOG** COEFF_D shape | downlink dark ≠ raw COEFF_D (≈440) |
+| onboard-eq (1) | re-apply bilinear non-linearity (S12) | **REOB2** `coeff_a1/a2/zs` (`reapply_onboard_eq`) | S2B $a_1{\approx}1.005,a_2{\approx}0.995$ (sub-percent); its dark $d{\approx}455$ cancels COEFF_D |
+
+Blind columns are then re-inserted from **BLINDP**, and CCSDS-122 + ISP package the L0 (S15). The full-
+chain ADFs (RSWIR/REOB2/RCRCO) are auto-found next to `$S2_E2ES_EQOG_ADF` or set via
+`$S2_E2ES_{RSWIR,REOB2,RCRCO}_ADF`; `S2_E2ES_REVERSE_FULL=0` restores the radiometric-only reverse.
+
+**MTF restoration / deconvolution (forward step 8) is deliberately skipped — and so are PSF re-blur (S6)
+and noise (S13).** In the operational forward chain `feature_flag_with_deconvolution = False` and
+`feature_flag_with_denoising = False` (s2msi `payload.yaml`, gated by ADF_RPARA `restoration`); SentiWiki:
+*"Restoration (de-convolution MTF + wavelet de-noising) — disabled by default (instrument MTF already
+high)."* Because the forward chain never sharpens the image, **L1B still carries the full instrument PSF
+and its noise realization** (L0 and L1B are spatially identical) — re-blurring or re-noising would
+double-count. Both are non-invertible in any case (deconvolution is lossy; the exact noise realization is
+unrecoverable), so they are correctly omitted, not approximated.
+
+Validated against the real 2024-04-08 S2B PPB pair (13 bands): median ≤ ~5 %, active-region column FPN
+matches, CCSDS-122/ISP round-trip bit-exact; S8 brings the SWIR (B11/B12) images into spatial agreement.
+Inputs: `$S2_E2ES_L1B` (real L1B `.zarr`), `$S2_E2ES_GIPP_DIR`, `$S2_E2ES_EQOG_ADF`; detectors via
 `$S2_E2ES_L1B_DETECTORS` (default 5).
 
 ## Data items

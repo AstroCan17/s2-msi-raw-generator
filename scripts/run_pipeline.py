@@ -191,6 +191,58 @@ def _eqog_adf_path(args) -> str | None:
     return p if (p and os.path.exists(p)) else None
 
 
+def _full_reverse_adf(args, env_var: str, adf_type: str) -> str | None:
+    """Locate an EOPF ADF json for the full reverse chain (RSWIR / REOB2 / RCRCO).
+
+    ``env_var`` override first, else auto-find ``S0*_ADF_<adf_type>_*.json`` alongside the
+    ADF_REQOG (same ``adf-eopf`` directory). Returns ``None`` when nothing is found → the step is
+    skipped and the reverse falls back to the radiometric-only chain.
+    """
+    import glob
+
+    p = os.environ.get(env_var)
+    if p and os.path.exists(p):
+        return p
+    eqog = _eqog_adf_path(args)
+    if not eqog:
+        return None
+    hits = sorted(glob.glob(os.path.join(os.path.dirname(eqog), f"S0*_ADF_{adf_type}_*.json")))
+    return hits[0] if hits else None
+
+
+def _reverse_crosstalk(sig_by_band: dict[str, np.ndarray], matrix) -> dict[str, np.ndarray]:
+    """S9 (reverse) — add inter-band crosstalk back within same-resolution groups.
+
+    For each impacted band ``k``, ``X_k += Σ_l dtalk[k,l]·X_l`` over same-shape neighbours ``l``
+    (``matrix`` = RCRCO ``dtalk`` in ``sensor.BANDS`` order). Cross-resolution pairs (which the
+    forward resamples) are skipped. ≈0 for S2A/B, so this is effectively a no-op kept for
+    completeness. Returns a new dict; the input is left unchanged.
+    """
+    if matrix is None:
+        return sig_by_band
+    from collections import defaultdict
+
+    idx = {b: i for i, b in enumerate(sensor.BANDS)}
+    groups: dict[tuple, list[str]] = defaultdict(list)
+    for b, arr in sig_by_band.items():
+        groups[arr.shape].append(b)
+    out = dict(sig_by_band)
+    for members in groups.values():
+        if len(members) < 2:
+            continue
+        for k in members:
+            add = np.zeros(sig_by_band[k].shape, dtype=np.float64)
+            for other in members:
+                if other == k:
+                    continue
+                c = float(matrix[idx[k], idx[other]])
+                if c:
+                    add = add + c * sig_by_band[other]
+            if add.any():
+                out[k] = sig_by_band[k] + add
+    return out
+
+
 #: Default phase chain applied for ``nominal`` mode only (the public-L0 same-scene bridge +
 #: inventory alongside the standard package/decode/validate chain).
 LOCAL_NOMINAL_PHASES = "import-l0,preflight,package,ground-decode,l0-decode,validate," "radiometric-vv,inventory,report"
@@ -445,14 +497,19 @@ def _reinsert_blind(active: np.ndarray, blind_cols, fill: int) -> np.ndarray:
 
 
 def phase_reverse_l1b(store: dict[str, Path], args) -> None:
-    """``reverse-l1b`` — real L1B digital counts → L0 raw, the vault-canonical inverse of the L0→L1B
-    radiometric chain in the downlink DN domain (``forward_radiometric_atbd.reverse_l1b_to_l0``).
+    """``reverse-l1b`` — real L1B digital counts → L0 raw, the vault-canonical inverse of the full
+    L0→L1B radiometric chain in the downlink DN domain (``forward_radiometric_atbd.reverse_l1b_to_l0``).
 
-    Per (detector, band): impress the relative response (R2EQOG cubic/bilinear), add the L0-domain
-    dark (``sensor.L0_DARK_LSB`` × R2EQOG DSNU shape), remove the R2PARA offset, un-bin 60 m (S5),
-    re-insert blind columns (BLINDP), then CCSDS-122 + ISP package (S15). PSF/noise are not
-    re-applied (restoration is off; noise is already in L1B). SWIR re-arrangement (S8) is not applied.
-    Detectors via ``$S2_E2ES_L1B_DETECTORS`` (default ``5``); bands via ``args.bands``.
+    Inverts every ON forward step: remove the R2PARA offset (S4), impress the relative response
+    (R2EQOG cubic/bilinear, S7), re-apply the on-board equalization non-linearity (REOB2, S12),
+    add the L0-domain dark (``sensor.L0_DARK_LSB`` × R2EQOG DSNU shape, S11), un-bin 60 m (S5),
+    re-introduce the SWIR staggered readout (RSWIR, S8), re-stamp defective columns (R2DEPI, S10),
+    add inter-band crosstalk back (RCRCO, S9 — phase-level, same-resolution groups), re-insert blind
+    columns (BLINDP), then CCSDS-122 + ISP package (S15). MTF restoration/deconvolution (forward
+    step 8) is off in the operational chain, so PSF/noise are NOT re-applied (see DPM). The S8/S9/S10/
+    S12 ADFs are auto-found next to the ADF_REQOG (or ``$S2_E2ES_{RSWIR,REOB2,RCRCO}_ADF``); set
+    ``S2_E2ES_REVERSE_FULL=0`` for the radiometric-only reverse. Detectors via
+    ``$S2_E2ES_L1B_DETECTORS`` (default ``5``); bands via ``args.bands``.
     """
     import zarr
 
@@ -466,7 +523,14 @@ def phase_reverse_l1b(store: dict[str, Path], args) -> None:
     if not gipp_dir:
         raise SystemExit("[reverse-l1b] needs $S2_E2ES_GIPP_DIR")
     eqog = _eqog_adf_path(args)
-    gs = gipp_mod.load_gipp_set(gipp_dir, bands=tuple(args.bands), eqog_adf=eqog)
+    full = str(os.environ.get("S2_E2ES_REVERSE_FULL", "1")).lower() not in ("0", "false", "no")
+    rswir_adf = _full_reverse_adf(args, "S2_E2ES_RSWIR_ADF", "RSWIR") if full else None
+    reob2_adf = _full_reverse_adf(args, "S2_E2ES_REOB2_ADF", "REOB2") if full else None
+    rcrco_adf = _full_reverse_adf(args, "S2_E2ES_RCRCO_ADF", "RCRCO") if full else None
+    gs = gipp_mod.load_gipp_set(gipp_dir, bands=tuple(args.bands), eqog_adf=eqog,
+                                rswir_adf=rswir_adf, reob2_adf=reob2_adf, rcrco_adf=rcrco_adf)
+    print(f"[reverse-l1b] full chain: S8(SWIR)={'on' if rswir_adf else 'off'} "
+          f"S12(onboard-eq)={'on' if reob2_adf else 'off'} S9(crosstalk)={'on' if rcrco_adf else 'off'}")
     try:
         offsets = gipp_mod.read_r2para(gipp_dir).radiance_offset_l1b
     except Exception:  # R2PARA optional — fall back to the sensor constant
@@ -479,19 +543,36 @@ def phase_reverse_l1b(store: dict[str, Path], args) -> None:
     platform = _l1b_platform(props)
 
     frames: dict[tuple[int, str], np.ndarray] = {}
+    applied: set[str] = set()
     for det in detectors:
+        # read every band for this detector, then undo inter-band crosstalk (S9) as a group
+        l1b_by_band = {bn: gio.read_l1b_band(src, det, bn, lines=args.line_slice).astype(np.float64)
+                       for bn in args.bands}
+        if gs.crosstalk_matrix is not None:
+            l1b_by_band = _reverse_crosstalk(l1b_by_band, gs.crosstalk_matrix)
+            applied.add("S9-crosstalk")
         for bn in args.bands:
-            l1b_dn = gio.read_l1b_band(src, det, bn, lines=args.line_slice)
             eq = gs.band(bn).detectors[det]
             off = float(offsets.get(bn, sensor.RADIO_ADD_OFFSET_L1B))
             factor = 3 if bn in RES_GROUPS["r60m"] else 1
-            active = fwd.reverse_l1b_to_l0(l1b_dn, eq, radio_offset_l1b=off, l0_dark_level=l0_dark, unbin_factor=factor)
+            swir_shift = gs.swir_shift(bn, det)
+            onboard = gs.onboard_eq(bn, det)
+            defcols = gs.defective.get(bn, {}).get(det)
+            active = fwd.reverse_l1b_to_l0(
+                l1b_by_band[bn], eq, radio_offset_l1b=off, l0_dark_level=l0_dark,
+                unbin_factor=factor, swir_shift=swir_shift, defective_cols=defcols, onboard_eq=onboard)
             raw = _reinsert_blind(active, gs.blind.get(bn, {}).get(det), int(round(l0_dark)))
             frames[(det, bn)] = raw
-            swir = " +S8-pending" if bn in sensor.SWIR_BANDS else ""
+            tags = []
+            if swir_shift is not None:
+                tags.append("+S8"); applied.add("S8-swir")
+            if onboard is not None:
+                tags.append("+S12"); applied.add("S12-onboard-eq")
+            if defcols is not None and len(defcols):
+                tags.append(f"+S10({len(defcols)})"); applied.add("S10-defective")
             print(
-                f"[reverse-l1b] d{det:02d} {bn} ({eq.model}): L1B {tuple(l1b_dn.shape)} → "
-                f"L0 {tuple(raw.shape)} offset{off:+.0f} unbin×{factor}{swir}"
+                f"[reverse-l1b] d{det:02d} {bn} ({eq.model}): L1B {tuple(l1b_by_band[bn].shape)} → "
+                f"L0 {tuple(raw.shape)} offset{off:+.0f} unbin×{factor} {' '.join(tags)}"
             )
     stamp = str(start or "unknown").replace("-", "").replace(":", "")[:15]
     l0_dir = Path(os.environ["S2_E2ES_L0_DIR"]).expanduser() if os.environ.get("S2_E2ES_L0_DIR") else store["l0"]
@@ -516,7 +597,9 @@ def phase_reverse_l1b(store: dict[str, Path], args) -> None:
             "n_frames": len(frames),
             "l0_dark_lsb": l0_dark,
             "radio_offset_l1b": {bn: float(offsets.get(bn, sensor.RADIO_ADD_OFFSET_L1B)) for bn in args.bands},
-            "s8_swir_rearrangement": "not applied (image median unaffected; needs per-column shift map)",
+            "full_reverse_steps_applied": sorted(applied),
+            "adf_sources": {"rswir": rswir_adf, "reob2": reob2_adf, "rcrco": rcrco_adf},
+            "restoration_deconvolution": "skipped — off in forward chain (feature_flag_with_deconvolution=False); L1B keeps instrument PSF, no re-blur/re-noise (see DPM)",
             "output": out,
         },
         store["report"] / "reverse_l1b.json",

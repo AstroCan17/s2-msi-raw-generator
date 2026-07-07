@@ -72,6 +72,56 @@ def reverse_impress(y: np.ndarray, eq: DetectorEq) -> np.ndarray:
     return z + _b(eq.dark, z.shape[1])
 
 
+def reapply_onboard_eq(z_signal: np.ndarray, reob2: dict[str, np.ndarray]) -> np.ndarray:
+    """S12 — re-apply the on-board bilinear equalization non-linearity (undo forward step 1).
+
+    The forward ``inverse_equalization`` un-does the on-board companding ``Z = Y/a1 | (Y−(a1−a2)zs)/a2``
+    (``X = Z + d``); its E2ES re-application on the **dark-subtracted signal** ``z`` (downlink-
+    consistent) is ``y = a1·z`` for ``z ≤ zs`` else ``a2·z + (a1−a2)·zs`` (REOB2 ``a1,a2,zs``). The
+    REOB2 dark ``d`` (raw-detector domain, ≈455 DN) cancels the raw-detector dark and is **not**
+    re-added here — the downlink L0 pedestal is the separate ``l0_dark_level`` term. For S2B
+    ``a1≈1.005, a2≈0.995`` so this is a sub-percent gain with a knee at ``z ≈ zs``.
+    """
+    z = np.asarray(z_signal, dtype=np.float64)
+    w = z.shape[1]
+    a1, a2, zs = (_b(reob2[k], w) for k in ("a1", "a2", "zs"))
+    return np.where(z <= zs, a1 * z, a2 * z + (a1 - a2) * zs)
+
+
+def restage_swir_lines(img: np.ndarray, shifts: np.ndarray,
+                       kernel: np.ndarray | None = None, method: str = "shift") -> np.ndarray:
+    """S8 — re-introduce the SWIR staggered readout (reverse of the forward re-arrangement).
+
+    ``shifts[c] ∈ {−1, 0, +1}`` flags which across-track columns move and the direction. ``method``
+    ``"shift"`` (B11/B12) rolls the flagged column by ±1 whole line; ``"interp"`` (B10) applies the
+    ±1/3-line sub-pixel shift as a 3-tap ``kernel`` convolution (``kernel`` for +, reversed for −;
+    lossy — the forward convolution is not exactly invertible). Along-track roll commutes with the
+    per-column radiometric ops, so the exact placement in the chain is not critical. ``shifts`` is
+    centre-aligned to the frame width (SWIR blind columns sit at the edges).
+    """
+    img = np.asarray(img, dtype=np.float64)
+    w = img.shape[1]
+    s = np.rint(np.asarray(shifts)).astype(int)
+    if s.size != w:                                   # align the physical-detector map to the frame
+        if s.size > w:
+            start = (s.size - w) // 2
+            s = s[start : start + w]
+        else:
+            s = np.pad(s, (0, w - s.size), mode="edge")
+    out = img.copy()
+    interp = method == "interp" and kernel is not None and np.asarray(kernel).size > 0
+    k = np.asarray(kernel, dtype=np.float64) if interp else None
+    for c in range(w):
+        sc = int(s[c])
+        if sc == 0:
+            continue
+        if interp:
+            out[:, c] = np.convolve(img[:, c], k if sc > 0 else k[::-1], mode="same")
+        else:
+            out[:, c] = np.roll(img[:, c], sc)
+    return out
+
+
 def reverse_l1b_to_l0(
     l1b_dn: np.ndarray,
     eq: DetectorEq,
@@ -80,36 +130,59 @@ def reverse_l1b_to_l0(
     l0_dark_level: float,
     unbin_factor: int = 1,
     dn_max: int = 4095,
+    swir_shift: tuple[np.ndarray, np.ndarray, str] | None = None,
+    defective_cols: np.ndarray | None = None,
+    onboard_eq: dict[str, np.ndarray] | None = None,
+    nodata: float = 0.0,
 ) -> np.ndarray:
     """E2ES reverse of the L0→L1B radiometric chain: real L1B digital counts → L0 raw uint16 DN.
 
-    The SentiWiki forward chain is ``onboard-eq⁻¹ → dark → blind → crosstalk → relative-response →
-    SWIR-rearr → defective → restoration(off) → binning → −RADIO_ADD_OFFSET``. This inverts it in
-    the **downlink DN domain** (where both real L1B and L0 live — near-unity onboard gain)::
+    The SentiWiki / EOPF forward chain (ON steps) is ``on-board-eq⁻¹(REOB2) → dark → blind →
+    crosstalk(RCRCO) → relative-response(REQOG) → SWIR-rearr(RSWIR) → defective(RDEPI) →
+    restoration[OFF] → binning → +RADIO_ADD_OFFSET``. This inverts it in the **downlink DN domain**
+    (where both real L1B and L0 live), undoing the steps in reverse order::
 
-        internal = L1B + radio_offset_l1b        # undo the R2PARA product offset (−100 ⇒ subtract 100)
-        z        = G⁻¹(internal)                  # impress the relative response (cubic VNIR / bilinear SWIR)
-        raw      = z + l0_dark_level · (D/⟨D⟩)     # add the L0-domain dark; DSNU column shape from R2EQOG COEFF_D
-        raw      = repeat(raw, ×unbin_factor)     # S5 un-bin (60 m); replication — the mean is preserved but
-                                                  # the 3 distinct sub-pixels are irrecoverable (like SRF/noise)
+        z    = G⁻¹(L1B + radio_offset_l1b)          # undo offset (S4) + impress relative response (S7)
+        z    = a·z (on-board-eq non-linearity)      # S12 — undo REOB2 (a1≈a2≈1, sub-percent; optional)
+        raw  = z + l0_dark_level · (D/⟨D⟩)           # S11 — L0-domain dark pedestal; DSNU shape from COEFF_D
+        raw  = repeat(raw, ×unbin_factor)           # S5 — un-bin (60 m); replication (sub-pixel irrecoverable)
+        raw  = restage_swir_lines(raw, swir_shift)  # S8 — re-introduce the staggered SWIR readout
+        raw[:, defective_cols] = nodata             # S10 — re-stamp the RDEPI defective columns
 
-    Unlike :func:`reverse_impress`, the dark added is the *downlink*-domain ``l0_dark_level`` (≈50 DN),
-    **not** the raw-detector ``eq.dark`` (COEFF_D ≈440 DN, a different domain); ``eq.dark`` supplies only
-    the unitless DSNU column *shape*. Entering from real L1B DN, PSF re-blur (restoration is off in the
-    forward chain) and sensor noise (already present in L1B) are **not** re-applied.
+    Dark is the *downlink*-domain ``l0_dark_level`` (≈50 DN), **not** the raw-detector ``eq.dark``
+    (COEFF_D ≈440 DN, a different domain — its ≈455 DN cancels the REOB2 ``d``, so REOB2 contributes
+    only its ``a1/a2`` non-linearity here); ``eq.dark`` supplies only the unitless DSNU column *shape*.
 
-    Validated against the real 2024-04-08 S2B PPB pair (all 13 bands): median ≤~5 %, active-region
-    column FPN matches, CCSDS-122/ISP round-trip bit-exact. The SWIR staggered-readout re-arrangement
-    (S8, :func:`~s2_msi_raw_generator.reverse.s8_restage_swir`) is **not** applied here — it leaves the
-    image median unchanged; supply a per-column shift map for full SWIR spatial fidelity.
+    **Skipped — deliberately:** MTF restoration/deconvolution and de-noising (forward step 8) are
+    ``feature_flag_with_deconvolution/denoising = False`` in the operational payload (SentiWiki:
+    *"restoration disabled by default — instrument MTF already high"*), so the L1B still carries the
+    full instrument PSF and its noise realisation; re-blurring (S6 PSF) or re-noising (S13) would
+    double-count and is **not** applied. Crosstalk (S9, RCRCO) is applied at the phase level (needs
+    the neighbouring same-resolution bands; ≈0 for S2A/B).
+
+    Optional full-chain inputs (all ``None`` → the validated radiometric-only reverse): ``swir_shift``
+    = ``(shifts, kernel, method)`` from :func:`~s2_msi_raw_generator.gipp.read_rswir_eopf`;
+    ``defective_cols`` = RDEPI ``singularity_columns``; ``onboard_eq`` = REOB2 coefficients from
+    :func:`~s2_msi_raw_generator.gipp.read_reob2_eopf`. Validated against the real 2024-04-08 S2B PPB
+    pair (all 13 bands): median ≤~5 %, active-region column FPN matches, CCSDS-122/ISP round-trip
+    bit-exact; S8 brings the SWIR (B11/B12) images into spatial agreement.
     """
     x = np.asarray(l1b_dn, dtype=np.float64)
-    z = inverse_equalize(x + radio_offset_l1b, eq)
+    z = inverse_equalize(x + radio_offset_l1b, eq)          # S4 offset + S7 relative response
+    if onboard_eq is not None:                              # S12 on-board-eq non-linearity
+        z = reapply_onboard_eq(z, onboard_eq)
     dsnu = np.asarray(eq.dark, dtype=np.float64)
     dsnu = dsnu / dsnu.mean()
-    raw = z + l0_dark_level * _b(dsnu, z.shape[1])
-    if unbin_factor > 1:
+    raw = z + l0_dark_level * _b(dsnu, z.shape[1])          # S11 downlink dark pedestal
+    if unbin_factor > 1:                                    # S5 un-bin (60 m)
         raw = np.repeat(raw, unbin_factor, axis=1)
+    if swir_shift is not None:                              # S8 re-stagger the SWIR readout
+        shifts, kernel, method = swir_shift
+        raw = restage_swir_lines(raw, shifts, kernel, method)
+    if defective_cols is not None and len(defective_cols):  # S10 re-stamp defective columns
+        cols = np.asarray(defective_cols, dtype=int)
+        cols = cols[(cols >= 0) & (cols < raw.shape[1])]
+        raw[:, cols] = nodata
     return np.clip(np.rint(raw), 0, dn_max).astype(np.uint16)
 
 
