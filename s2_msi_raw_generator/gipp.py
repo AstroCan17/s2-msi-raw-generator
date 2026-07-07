@@ -253,6 +253,78 @@ def temporal_validity(adf_epoch: dict, acquisition_utc: str, warn_years: float =
     }
 
 
+# --- RSWIR (SWIR staggered-readout shift map) from an EOPF ADF ----------------------------
+
+# RSWIR `swir_band_list/swir_band/detector` band axis order (confirmed from the ADF coords).
+_RSWIR_BANDS: tuple[str, ...] = ("B10", "B11", "B12")
+
+
+def read_rswir_eopf(adf_json_path: str, band: str, detector: int) -> tuple[np.ndarray, np.ndarray, str]:
+    """EOPF ``ADF_RSWIR`` → the SWIR staggered-readout shift map for one ``band``/``detector``.
+
+    Returns ``(shifts, kernel, method)``:
+
+    * ``shifts`` — per across-track column integer flag in ``{−1, 0, +1}`` (``swir_band_list/
+      swir_band/detector`` at ``[band, detector, :]``). The **sign** marks which columns move and
+      the direction; the **magnitude** is set by ``method`` (whole line vs sub-pixel).
+    * ``kernel`` — the ``interpolation_filter/coefs`` 3-tap sub-pixel filter (only used for B10).
+    * ``method`` — ``"shift"`` (B11/B12: ±1 whole-line roll) or ``"interp"`` (B10: ±1/3 line via
+      ``kernel`` convolution).
+
+    Only B10/B11/B12 have an entry; ``band`` must be one of those (else :class:`KeyError`).
+    """
+    if band.upper() not in _RSWIR_BANDS:
+        raise KeyError(f"RSWIR only covers {_RSWIR_BANDS}, not {band!r}")
+    dv = _load_eopf_adf(adf_json_path)["data_vars"]
+    bi = _RSWIR_BANDS.index(band.upper())
+    sm = np.asarray(dv["swir_band_list/swir_band/detector"]["data"])   # (3, 12, act)
+    shifts = np.rint(sm[bi, detector - 1]).astype(int)
+    kernel = np.asarray(dv["interpolation_filter/coefs"]["data"], dtype=np.float64)
+    method = "interp" if band.upper() == "B10" else "shift"
+    return shifts, kernel, method
+
+
+# --- REOB2 (on-board equalization, 2-table) from an EOPF ADF ------------------------------
+
+def read_reob2_eopf(adf_json_path: str, band: str, detector: int,
+                    table: str = "new_table") -> dict[str, np.ndarray]:
+    """EOPF ``ADF_REOB2`` → per-pixel on-board-equalization coefficients for one ``band``/``detector``.
+
+    The forward L1B step 1 (``inverse_equalization``) undoes the on-board bilinear equalization::
+
+        Z = where(Y ≤ a1·zs, Y/a1, (Y − (a1−a2)·zs)/a2);   X = Z + d
+
+    so the E2ES **re-application** (raw X → downlink Y) is ``Y = where(Z ≤ zs, a1·Z, a2·Z +
+    (a1−a2)·zs)`` with ``Z = X − d`` (see :func:`~s2_msi_raw_generator.forward_radiometric_atbd.
+    reapply_onboard_eq`). Returns ``{a1, a2, zs, d}`` each ``(act,)`` from ``<band>/<table>/coeff_*``
+    (default the operational ``new_table``). For S2B ``a1≈1.005, a2≈0.995`` (near-unity slope) and
+    ``d≈455`` (the raw-detector dark, i.e. the R2EQOG COEFF_D domain).
+    """
+    dv = _load_eopf_adf(adf_json_path)["data_vars"]
+    bk = band.lower()
+
+    def _a(name: str) -> np.ndarray:
+        return np.asarray(dv[f"{bk}/{table}/coeff_{name}"]["data"], dtype=np.float64)[detector - 1]
+
+    return {"a1": _a("a1"), "a2": _a("a2"), "zs": _a("zs"), "d": _a("d")}
+
+
+# --- RCRCO (inter-band crosstalk) from an EOPF ADF ---------------------------------------
+
+def read_rcrco_eopf(adf_json_path: str) -> np.ndarray:
+    """EOPF ``ADF_RCRCO`` → the combined crosstalk matrix ``dtalk[k, l]`` (optical + electrical).
+
+    ``13×13`` over ``band_k`` (impacted) × ``band_l`` (impacting), in ``sensor.BANDS`` order. The
+    forward correction is ``X_corr_k = X_k − Σ_l dtalk[k,l]·X_l``; the E2ES re-application adds it
+    back. For S2A/B optical is exactly 0 and electrical peaks at ≈0.004 — a near-no-op kept for
+    completeness.
+    """
+    dv = _load_eopf_adf(adf_json_path)["data_vars"]
+    opt = np.asarray(dv["optical"]["data"], dtype=np.float64)
+    ele = np.asarray(dv["electrical"]["data"], dtype=np.float64)
+    return opt + ele
+
+
 # --- R2DEPI (defective pixels) + BLINDP (blind pixels) -----------------------------------
 
 def read_r2depi(gipp_dir: str) -> dict[str, dict[int, np.ndarray]]:
@@ -344,7 +416,12 @@ def read_r2crco(gipp_dir: str) -> dict[str, np.ndarray]:
 
 @dataclass
 class GippSet:
-    """All GIPP calibration data needed by the reverse chain, parsed from ``gipp_dir``."""
+    """All GIPP calibration data needed by the reverse chain, parsed from ``gipp_dir``.
+
+    The full-reverse extras (``rswir_adf`` = SWIR shift map, ``reob2_adf`` = on-board equalization)
+    are EOPF ADF json paths read **lazily** through :meth:`swir_shift` / :meth:`onboard_eq` — those
+    ADFs are large (REOB2 ≈ 125 MB) and only a handful of (band, detector) pairs are ever needed.
+    """
 
     gipp_dir: str
     equalization: dict[str, BandEq] = field(default_factory=dict)   # band → R2EQOG
@@ -352,21 +429,39 @@ class GippSet:
     blind: dict[str, dict[int, np.ndarray]] = field(default_factory=dict)
     params: RadioParams | None = None
     crosstalk: dict[str, np.ndarray] = field(default_factory=dict)
+    crosstalk_matrix: np.ndarray | None = None    # EOPF RCRCO dtalk[k,l], sensor.BANDS order
+    rswir_adf: str | None = None
+    reob2_adf: str | None = None
 
     def band(self, name: str) -> BandEq:
         return self.equalization[name]
 
+    def swir_shift(self, band: str, detector: int) -> tuple[np.ndarray, np.ndarray, str] | None:
+        """SWIR staggered-readout shift map for a (band, detector), or ``None`` if unavailable."""
+        if self.rswir_adf is None or band.upper() not in _RSWIR_BANDS:
+            return None
+        return read_rswir_eopf(self.rswir_adf, band, detector)
+
+    def onboard_eq(self, band: str, detector: int) -> dict[str, np.ndarray] | None:
+        """On-board-equalization coefficients (REOB2) for a (band, detector), or ``None``."""
+        if self.reob2_adf is None:
+            return None
+        return read_reob2_eopf(self.reob2_adf, band, detector)
+
 
 def load_gipp_set(gipp_dir: str, bands: tuple[str, ...] = sensor.BANDS,
-                  eqog_adf: str | None = None) -> GippSet:
+                  eqog_adf: str | None = None, rswir_adf: str | None = None,
+                  reob2_adf: str | None = None, rcrco_adf: str | None = None) -> GippSet:
     """Load the full GIPP set from ``gipp_dir`` (R2EQOG per band + R2DEPI/BLINDP/R2PARA/R2CRCO).
 
     If ``eqog_adf`` is given (path to an EOPF ``ADF_REQOG`` json, e.g. the ESA
     ``S2A_ADF_REQOG_…json``), the equalization (dark + PRNU) is read from that ESA ADF via
     :func:`read_r2eqog_eopf` instead of the per-band XML — the rest (defective/blind/params/
-    crosstalk) still comes from ``gipp_dir``.
+    crosstalk) still comes from ``gipp_dir``. ``rswir_adf`` / ``reob2_adf`` (EOPF ``ADF_RSWIR`` /
+    ``ADF_REOB2`` json) enable the full reverse chain's SWIR re-arrangement (S8) and on-board
+    equalization (S12); they are stored on the set and read lazily.
     """
-    gs = GippSet(gipp_dir=gipp_dir)
+    gs = GippSet(gipp_dir=gipp_dir, rswir_adf=rswir_adf, reob2_adf=reob2_adf)
     for b in bands:
         gs.equalization[b] = (read_r2eqog_eopf(eqog_adf, b) if eqog_adf
                               else read_r2eqog_band(gipp_dir, b))
@@ -374,4 +469,6 @@ def load_gipp_set(gipp_dir: str, bands: tuple[str, ...] = sensor.BANDS,
     gs.blind = read_blindp(gipp_dir)
     gs.params = read_r2para(gipp_dir)
     gs.crosstalk = read_r2crco(gipp_dir)
+    if rcrco_adf:
+        gs.crosstalk_matrix = read_rcrco_eopf(rcrco_adf)
     return gs
