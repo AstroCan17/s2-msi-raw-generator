@@ -107,15 +107,12 @@ L1A_PREFIX = "s2-msi-l1-example/PDI_MSI_S2_L1A.zarr/"
 # real **SADATA** tars, whose members are genuine downlinked CCSDS packets — exactly what the
 # structural scan needs.
 REAL_L0_SAFE_PREFIX = (
-    "S2AMSIdataset/S2A_OPER_PRD_MSIL0P_PDMC_20220803T144026_"
-    "R123_V20220803T113642_20220803T113704.SAFE/"
+    "S2AMSIdataset/S2A_OPER_PRD_MSIL0P_PDMC_20220803T144026_" "R123_V20220803T113642_20220803T113704.SAFE/"
 )
 REAL_L0_KEYS = [
     "S2AMSIdataset/S2A_OPER_MSI_L0__DS_ATOS_20221111T083024_S20221111T082158_N04.00.tar",
-    "S2AMSIdataset/S2A_OPER_AUX_SADATA_2APS_20241218T042947_"
-    "V20241218T034819_20241218T041652_A049565_WP_LN.tar",
-    "S2AMSIdataset/S2A_OPER_AUX_SADATA_2APS_20241218T074251_"
-    "V20241218T070943_20241218T072345_A049567_WP_LN.tar",
+    "S2AMSIdataset/S2A_OPER_AUX_SADATA_2APS_20241218T042947_" "V20241218T034819_20241218T041652_A049565_WP_LN.tar",
+    "S2AMSIdataset/S2A_OPER_AUX_SADATA_2APS_20241218T074251_" "V20241218T070943_20241218T072345_A049567_WP_LN.tar",
 ]
 DETECTOR = 1  # the example PDI L1A carries DD01 only
 # Bands grouped by ground resolution: line counts differ per resolution in a real product
@@ -137,6 +134,7 @@ PHASES = [
     "cal-package",
     "build-caldb",
     "package",
+    "reverse-l1b",
     "ground-decode",
     "l0-decode",
     "validate",
@@ -175,8 +173,7 @@ LOCAL_ENV_DEFAULTS: dict[str, str] = {
     "S2_DATA_STORE": str(_LOCAL_STORE),
     "S2_E2ES_GIPP_DIR": str(_LOCAL_STORE / "inputs/s2-sensor/GIPP"),
     "S2_E2ES_PUBLIC_L0": str(
-        _LOCAL_STORE
-        / "inputs/public-data/level-0/S02MSIL0__20230216T182840_0001_A123_T000.zarr.zip"
+        _LOCAL_STORE / "inputs/public-data/level-0/S02MSIL0__20230216T182840_0001_A123_T000.zarr.zip"
     ),
     "S2_E2ES_IMPORT_DETECTOR": "1",
     "S2_E2ES_JOBS": "16",
@@ -192,12 +189,11 @@ def _eqog_adf_path(args) -> str | None:
     """
     p = getattr(args, "eqog_adf", None) or os.environ.get("S2_E2ES_EQOG_ADF")
     return p if (p and os.path.exists(p)) else None
+
+
 #: Default phase chain applied for ``nominal`` mode only (the public-L0 same-scene bridge +
 #: inventory alongside the standard package/decode/validate chain).
-LOCAL_NOMINAL_PHASES = (
-    "import-l0,preflight,package,ground-decode,l0-decode,validate,"
-    "radiometric-vv,inventory,report"
-)
+LOCAL_NOMINAL_PHASES = "import-l0,preflight,package,ground-decode,l0-decode,validate," "radiometric-vv,inventory,report"
 
 _SENTINEL_SATURATED = 32768  # IF-IN-L1A saturation sentinel in the real product
 
@@ -267,9 +263,7 @@ def phase_fetch_l0(store: dict[str, Path], args) -> None:
     results, total = [], 0
     for key in REAL_L0_KEYS:
         try:
-            man = s3fetch.fetch_prefix(
-                ENDPOINT, key, dest, strip_prefix="S2AMSIdataset/", jobs=1
-            )
+            man = s3fetch.fetch_prefix(ENDPOINT, key, dest, strip_prefix="S2AMSIdataset/", jobs=1)
             results.append(man)
             total += man["total_bytes"]
         except RuntimeError as exc:  # keep going; report what failed
@@ -282,9 +276,7 @@ def phase_fetch_l0(store: dict[str, Path], args) -> None:
         },
         store["report"] / "fetch_l0_manifest.json",
     )
-    print(
-        f"[fetch-l0] {len(REAL_L0_KEYS)} real-L0 references, {total/1e6:.1f} MB → {dest}"
-    )
+    print(f"[fetch-l0] {len(REAL_L0_KEYS)} real-L0 references, {total/1e6:.1f} MB → {dest}")
 
 
 def _default_public_l0(store: dict[str, Path]) -> Path | None:
@@ -299,10 +291,7 @@ def phase_import_l0(store: dict[str, Path], args) -> None:
     """Import a public distribution L0 image product as the same-scene pipeline L1A input."""
     src = Path(args.public_l0) if args.public_l0 else _default_public_l0(store)
     if src is None:
-        raise SystemExit(
-            "[import-l0] needs $S2_E2ES_PUBLIC_L0 or "
-            "inputs/public-data/level-0/S02MSIL0__*.zarr.zip"
-        )
+        raise SystemExit("[import-l0] needs $S2_E2ES_PUBLIC_L0 or " "inputs/public-data/level-0/S02MSIL0__*.zarr.zip")
     report = import_l0.convert(
         src,
         store["inputs"],
@@ -313,18 +302,11 @@ def phase_import_l0(store: dict[str, Path], args) -> None:
     _jdump(report, store["report"] / "import_l0.json")
     os.environ["S2_E2ES_L1A"] = report["output"]
     args.l1a = report["output"]
-    print(
-        f"[import-l0] d{args.import_detector:02d} {len(report['bands'])} bands → "
-        f"{report['output']}"
-    )
+    print(f"[import-l0] d{args.import_detector:02d} {len(report['bands'])} bands → " f"{report['output']}")
 
 
 def _l1a_path(store: dict[str, Path], args) -> str:
-    return (
-        args.l1a
-        or os.environ.get("S2_E2ES_L1A")
-        or str(store["inputs"] / "PDI_MSI_S2_L1A.zarr")
-    )
+    return args.l1a or os.environ.get("S2_E2ES_L1A") or str(store["inputs"] / "PDI_MSI_S2_L1A.zarr")
 
 
 def phase_preflight(store: dict[str, Path], args) -> None:
@@ -408,9 +390,7 @@ def phase_package(store: dict[str, Path], args) -> None:
     l1a = pre["l1a_path"]
     d = _datation_from_preflight(pre)
     frames = {
-        (DETECTOR, bn): gio.read_l1a_raw(
-            l1a, DETECTOR, bn, lines=args.line_slice, dtype=np.uint16
-        )
+        (DETECTOR, bn): gio.read_l1a_raw(l1a, DETECTOR, bn, lines=args.line_slice, dtype=np.uint16)
         for bn in pre["bands"]
     }
     out = str(store["l0"] / pre["product_names"]["l0"])
@@ -427,6 +407,119 @@ def phase_package(store: dict[str, Path], args) -> None:
     )
     del frames
     print(f"[package] canonical L0 → {out}")
+
+
+def _l1b_props(attrs: dict) -> dict:
+    """STAC properties of an EOPF L1B product (tolerant to the nested ``stac_discovery`` layouts)."""
+    sd = attrs.get("stac_discovery", {})
+    if isinstance(sd, dict):
+        p = sd.get("properties")
+        if not isinstance(p, dict):
+            p = sd.get("stac_discovery", {}).get("properties", {}) if isinstance(sd.get("stac_discovery"), dict) else {}
+        if isinstance(p, dict):
+            return p
+    return {}
+
+
+def _l1b_platform(props: dict) -> str:
+    p = str(props.get("platform", "sentinel-2a")).lower()
+    return "Sentinel-2B" if "2b" in p else ("Sentinel-2C" if "2c" in p else "Sentinel-2A")
+
+
+def _reinsert_blind(active: np.ndarray, blind_cols, fill: int) -> np.ndarray:
+    """S10 (blind side): put the active columns back at their non-blind positions in the physical
+    frame, filling BLINDP's blind columns with the dark level. Best-effort — returns ``active``
+    unchanged if the BLINDP indices are absent or inconsistent with the active width."""
+    if blind_cols is None or len(blind_cols) == 0:
+        return active
+    blind = np.asarray(blind_cols, dtype=int)
+    phys_w = active.shape[1] + blind.size
+    if blind.size and blind.max() >= phys_w:
+        return active
+    keep = np.setdiff1d(np.arange(phys_w), blind)
+    if keep.size != active.shape[1]:
+        return active
+    out = np.full((active.shape[0], phys_w), fill, dtype=active.dtype)
+    out[:, keep] = active
+    return out
+
+
+def phase_reverse_l1b(store: dict[str, Path], args) -> None:
+    """``reverse-l1b`` — real L1B digital counts → L0 raw, the vault-canonical inverse of the L0→L1B
+    radiometric chain in the downlink DN domain (``forward_radiometric_atbd.reverse_l1b_to_l0``).
+
+    Per (detector, band): impress the relative response (R2EQOG cubic/bilinear), add the L0-domain
+    dark (``sensor.L0_DARK_LSB`` × R2EQOG DSNU shape), remove the R2PARA offset, un-bin 60 m (S5),
+    re-insert blind columns (BLINDP), then CCSDS-122 + ISP package (S15). PSF/noise are not
+    re-applied (restoration is off; noise is already in L1B). SWIR re-arrangement (S8) is not applied.
+    Detectors via ``$S2_E2ES_L1B_DETECTORS`` (default ``5``); bands via ``args.bands``.
+    """
+    import zarr
+
+    from s2_msi_raw_generator import forward_radiometric_atbd as fwd, gipp as gipp_mod
+
+    src = os.environ.get("S2_E2ES_L1B")
+    if not src:
+        print("[reverse-l1b] skipped (needs $S2_E2ES_L1B, a real L1B .zarr[.zip])")
+        return
+    gipp_dir = args.gipp or os.environ.get("S2_E2ES_GIPP_DIR")
+    if not gipp_dir:
+        raise SystemExit("[reverse-l1b] needs $S2_E2ES_GIPP_DIR")
+    eqog = _eqog_adf_path(args)
+    gs = gipp_mod.load_gipp_set(gipp_dir, bands=tuple(args.bands), eqog_adf=eqog)
+    try:
+        offsets = gipp_mod.read_r2para(gipp_dir).radiance_offset_l1b
+    except Exception:  # R2PARA optional — fall back to the sensor constant
+        offsets = {}
+    detectors = [int(d) for d in str(os.environ.get("S2_E2ES_L1B_DETECTORS", "5")).split(",") if d.strip()]
+    l0_dark = sensor.L0_DARK_LSB
+    props = _l1b_props(dict(zarr.open_group(src, mode="r").attrs))
+    start = props.get("start_datetime") or props.get("datetime")
+    d = datation.Datation(epoch_utc=start) if start and start != "null" else datation.Datation()
+    platform = _l1b_platform(props)
+
+    frames: dict[tuple[int, str], np.ndarray] = {}
+    for det in detectors:
+        for bn in args.bands:
+            l1b_dn = gio.read_l1b_band(src, det, bn, lines=args.line_slice)
+            eq = gs.band(bn).detectors[det]
+            off = float(offsets.get(bn, sensor.RADIO_ADD_OFFSET_L1B))
+            factor = 3 if bn in RES_GROUPS["r60m"] else 1
+            active = fwd.reverse_l1b_to_l0(l1b_dn, eq, radio_offset_l1b=off, l0_dark_level=l0_dark, unbin_factor=factor)
+            raw = _reinsert_blind(active, gs.blind.get(bn, {}).get(det), int(round(l0_dark)))
+            frames[(det, bn)] = raw
+            swir = " +S8-pending" if bn in sensor.SWIR_BANDS else ""
+            print(
+                f"[reverse-l1b] d{det:02d} {bn} ({eq.model}): L1B {tuple(l1b_dn.shape)} → "
+                f"L0 {tuple(raw.shape)} offset{off:+.0f} unbin×{factor}{swir}"
+            )
+    stamp = str(start or "unknown").replace("-", "").replace(":", "")[:15]
+    out = str(store["l0"] / f"S02MSIL0__{stamp}_reverse.zarr")
+    l0product.write_l0_product(
+        out,
+        frames,
+        datation=d,
+        with_isp=True,
+        isp_max_payload=args.max_payload,
+        store_decoded=args.store_decoded,
+        platform=platform,
+        jobs=args.jobs,
+    )
+    _jdump(
+        {
+            "source_l1b": src,
+            "platform": platform,
+            "detectors": detectors,
+            "bands": list(args.bands),
+            "n_frames": len(frames),
+            "l0_dark_lsb": l0_dark,
+            "radio_offset_l1b": {bn: float(offsets.get(bn, sensor.RADIO_ADD_OFFSET_L1B)) for bn in args.bands},
+            "s8_swir_rearrangement": "not applied (image median unaffected; needs per-column shift map)",
+            "output": out,
+        },
+        store["report"] / "reverse_l1b.json",
+    )
+    print(f"[reverse-l1b] {len(frames)} frames → {out}")
 
 
 def phase_ground_decode(store: dict[str, Path], args) -> None:
@@ -451,27 +544,20 @@ def phase_ground_decode(store: dict[str, Path], args) -> None:
             jobs,
         )
     else:
-        decoded = {
-            bn: l0product.decode_verify_band(canon, DETECTOR, bn, l1a, args.line_slice)
-            for bn in pre["bands"]
-        }
+        decoded = {bn: l0product.decode_verify_band(canon, DETECTOR, bn, l1a, args.line_slice) for bn in pre["bands"]}
     rt = {}
     band_frames = {}
     for bn in pre["bands"]:
         rec, ok, cross = decoded[bn]
         if cross is False:
-            raise SystemExit(
-                f"[ground-decode] {bn}: consumer and reference decoders disagree"
-            )
+            raise SystemExit(f"[ground-decode] {bn}: consumer and reference decoders disagree")
         rt[bn] = {
             "bit_exact": ok,
             "decoder": "msi-processor" if cross is not None else "e2es-reference",
             "decoder_cross_check": cross,
         }
         if not ok:
-            raise SystemExit(
-                f"[ground-decode] {bn}: reconstructed DN != original — codec fault"
-            )
+            raise SystemExit(f"[ground-decode] {bn}: reconstructed DN != original — codec fault")
         band_frames[bn] = rec
         print(
             f"[ground-decode] {bn}: bit-exact OK"
@@ -511,9 +597,7 @@ def phase_l0_decode(store: dict[str, Path], args) -> None:
     bands = sorted(g["measurements/detector"].array_keys())
     # resolution groups keep 'line' uniform within each persisted product (real products mix
     # 10 m / 20 m / 60 m line counts).
-    groups: list[list[str]] = [
-        [b for b in bands if b in res_bands] for res_bands in RES_GROUPS.values()
-    ]
+    groups: list[list[str]] = [[b for b in bands if b in res_bands] for res_bands in RES_GROUPS.values()]
     groups += [[b for b in bands if not any(b in r for r in RES_GROUPS.values())]]
     outdir = store["l1a_prime"]
     stem = pre["product_names"]["l1a_prime"].removesuffix(".zarr")
@@ -524,16 +608,12 @@ def phase_l0_decode(store: dict[str, Path], args) -> None:
         for b in grp:
             arr = np.asarray(g[f"measurements/detector/{b}"])
             grp_lines = arr.shape[0] if grp_lines is None else grp_lines
-            prod[f"measurements/detector/{b}"] = EOVariable(
-                data=arr, dims=("line", "detector")
-            )
+            prod[f"measurements/detector/{b}"] = EOVariable(data=arr, dims=("line", "detector"))
         # line_time is sampled at the finest (10 m) line rate; stride it to this group's line
         # count so the persisted product keeps one consistent 'line' dimension per resolution.
         lt = np.asarray(g["conditions/time/line_time"])
         stride = max(1, lt.shape[0] // grp_lines) if grp_lines else 1
-        prod["conditions/time/line_time"] = EOVariable(
-            data=lt[::stride][:grp_lines], dims=("line",)
-        )
+        prod["conditions/time/line_time"] = EOVariable(data=lt[::stride][:grp_lines], dims=("line",))
         l1a = L0DecodeUnit("l0").run(
             {"l0c": prod},
             bit_depth=pre["bit_depth"],
@@ -568,13 +648,9 @@ def phase_validate(store: dict[str, Path], args) -> None:
         gg = zarr.open_group(str(gp), mode="r")
         for b in gg["measurements/detector"].array_keys():
             test = np.asarray(gg[f"measurements/detector/{b}"])
-            ref = gio.read_l1a_raw(
-                l1a, DETECTOR, b, lines=args.line_slice, dtype=np.uint16
-            )
+            ref = gio.read_l1a_raw(l1a, DETECTOR, b, lines=args.line_slice, dtype=np.uint16)
             t2, r2 = align_extent(test, ref)
-            ms = compute_metrics(
-                t2.astype(np.float64), r2.astype(np.float64), bit_depth=pre["bit_depth"]
-            )
+            ms = compute_metrics(t2.astype(np.float64), r2.astype(np.float64), bit_depth=pre["bit_depth"])
             res[b] = {
                 "bit_identical_kept": bool(np.array_equal(t2, r2)),
                 "kept_lines": int(test.shape[0]),
@@ -583,10 +659,7 @@ def phase_validate(store: dict[str, Path], args) -> None:
                 "rmse": None if np.isnan(ms.rmse) else float(ms.rmse),
                 "psnr": None if np.isnan(ms.psnr) else float(ms.psnr),
             }
-            ok = (
-                res[b]["bit_identical_kept"]
-                and res[b]["lines_lost"] == res[b]["preflight_zero_tail"]
-            )
+            ok = res[b]["bit_identical_kept"] and res[b]["lines_lost"] == res[b]["preflight_zero_tail"]
             print(
                 f"[validate] {b}: bit_identical={res[b]['bit_identical_kept']} "
                 f"lost={res[b]['lines_lost']} (preflight {res[b]['preflight_zero_tail']}) "
@@ -603,13 +676,8 @@ def phase_validate(store: dict[str, Path], args) -> None:
 # data-store sync (ipf/data-store: registry = DB, local store = working copy)
 # ---------------------------------------------------------------------------
 
-DATASTORE_API = (
-    "https://gitlab.eopf.copernicus.eu/api/v4/projects/ipf%2Fdata-store"
-    "/packages/generic"
-)
-DATASTORE_PACKAGES_API = (
-    "https://gitlab.eopf.copernicus.eu/api/v4/projects/ipf%2Fdata-store" "/packages"
-)
+DATASTORE_API = "https://gitlab.eopf.copernicus.eu/api/v4/projects/ipf%2Fdata-store" "/packages/generic"
+DATASTORE_PACKAGES_API = "https://gitlab.eopf.copernicus.eu/api/v4/projects/ipf%2Fdata-store" "/packages"
 
 
 def _store_auth_headers() -> dict[str, str]:
@@ -619,14 +687,10 @@ def _store_auth_headers() -> dict[str, str]:
     tok = os.environ.get("DATASTORE_TOKEN") or os.environ.get("GITLAB_TOKEN")
     if tok:
         return {"PRIVATE-TOKEN": tok}
-    raise SystemExit(
-        "[publish-store] needs CI_JOB_TOKEN (CI) or DATASTORE_TOKEN/GITLAB_TOKEN"
-    )
+    raise SystemExit("[publish-store] needs CI_JOB_TOKEN (CI) or DATASTORE_TOKEN/GITLAB_TOKEN")
 
 
-def _http(
-    url: str, *, headers: dict | None = None, method: str = "GET", data=None
-) -> bytes:
+def _http(url: str, *, headers: dict | None = None, method: str = "GET", data=None) -> bytes:
     import urllib.request
 
     req = urllib.request.Request(url, data=data, method=method, headers=headers or {})
@@ -655,15 +719,11 @@ def phase_fetch_store(store: dict[str, Path], args) -> None:
     import zipfile
 
     root = store["report"].parent
-    manifest = json.loads(
-        _http(f"{DATASTORE_API}/manifest/latest/manifest.json").decode()
-    )
+    manifest = json.loads(_http(f"{DATASTORE_API}/manifest/latest/manifest.json").decode())
     fetched = skipped = 0
     for pkg in manifest.get("packages", []):
         for f in pkg["files"]:
-            target = root / (
-                f["path"][:-4] if f["path"].endswith(".zip") else f["path"]
-            )
+            target = root / (f["path"][:-4] if f["path"].endswith(".zip") else f["path"])
             # _store_paths pre-creates the standard dirs, so "present" means non-empty
             if target.is_file() or (target.is_dir() and any(target.iterdir())):
                 skipped += 1
@@ -671,9 +731,7 @@ def phase_fetch_store(store: dict[str, Path], args) -> None:
             blob = _http(f"{DATASTORE_API}/{pkg['name']}/{pkg['version']}/{f['file']}")
             got = hashlib.sha256(blob).hexdigest()
             if got != f["sha256"]:
-                raise SystemExit(
-                    f"[fetch-store] sha256 mismatch for {f['file']}: {got}"
-                )
+                raise SystemExit(f"[fetch-store] sha256 mismatch for {f['file']}: {got}")
             if f["path"].endswith(".zip"):
                 (root / f["path"]).parent.mkdir(parents=True, exist_ok=True)
                 with zipfile.ZipFile(_io.BytesIO(blob)) as zf:
@@ -682,9 +740,7 @@ def phase_fetch_store(store: dict[str, Path], args) -> None:
                 target.parent.mkdir(parents=True, exist_ok=True)
                 target.write_bytes(blob)
             fetched += 1
-            print(
-                f"[fetch-store] {pkg['name']}/{pkg['version']}: {f['file']} → {target}"
-            )
+            print(f"[fetch-store] {pkg['name']}/{pkg['version']}: {f['file']} → {target}")
     print(f"[fetch-store] done — {fetched} fetched, {skipped} already present")
 
 
@@ -695,9 +751,7 @@ def phase_publish_store(store: dict[str, Path], args) -> None:
     ``manifest/latest`` entry is replaced in place. The "git push" of the data DB.
     """
     if not args.publish_version:
-        raise SystemExit(
-            "[publish-store] needs S2_E2ES_PUBLISH_VERSION (immutable package version)"
-        )
+        raise SystemExit("[publish-store] needs S2_E2ES_PUBLISH_VERSION (immutable package version)")
     name, version = args.publish_name, args.publish_version
     headers = _store_auth_headers()
     root = store["report"].parent
@@ -708,9 +762,7 @@ def phase_publish_store(store: dict[str, Path], args) -> None:
     if args.publish_layer == "inputs":
         # auxiliary inputs (e.g. the operational GIPP) live under inputs/; products the
         # pipeline can re-fetch itself (bucket .zarr, real_l0 tars) stay external
-        for d in (
-            sorted((root / "inputs").iterdir()) if (root / "inputs").is_dir() else []
-        ):
+        for d in (sorted((root / "inputs").iterdir()) if (root / "inputs").is_dir() else []):
             if d.name.endswith(".zarr") or d.name == "real_l0":
                 continue
             if d.is_dir() and any(d.iterdir()):
@@ -750,22 +802,14 @@ def phase_publish_store(store: dict[str, Path], args) -> None:
                 "bytes": zp.stat().st_size,
             }
         )
-        print(
-            f"[publish-store] {name}/{version}: {flat} ({zp.stat().st_size/1e6:.1f} MB)"
-        )
+        print(f"[publish-store] {name}/{version}: {flat} ({zp.stat().st_size/1e6:.1f} MB)")
 
     # merge into the manifest and replace manifest/latest atomically (delete old package first)
     try:
-        manifest = json.loads(
-            _http(f"{DATASTORE_API}/manifest/latest/manifest.json").decode()
-        )
+        manifest = json.loads(_http(f"{DATASTORE_API}/manifest/latest/manifest.json").decode())
     except Exception:  # noqa: BLE001 - first publish ever
         manifest = {"schema": 1, "packages": [], "external": []}
-    manifest["packages"] = [
-        p
-        for p in manifest["packages"]
-        if not (p["name"] == name and p["version"] == version)
-    ]
+    manifest["packages"] = [p for p in manifest["packages"] if not (p["name"] == name and p["version"] == version)]
     manifest["packages"].append(
         {
             "name": name,
@@ -775,16 +819,10 @@ def phase_publish_store(store: dict[str, Path], args) -> None:
             "source": args.publish_source,
         }
     )
-    pkgs = json.loads(
-        _http(
-            f"{DATASTORE_PACKAGES_API}?package_name=manifest", headers=headers
-        ).decode()
-    )
+    pkgs = json.loads(_http(f"{DATASTORE_PACKAGES_API}?package_name=manifest", headers=headers).decode())
     for p in pkgs:
         if p.get("version") == "latest":
-            _http(
-                f"{DATASTORE_PACKAGES_API}/{p['id']}", headers=headers, method="DELETE"
-            )
+            _http(f"{DATASTORE_PACKAGES_API}/{p['id']}", headers=headers, method="DELETE")
     _http(
         f"{DATASTORE_API}/manifest/latest/manifest.json",
         headers=headers,
@@ -826,9 +864,7 @@ def phase_cal_acquire(store: dict[str, Path], args) -> None:
         rng = np.random.default_rng(args.seed + sensor.BANDS.index(bn))
         l_diff = calibration.DIFFUSER_LEVEL_FACTOR * b.lref
         dark = calibration.synth_dark_acquisition(truth, args.cal_lines, rng)
-        flat = calibration.synth_diffuser_acquisition(
-            truth, l_diff, args.cal_lines, rng
-        )
+        flat = calibration.synth_diffuser_acquisition(truth, l_diff, args.cal_lines, rng)
         acq[bn] = (dark, flat)
         summary[bn] = {
             "dark_mean": float(dark.mean()),
@@ -845,10 +881,7 @@ def phase_cal_acquire(store: dict[str, Path], args) -> None:
         },
         store["report"] / "cal_acquire.json",
     )
-    print(
-        f"[cal-acquire] {len(acq)} bands × (dark + diffuser), "
-        f"{args.cal_lines}×{args.n_det} frames"
-    )
+    print(f"[cal-acquire] {len(acq)} bands × (dark + diffuser), " f"{args.cal_lines}×{args.n_det} frames")
 
 
 #: In-process handoff between the calibration phases (keyed by the run's report dir).
@@ -858,9 +891,7 @@ _ctx_acq: dict[int, dict[str, tuple[np.ndarray, np.ndarray]]] = {}
 def _cal_names(args) -> dict[str, str]:
     """PSFD names of the campaign products (PSFD §3 type codes DCA/SCA)."""
     dur = args.cal_lines * sensor.LINE_PERIOD_MS / 1e3
-    common = dict(
-        unit=naming.DEFAULT_UNIT, relative_orbit=naming.DEFAULT_RELATIVE_ORBIT
-    )
+    common = dict(unit=naming.DEFAULT_UNIT, relative_orbit=naming.DEFAULT_RELATIVE_ORBIT)
     return {
         "dark": naming.psfd_name("S02MSIDCA", naming.DEFAULT_START, dur, **common),
         "diffuser": naming.psfd_name("S02MSISCA", naming.DEFAULT_START, dur, **common),
@@ -903,14 +934,7 @@ def phase_cal_package(store: dict[str, Path], args) -> None:
         import zarr
 
         g = zarr.open_group(out, mode="r")
-        n_pkts = sum(
-            int(
-                dict(g[f"measurements/d01/{sensor.zarr_band_key(bn)}"].attrs)[
-                    "n_packets"
-                ]
-            )
-            for bn in acq
-        )
+        n_pkts = sum(int(dict(g[f"measurements/d01/{sensor.zarr_band_key(bn)}"].attrs)["n_packets"]) for bn in acq)
         report[kind] = {
             "product": names[kind],
             "operation_mode": op_mode,
@@ -940,10 +964,7 @@ def phase_build_caldb(store: dict[str, Path], args) -> None:
     if acq is not None:
         from s2_msi_raw_generator.adf_writer import write_calibration_db
 
-        cals = [
-            caldb_mod.derive_from_acquisitions(bn, dark, flat)
-            for bn, (dark, flat) in acq.items()
-        ]
+        cals = [caldb_mod.derive_from_acquisitions(bn, dark, flat) for bn, (dark, flat) in acq.items()]
         paths = write_calibration_db(store["caldb"], cals)
     else:
         paths = caldb_mod.build(store["caldb"], n_det=args.n_det, seed=args.seed)
@@ -1027,9 +1048,7 @@ def _entropy_bits_f(a: np.ndarray) -> float:
 
 
 def _save_gray(a: np.ndarray, path, upscale: int = 1) -> str:
-    return quicklook.save_rgb(
-        {"r": a, "g": a, "b": a}, path, rgb=("r", "g", "b"), upscale=upscale
-    )
+    return quicklook.save_rgb({"r": a, "g": a, "b": a}, path, rgb=("r", "g", "b"), upscale=upscale)
 
 
 def _stage_row(name: str, a: np.ndarray) -> str:
@@ -1067,14 +1086,14 @@ def phase_figures(store: dict[str, Path], args) -> None:
         eqog_adf = _eqog_adf_path(args)
         gs = gipp_mod.load_gipp_set(gipp_dir, eqog_adf=eqog_adf)
         a = adfmod.BandADF.from_gipp(b, args.fig_detector, gs, active_width=n_det)
-        adf_kind = (f"ESA EOPF ADF_REQOG ({os.path.basename(eqog_adf)})" if eqog_adf
-                    else "real operational GIPP (per-pixel dark + relative response)")
+        adf_kind = (
+            f"ESA EOPF ADF_REQOG ({os.path.basename(eqog_adf)})"
+            if eqog_adf
+            else "real operational GIPP (per-pixel dark + relative response)"
+        )
     else:
         a = adfmod.synthesize(b, n_det=n_det, seed=2026)
-        adf_kind = (
-            "real PSF/SRF/noise model; synthetic-fallback dark/PRNU/equalization "
-            "(no GIPP dir supplied)"
-        )
+        adf_kind = "real PSF/SRF/noise model; synthetic-fallback dark/PRNU/equalization " "(no GIPP dir supplied)"
 
     rng = np.random.default_rng(args.seed)
     # Stage captures (reverse_mvp order: S1 -> S6 -> S7 -> S13 -> S11 -> S12 -> S14).
@@ -1082,9 +1101,7 @@ def phase_figures(store: dict[str, Path], args) -> None:
     x = reverse.s6_psf_reblur(x_ideal, a.psf)
     x_blur = x
     x = reverse.s7_impress_relative_response(x, a.prnu_gain)
-    x_nonoise = reverse.s12_reapply_onboard_eq(
-        reverse.s11_reapply_dark(x, a.dark_dn), a.eq_gain, a.eq_offset
-    )
+    x_nonoise = reverse.s12_reapply_onboard_eq(reverse.s11_reapply_dark(x, a.dark_dn), a.eq_gain, a.eq_offset)
     x = reverse.s13_add_noise(x, a.noise_a, a.noise_b, rng)
     x = reverse.s11_reapply_dark(x, a.dark_dn)
     x_fx = reverse.s12_reapply_onboard_eq(x, a.eq_gain, a.eq_offset)
@@ -1113,14 +1130,10 @@ def phase_figures(store: dict[str, Path], args) -> None:
     # Quality metrics.
     sigma_measured = float(np.std(noise_delta / a.eq_gain[np.newaxis, :]))
     dn_signal = reverse.s7_impress_relative_response(x_blur, a.prnu_gain)
-    sigma_model = float(
-        np.mean(np.sqrt(a.noise_a**2 + a.noise_b * np.clip(dn_signal, 0, None)))
-    )
+    sigma_model = float(np.mean(np.sqrt(a.noise_a**2 + a.noise_b * np.clip(dn_signal, 0, None))))
     unsat = (x_fx >= 0.0) & (x_fx <= float(sensor.DN_MAX))
     sat_frac = float(1.0 - unsat.mean())
-    q_rmse = float(
-        np.sqrt(np.mean(((np.asarray(x_raw, dtype=np.float64) - x_fx)[unsat]) ** 2))
-    )
+    q_rmse = float(np.sqrt(np.mean(((np.asarray(x_raw, dtype=np.float64) - x_fx)[unsat]) ** 2)))
     rec = reverse.forward_radiometric(np.asarray(x_raw, dtype=np.float64), a)
     rt_err = (rec - radiance)[unsat]
     rt_rmse = float(np.sqrt(np.mean(rt_err**2)))
@@ -1148,16 +1161,9 @@ def phase_figures(store: dict[str, Path], args) -> None:
         f"| noise-model σ = √(α²+β·DN) (expected) | {sigma_model:.2f} DN "
         f"({100 * (sigma_measured / sigma_model - 1):+.1f} %) |"
     )
-    print(
-        f"| saturated px clipped by S14 (DN > {sensor.DN_MAX}) | {100 * sat_frac:.2f} % |"
-    )
-    print(
-        f"| quantization RMSE, unsaturated px (expected ≈ 1/√12 ≈ 0.29) | {q_rmse:.2f} DN |"
-    )
-    print(
-        f"| full-chain radiance recovery RMSE, unsaturated px | {rt_rmse:.2f} "
-        f"(PSNR {rt_psnr:.1f} dB) |"
-    )
+    print(f"| saturated px clipped by S14 (DN > {sensor.DN_MAX}) | {100 * sat_frac:.2f} % |")
+    print(f"| quantization RMSE, unsaturated px (expected ≈ 1/√12 ≈ 0.29) | {q_rmse:.2f} DN |")
+    print(f"| full-chain radiance recovery RMSE, unsaturated px | {rt_rmse:.2f} " f"(PSNR {rt_psnr:.1f} dB) |")
     print(
         f"| full-chain mean-radiance bias, unsaturated px | {rt_bias:+.3f} "
         f"({100 * rt_bias / radiance[unsat].mean():+.2f} %) |"
@@ -1167,9 +1173,7 @@ def phase_figures(store: dict[str, Path], args) -> None:
 def phase_radiometric_vv(store: dict[str, Path], args) -> None:
     gipp_dir = args.gipp or os.environ.get("S2_E2ES_GIPP_DIR")
     if not gipp_dir:
-        _jdump(
-            {"skipped": "no GIPP dir supplied"}, store["report"] / "radiometric_vv.json"
-        )
+        _jdump({"skipped": "no GIPP dir supplied"}, store["report"] / "radiometric_vv.json")
         print("[radiometric-vv] skipped (no $S2_E2ES_GIPP_DIR)")
         return
     from s2_msi_raw_generator import forward_radiometric_atbd as fwd, gipp as gipp_mod
@@ -1190,9 +1194,7 @@ def phase_radiometric_vv(store: dict[str, Path], args) -> None:
             out["_adf_temporal_validity"] = {"skipped": "no ADF epoch or acquisition date"}
     for bn in pre["bands"]:
         try:
-            eq = gs.band(bn).detectors[
-                DETECTOR
-            ]  # GIPP forward/reverse round-trip pattern
+            eq = gs.band(bn).detectors[DETECTOR]  # GIPP forward/reverse round-trip pattern
         except (KeyError, AttributeError) as exc:
             out[bn] = {"skipped": f"no GIPP coefficients ({exc})"}
             continue
@@ -1200,9 +1202,7 @@ def phase_radiometric_vv(store: dict[str, Path], args) -> None:
         y = fwd.forward_correct(x, eq)
         x2 = fwd.reverse_impress(y, eq)
         valid = (x > 0) & (x < _SENTINEL_SATURATED)
-        rmse = (
-            float(np.sqrt(np.mean((x2[valid] - x[valid]) ** 2))) if valid.any() else 0.0
-        )
+        rmse = float(np.sqrt(np.mean((x2[valid] - x[valid]) ** 2))) if valid.any() else 0.0
         out[bn] = {
             "rmse": rmse,
             "fpn_raw": float(fwd.column_fpn(x)),
@@ -1279,19 +1279,13 @@ def phase_scan_l0(store: dict[str, Path], args) -> None:
                     sad_scans.append(_scan_member(f"{t.name}::{m.name}", f.read()))
             elif "_MSI_L0__DS_" in t.name:
                 ds_info["tar"] = t.name
-                ds_info["members"] = [
-                    {"name": m.name, "bytes": m.size} for m in members
-                ]
+                ds_info["members"] = [{"name": m.name, "bytes": m.size} for m in members]
                 for m in members:  # datastrip metadata → PSD identifiers
                     if m.name.upper().endswith(".XML") and "MTD" in m.name.upper():
                         xml = tf.extractfile(m).read().decode("utf-8", "replace")
                         ds_info["mtd_member"] = m.name
-                        ids = sorted(
-                            set(re.findall(r"S2A_OPER_MSI_L0__DS_[A-Z0-9_]+", xml))
-                        )
-                        times = sorted(
-                            set(re.findall(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}", xml))
-                        )
+                        ids = sorted(set(re.findall(r"S2A_OPER_MSI_L0__DS_[A-Z0-9_]+", xml)))
+                        times = sorted(set(re.findall(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}", xml)))
                         ds_info["psd_datastrip_ids"] = ids[:5]
                         ds_info["sensing_times"] = times[:6]
     # naming crosswalk: our PSD-style metadata id + PSFD file names vs the real PSD forms
@@ -1306,9 +1300,7 @@ def phase_scan_l0(store: dict[str, Path], args) -> None:
         import zarr
 
         g = zarr.open_group(str(canon), mode="r")
-        crosswalk["ours_psd_datastrip_id"] = dict(g.attrs)["stac_discovery"][
-            "properties"
-        ].get("eopf:datastrip_id")
+        crosswalk["ours_psd_datastrip_id"] = dict(g.attrs)["stac_discovery"]["properties"].get("eopf:datastrip_id")
         crosswalk["psd_pattern_match"] = bool(
             crosswalk["ours_psd_datastrip_id"]
             and re.fullmatch(
@@ -1354,12 +1346,7 @@ def phase_quicklook(store: dict[str, Path], args) -> None:
     if not all(b in pre["bands"] for b in rgb):
         print("[quicklook] skipped (RGB bands not in selection)")
         return
-    full = {
-        b: gio.read_l1a_raw(l1a, DETECTOR, b, lines=args.line_slice, dtype=np.uint16)[
-            ::8
-        ]
-        for b in rgb
-    }
+    full = {b: gio.read_l1a_raw(l1a, DETECTOR, b, lines=args.line_slice, dtype=np.uint16)[::8] for b in rgb}
     p1 = quicklook.save_rgb(full, store["quicklook"] / "l1a_rgb_strip.png")
     crop = {b: v[: min(650, v.shape[0])] for b, v in full.items()}
     p2 = quicklook.save_rgb(crop, store["quicklook"] / "l1a_rgb_crop.png")
@@ -1392,9 +1379,7 @@ def phase_quicklook(store: dict[str, Path], args) -> None:
         store["quicklook"] / "dwt_hl1.png",
         rgb=("r", "g", "b"),
     )
-    print(
-        f"[quicklook] {p1}\n            {p2}\n            {p3}\n            {p4}\n            {p5}"
-    )
+    print(f"[quicklook] {p1}\n            {p2}\n            {p3}\n            {p4}\n            {p5}")
 
 
 def phase_report(store: dict[str, Path], args) -> None:
@@ -1432,8 +1417,7 @@ def phase_report(store: dict[str, Path], args) -> None:
             "|---|---|---|---|",
         ]
         lines += [
-            f"| {b} | {v.get('ratio')} | {v.get('n_packets')} | {v.get('bit_exact')} |"
-            for b, v in sorted(gd.items())
+            f"| {b} | {v.get('ratio')} | {v.get('n_packets')} | {v.get('bit_exact')} |" for b, v in sorted(gd.items())
         ]
         lines.append("")
     va = sections["validate"]
@@ -1445,8 +1429,7 @@ def phase_report(store: dict[str, Path], args) -> None:
             "|---|---|---|---|",
         ]
         lines += [
-            f"| {b} | {v['bit_identical_kept']} | {v['lines_lost']} | {v['rmse']} |"
-            for b, v in sorted(va.items())
+            f"| {b} | {v['bit_identical_kept']} | {v['lines_lost']} | {v['rmse']} |" for b, v in sorted(va.items())
         ]
         lines.append("")
     rv = sections["radiometric_vv"]
@@ -1458,8 +1441,7 @@ def phase_report(store: dict[str, Path], args) -> None:
             "|---|---|---|",
         ]
         lines += [
-            f"| {b} | {v.get('rmse'):.3e} | {v.get('fpn_raw', 0):.3f} → "
-            f"{v.get('fpn_corrected', 0):.3f} |"
+            f"| {b} | {v.get('rmse'):.3e} | {v.get('fpn_raw', 0):.3f} → " f"{v.get('fpn_corrected', 0):.3f} |"
             for b, v in sorted(rv.items())
             if "rmse" in v
         ]
@@ -1523,11 +1505,7 @@ def _settings(mode: str) -> argparse.Namespace:
     s.dark = e("S2_E2ES_DARK") or None
     s.gipp = e("S2_E2ES_GIPP_DIR") or None
     s.eqog_adf = e("S2_E2ES_EQOG_ADF") or None
-    s.bands = [
-        b.strip().upper()
-        for b in (e("S2_E2ES_BANDS") or ",".join(sensor.BANDS)).split(",")
-        if b.strip()
-    ]
+    s.bands = [b.strip().upper() for b in (e("S2_E2ES_BANDS") or ",".join(sensor.BANDS)).split(",") if b.strip()]
     s.lines = _env_int("S2_E2ES_LINES", 0)
     s.line_slice = slice(0, s.lines) if s.lines else None
     s.seed = _env_int("S2_E2ES_SEED", 0)
@@ -1548,13 +1526,9 @@ def _settings(mode: str) -> argparse.Namespace:
     s.publish_version = e("S2_E2ES_PUBLISH_VERSION") or None
     s.publish_layer = e("S2_E2ES_PUBLISH_LAYER") or "products"
     if s.publish_layer not in ("products", "inputs"):
-        raise SystemExit(
-            f"S2_E2ES_PUBLISH_LAYER must be products|inputs, got {s.publish_layer!r}"
-        )
+        raise SystemExit(f"S2_E2ES_PUBLISH_LAYER must be products|inputs, got {s.publish_layer!r}")
     job = e("CI_JOB_URL")
-    s.publish_source = (
-        f"run_pipeline publish-store ({job})" if job else "run_pipeline publish-store"
-    )
+    s.publish_source = f"run_pipeline publish-store ({job})" if job else "run_pipeline publish-store"
     return s
 
 
@@ -1586,17 +1560,9 @@ def main(argv=None, *, use_local_defaults: bool = False) -> int:
             os.environ.setdefault("S2_E2ES_PHASES", LOCAL_NOMINAL_PHASES)
     args = _settings(mode)
 
-    store = _store_paths(
-        Path(os.environ.get("S2_DATA_STORE") or "~/data-store").expanduser()
-    )
-    default_phases = (
-        CALIBRATION_PHASES if args.mode == "calibration" else NOMINAL_PHASES
-    )
-    todo = [
-        p.strip()
-        for p in (args.phases or ",".join(default_phases)).split(",")
-        if p.strip()
-    ]
+    store = _store_paths(Path(os.environ.get("S2_DATA_STORE") or "~/data-store").expanduser())
+    default_phases = CALIBRATION_PHASES if args.mode == "calibration" else NOMINAL_PHASES
+    todo = [p.strip() for p in (args.phases or ",".join(default_phases)).split(",") if p.strip()]
     unknown = [p for p in todo if p not in PHASES]
     if unknown:
         ap.error(f"unknown phases: {unknown} (S2_E2ES_PHASES: choose from {PHASES})")
@@ -1612,6 +1578,7 @@ def main(argv=None, *, use_local_defaults: bool = False) -> int:
         "cal-package": phase_cal_package,
         "build-caldb": phase_build_caldb,
         "package": phase_package,
+        "reverse-l1b": phase_reverse_l1b,
         "ground-decode": phase_ground_decode,
         "l0-decode": phase_l0_decode,
         "validate": phase_validate,
