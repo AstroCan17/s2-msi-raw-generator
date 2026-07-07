@@ -494,7 +494,9 @@ def phase_reverse_l1b(store: dict[str, Path], args) -> None:
                 f"L0 {tuple(raw.shape)} offset{off:+.0f} unbin×{factor}{swir}"
             )
     stamp = str(start or "unknown").replace("-", "").replace(":", "")[:15]
-    out = str(store["l0"] / f"S02MSIL0__{stamp}_reverse.zarr")
+    l0_dir = Path(os.environ["S2_E2ES_L0_DIR"]).expanduser() if os.environ.get("S2_E2ES_L0_DIR") else store["l0"]
+    l0_dir.mkdir(parents=True, exist_ok=True)
+    out = str(l0_dir / f"S02MSIL0__{stamp}_reverse.zarr")
     l0product.write_l0_product(
         out,
         frames,
