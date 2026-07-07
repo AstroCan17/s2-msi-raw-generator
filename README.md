@@ -9,6 +9,10 @@ back to a synthetic **L0 RAW** product (focal-plane DN, 12 detectors × 13 bands
    operational GIPP**: raw `X` → forward correction (dark + equalization) → `Y` → reverse impress →
    `X′`. The residual `X′ − X` ≈ 0 (verified to ~1e-14 on S2 DN) proves the forward and reverse
    are exact inverses. Built from the public L1 ATBD — no external processor.
+3. **Real-L1B → L0 reverse** — the exact inverse of the *full* operational L0→L1B radiometric chain
+   (offset, relative response, on-board equalization, dark, binning, **SWIR re-arrangement**,
+   defective, crosstalk), reconstructing L0 RAW from a real ESA L1B to **≤ 3 DN on all 13 bands**
+   ([see below](#reverse-l1b--l0-full-chain--real-data-validation)).
 
 **Scope:** radiometric-only, 14-step chain (S1 radiance→DN … S15 ISP packets); input is
 L1A/L1B, already in per-detector sensor geometry, so there is no geometry inversion (Issue #17).
@@ -126,14 +130,55 @@ locally (numpy+zarr only): `S2_E2ES_PHASES=figures S2_E2ES_L1B=<L1B.zarr[.zip]> 
 the PSF/SRF/noise model are real ESA data; the per-pixel dark/PRNU are the synthetic fallback
 (set `S2_E2ES_GIPP_DIR=<dir>` for the operational-GIPP versions).
 
+## Reverse L1B → L0 (full chain) — real-data validation
+
+The generator's headline capability is the **exact reverse of the operational L0→L1B radiometric
+chain**: given a real ESA **L1B** (digital counts), `forward_radiometric_atbd.reverse_l1b_to_l0`
+reconstructs the **L0 RAW** by inverting *every* ON forward step, in reverse order — validated on the
+real **2024-04-08 S2B PPB** L0/L1B pair (detector d05, framing-aligned to the ADF_PRDLO
+co-registration crop):
+
+| Forward step | Reverse op | ADF / GIPP |
+|---|---|---|
+| radiometric offset | `+ RADIO_ADD_OFFSET` (−100) | R2PARA |
+| binning (60 m) | ×3 un-bin (replication) | — |
+| defective pixels | re-stamp NoData | R2DEPI |
+| **SWIR re-arrangement** | **re-introduce staggered readout** | **RSWIR** |
+| relative response | impress `G⁻¹` (cubic VNIR / bilinear SWIR) | R2EQOG |
+| crosstalk | add back (phase-level, same-res groups) | RCRCO |
+| dark | `+` L0-domain dark × DSNU shape | R2EQOG COEFF_D |
+| on-board equalization | re-apply bilinear non-linearity | REOB2 |
+
+**MTF restoration / deconvolution (forward step 8) is off in the operational chain** (SentiWiki:
+*"restoration disabled by default — instrument MTF already high"*; `feature_flag_with_deconvolution =
+False`). L1B therefore keeps the full instrument PSF, so PSF re-blur (S6) and noise (S13) are **not**
+re-applied — they would double-count (both are non-invertible anyway). See `docs/dpm/parameters-data-list.md`.
+
+**Synthetic L0 (CCSDS-decoded) vs original ESA L0 — all 13 bands ≤ 3 DN, drift 0:**
+
+| band | B02 | B03 | B04 | B08 | B8A | B11 | B12 |
+|---|---|---|---|---|---|---|---|
+| RMSE (DN) | 0.8 | 1.5 | 1.8 | 0.8 | 1.1 | **2.9** | **3.0** |
+
+![Full-chain reverse — synthetic vs original ESA L0 (B03/B08/B11/B12); the difference panels are flat to a few DN](docs/_static/showcase/reverse_l1b_fullchain.png)
+
+The **S8 SWIR re-arrangement** is decisive for B11/B12 — re-introducing the staggered detector readout
+drops their residual from ~50 DN of stripe texture to ~3 DN (the diff panels go from noisy to flat):
+
+![SWIR B11/B12 — plain (no S8, rmse ~40) vs full chain (rmse ~5); the stagger residual vanishes](docs/_static/showcase/reverse_l1b_swir_s8.png)
+
+Run it: `S2_E2ES_PHASES=reverse-l1b S2_E2ES_L1B=<L1B.zarr> python scripts/run_pipeline.py` (auto-finds
+the RSWIR/REOB2/RCRCO ADFs next to `$S2_E2ES_EQOG_ADF`; `S2_E2ES_REVERSE_FULL=0` → radiometric-only).
+Visual compare: `notebooks/reverse_l1b_compare.ipynb`.
+
 ## Package
 
 | Module | Responsibility |
 |---|---|
 | `s2_msi_raw_generator/sensor.py` | S2 band model — per-band gains/TDI/Lref/integration-time (datasheet) |
 | `s2_msi_raw_generator/adf.py` | ADFs — **real** ESA PSF matrices (`data/psf/`) + SRF spectral + SNR@Lref noise; PRNU/dark from the operational GIPP (`BandADF.from_gipp`) |
-| `s2_msi_raw_generator/gipp.py` | Original reader for the operational S2A **GIPP** (R2EQOG per-pixel dark+gains, R2DEPI, BLINDP, R2PARA, R2CRCO) |
-| `s2_msi_raw_generator/forward_radiometric_atbd.py` | Public-ATBD forward radiometric model + exact inverse (round-trip V&V on the L1A) |
+| `s2_msi_raw_generator/gipp.py` | Original reader for the operational **GIPP** (R2EQOG dark+gains, R2DEPI, BLINDP, R2PARA, R2CRCO) **+ EOPF ADF parsers** for the full reverse chain (RSWIR shift map, REOB2 on-board eq, RCRCO 13×13 crosstalk) |
+| `s2_msi_raw_generator/forward_radiometric_atbd.py` | Public-ATBD forward radiometric model + exact inverse (round-trip V&V), and **`reverse_l1b_to_l0`** — the full real-L1B→L0 reverse (offset/PRNU/dark/un-bin **+ S8 SWIR re-stage + S10 defective + S12 on-board eq**) |
 | `s2_msi_raw_generator/calibration.py` | S2 calibration sub-set — synthetic CSM sun-diffuser + dark → **derived** gain/dark coeffs (inverse-crime cure) |
 | `s2_msi_raw_generator/reverse.py` | Reverse chain steps **S1–S14** + `reverse_full` / `reverse_mvp` |
 | `s2_msi_raw_generator/isp.py` | **S15** — CCSDS ISP packet generation + SAD telemetry |

@@ -356,6 +356,41 @@ the very reason an L1C entry was rejected; PRNU paper.)
 
 ---
 
+# 5.R REAL-L1B → L0 FULL REVERSE (`reverse_l1b_to_l0`)
+
+Steps 5.S1–S15 enter from **synthetic radiance**; a real ESA EOPF **L1B is already digital counts**, so
+the operational reverse enters in the **downlink DN domain** and inverts the *full* L0→L1B radiometric
+chain (EOPF `AllRadiometricCorrectionL1B` — every `feature_flag_* = True` **except**
+deconvolution/denoising) in reverse order:
+
+`+offset (R2PARA) → G⁻¹ relative response (R2EQOG) → on-board-eq non-linearity (REOB2) → +L0 dark
+(L0_DARK_LSB × R2EQOG COEFF_D shape) → ×3 un-bin (60 m) → SWIR re-arrangement (RSWIR) → re-stamp
+defective (R2DEPI)`. Crosstalk (RCRCO) is added back phase-level across same-resolution bands; blind
+columns are re-inserted from BLINDP; CCSDS-122 + ISP then package the L0 (S15).
+
+**MTF restoration / deconvolution (forward step 8) is deliberately skipped** — it is off in the
+operational chain (`feature_flag_with_deconvolution = False`, ADF_RPARA `restoration`; SentiWiki:
+*"restoration disabled by default — instrument MTF already high"*). L1B therefore still carries the full
+instrument PSF, so **S6 PSF re-blur and S13 noise are NOT re-applied** — they would double-count and are
+non-invertible anyway (deconvolution is lossy; the exact noise realization is unrecoverable).
+
+**Domain note.** The added dark is the *downlink* L0 dark (`L0_DARK_LSB` ≈ 51), not the raw-detector
+COEFF_D (≈ 440): REOB2 has near-unity slope (S2B `a1 ≈ 1.005, a2 ≈ 0.995`) and its dark `d ≈ 455`
+cancels COEFF_D, so REOB2 contributes only its `a1/a2` non-linearity in the downlink domain.
+
+**ADF sources** (EOPF json, auto-found next to `ADF_REQOG`): `ADF_RSWIR`
+(`swir_band_list/swir_band/detector` per-column ±1 shift + B10 3-tap kernel), `ADF_REOB2`
+(`new_table/coeff_{a1,a2,zs,d}`), `ADF_RCRCO` (13×13 optical+electrical). Parsers: `gipp.read_rswir_eopf`
+/ `read_reob2_eopf` / `read_rcrco_eopf`; ops: `forward_radiometric_atbd.restage_swir_lines` /
+`reapply_onboard_eq`.
+
+**Validation** (real 2024-04-08 S2B PPB, d05, CCSDS round-trip): synthetic L0 vs original ESA L0
+RMSE **≤ 3 DN on all 13 bands** (B11/B12 fixed by S8 from ~50 → ~3 DN), framing-aligned via ADF_PRDLO
+with zero line-drift — see the [real-E2E run report](../vv/real_e2e_run_report.md) and the
+[DPM parameter/data list](../dpm/parameters-data-list.md).
+
+---
+
 # 6. SENSOR-MODEL ADF v0 (the conjugate bridge)
 
 Jointly change-controlled with the processor (per AD 1). **Conjugate subset** (both halves read):
