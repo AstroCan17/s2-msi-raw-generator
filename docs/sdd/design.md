@@ -53,7 +53,11 @@ Real harvested S2 constants and the `Band` dataclass. Key API: `BANDS`, `UNITS`,
 ### gipp.py — operational GIPP parser (REQ-FUNC-046, -015, -019, -012, -017, -018)
 Original `xml.etree` parser → per-pixel arrays. API: `DetectorEq` (`.rel_gain`), `BandEq` (`.npix`),
 `RadioParams`, `GippSet`; `read_r2eqog_band()`, `read_r2depi()`, `read_blindp()`, `read_r2para()`,
-`read_r2crco()`, `load_gipp_set()`.
+`read_r2crco()`, `load_gipp_set()`. **EOPF ADF parsers for the full reverse chain:**
+`read_r2eqog_eopf()` (dark+PRNU from `ADF_REQOG`), `read_rswir_eopf()` (SWIR staggered-readout shift map
++ B10 kernel, `ADF_RSWIR`), `read_reob2_eopf()` (on-board-eq `a1/a2/zs/d`, `ADF_REOB2`),
+`read_rcrco_eopf()` (13×13 crosstalk, `ADF_RCRCO`); `GippSet` carries the ADF paths and reads
+`swir_shift()` / `onboard_eq()` lazily.
 
 ### adf.py — ADF assembly (REQ-FUNC-014, -044, -046; REQ-IF-003)
 `BandADF` frozen dataclass with `from_gipp()` (per-pixel dark + PRNU, blind-column width alignment),
@@ -62,7 +66,11 @@ Original `xml.etree` parser → per-pixel arrays. API: `DetectorEq` (`.rel_gain`
 
 ### forward_radiometric_atbd.py — ATBD model + exact inverse (REQ-FUNC-015, -010; REQ-PERF-003)
 `forward_equalize()`, `inverse_equalize()` (cubic via Newton, bilinear closed-form), `forward_correct()`
-(L1A→L1B), `reverse_impress()` (L1B→L1A), `column_fpn()`.
+(L1A→L1B), `reverse_impress()` (L1B→L1A), `column_fpn()`. **Full real-L1B→L0 reverse:**
+`reverse_l1b_to_l0()` inverts the full radiometric chain in the downlink DN domain (offset → `G⁻¹` →
+on-board eq → dark → un-bin → SWIR re-stage → defective), with helpers `reapply_onboard_eq()` (REOB2
+bilinear non-linearity) and `restage_swir_lines()` (S8 whole-line roll / B10 sub-pixel kernel).
+Restoration/deconvolution (fwd step 8) is off, so PSF re-blur / noise are not re-applied.
 
 ### reverse.py — reverse chain (REQ-FUNC-010..-022)
 One function per step: `s1_radiance_to_dn`, `s3_undo_framing`, `s4_undo_radiometric_offset`, `s5_unbin`,

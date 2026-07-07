@@ -4,6 +4,47 @@
 - Products: `S02MSIL0__20240403T102415_0033_A045_TC42.zarr` / `S02MSIL0__20240403T102415_0033_A045_TC42_OC.zarr` / `S02MSIL1A_20240403T102415_0033_A045_T6DE.zarr`
 - Naming fallbacks: ['datetime', 'sat:relative_orbit', 'platform']
 
+## Reverse L1B → L0 (full chain) — 2024-04-08 S2B PPB
+
+The exact inverse of the *full* operational L0→L1B radiometric chain
+(`forward_radiometric_atbd.reverse_l1b_to_l0`), validated against the **real S2B L0/L1B pair** for the
+2024-04-08 PPB datatake (detector d05, all 13 bands). The synthetic L0 is written as CCSDS-122 + ISP,
+**decoded back** (`read_l0_isp_dn`) and compared to the original ESA L0 after framing alignment
+(ADF_PRDLO `begin_nb_lines_to_cut` per band/detector) — a true round-trip through the L0 product, not
+the in-memory array.
+
+**Synthetic (CCSDS-decoded) vs original ESA L0 — RMSE (DN), framing offset, line drift:**
+
+| band | B02 | B03 | B04 | B08 | B8A | B11 | B12 |
+|---|---|---|---|---|---|---|---|
+| framing offset (lines) | 3176 | 3510 | 3815 | 3342 | 2241 | 2065 | 2264 |
+| RMSE (DN) | 0.8 | 1.5 | 1.8 | 0.8 | 1.1 | **2.9** | **3.0** |
+| drift | +0 | +0 | +0 | +0 | +0 | +0 | +0 |
+
+All bands agree to **≤ 3 DN** with **zero** residual line-drift — the per-band framing offset is exact.
+
+![Full-chain reverse — synthetic vs original ESA L0 (B03/B08/B11/B12); the difference panels are flat to a few DN](../_static/showcase/reverse_l1b_fullchain.png)
+
+**S8 SWIR re-arrangement** is the decisive step for the SWIR bands: re-introducing the staggered
+detector readout (ADF_RSWIR per-column ±1-line shift map) drops the B11/B12 residual from ~50 DN of
+stripe texture to ~3 DN. Plain (no S8, diff rmse ~40) vs full chain (diff rmse ~5):
+
+![SWIR B11/B12 — plain vs full chain; the S8 stagger residual vanishes](../_static/showcase/reverse_l1b_swir_s8.png)
+
+The L0 is ~5067 lines longer than L1B — the forward **Framing** (coarse-registration) step crops
+`begin/end_nb_lines_to_cut` per (band, detector) to co-register all detectors to a common along-track
+extent. Using those exact ADF_PRDLO offsets aligns the comparison with no hand-tuning (drift 0):
+
+![Framing-aligned comparison — per-band offset from ADF_PRDLO](../_static/showcase/reverse_l1b_framing.png)
+
+Steps applied, in reverse order: offset (R2PARA) → relative response (R2EQOG) → on-board eq (REOB2) →
+dark → un-bin → **SWIR re-arrangement (RSWIR)** → defective (R2DEPI); crosstalk (RCRCO) added back
+phase-level (≈0 for S2A/B). **MTF restoration/deconvolution is off in the forward chain** (L1B keeps
+the instrument PSF), so PSF re-blur (S6) and noise (S13) are **not** re-applied — see
+[DPM parameters-data-list](../dpm/parameters-data-list.md). Reproduce:
+`S2_E2ES_PHASES=reverse-l1b S2_E2ES_L1B=<L1B.zarr> python scripts/run_pipeline.py`; visual notebook
+`notebooks/reverse_l1b_compare.ipynb`.
+
 ## Compression + ground decode (bit-exact)
 
 | band | ratio | packets | bit-exact |
