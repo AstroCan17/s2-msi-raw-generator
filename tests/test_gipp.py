@@ -250,3 +250,11 @@ def test_real_gipp_dark_matches_dqr_range():
     for b in sensor.BANDS:
         dark = gs.band(b).detectors[1].dark
         assert 400 <= dark.mean() <= 560 # DQR pedestal range (per-pixel)
+
+
+def test_parse_eqog_adf_epoch_psfd_platform():
+    ep = gipp.parse_eqog_adf_epoch(
+        "S02B_ADF_REQOG_20231211T010000_21000101T000000_20231207T103000.json"
+    )
+    assert ep["platform"] == "S2B" and ep["type"] == "REQOG"
+    assert ep["applicability_start"] == "2023-12-11T01:00:00Z"
