@@ -182,7 +182,7 @@ def read_r2eqog_eopf(adf_json_path: str, band: str) -> BandEq:
 # --- ADF temporal validity ---------------------------------------------------------------
 
 _EOPF_ADF_RE = re.compile(
-    r"(?P<platform>S2[ABC])_ADF_(?P<type>[A-Z0-9]+)_"
+    r"(?P<platform>S0?2[ABC])_ADF_(?P<type>[A-Z0-9]+)_"
     r"(?P<start>\d{8}T\d{6})_(?P<stop>\d{8}T\d{6})_(?P<creation>\d{8}T\d{6})"
 )
 
@@ -207,14 +207,15 @@ def _parse_utc(s: str) -> dt.datetime:
 
 
 def parse_eqog_adf_epoch(adf_path: str) -> dict:
-    """Parse an EOPF ADF filename (``S2A_ADF_REQOG_<start>_<stop>_<creation>.json``) → its
-    applicability-start / validity-stop / creation epochs (UTC ISO). Empty dict if it doesn't match.
+    """Parse an EOPF ADF filename (``S2A_ADF_REQOG_<start>_<stop>_<creation>.json``, or the PSFD
+    platform spelling ``S02B_ADF_…``) → its applicability-start / validity-stop / creation epochs
+    (UTC ISO). Empty dict if it doesn't match. ``platform`` is normalized to ``S2x``.
     """
     m = _EOPF_ADF_RE.search(os.path.basename(adf_path))
     if not m:
         return {}
     return {
-        "platform": m["platform"],
+        "platform": m["platform"].replace("S02", "S2"),
         "type": m["type"],
         "applicability_start": _iso(m["start"]),
         "valid_stop": _iso(m["stop"]),

@@ -266,6 +266,11 @@ def _store_paths(store: Path) -> dict[str, Path]:
         "figures": store / "figures",
         "report": store / "report",
     }
+    # S2_E2ES_L0_DIR re-homes the produced-L0 directory outside the work store (e.g. the curated
+    # data-store's synthetic-raw-generated/outputs/L0). Every phase that writes or reads packaged
+    # L0 resolves it through p["l0"], so the single override moves producer and consumers together.
+    if os.environ.get("S2_E2ES_L0_DIR"):
+        p["l0"] = Path(os.environ["S2_E2ES_L0_DIR"]).expanduser()
     for d in p.values():
         d.mkdir(parents=True, exist_ok=True)
     return p
