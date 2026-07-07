@@ -105,3 +105,61 @@ Inputs: `$S2_E2ES_L1B` (real L1B `.zarr`), `$S2_E2ES_GIPP_DIR`, `$S2_E2ES_EQOG_A
 `segment_blocks` (default one block row = 8 image lines — line-accurate packet datation),
 `isp_max_payload` (octets per packet data field, default 8192), `store_decoded`
 (False → ISP-only product mirroring the real S2 L0).
+
+## Operational GIPP set (local / VM)
+
+Source: XML GIPP under `<store>/inputs/s2-sensor/GIPP/` (`$S2_E2ES_GIPP_DIR`), platform **S2A**. File names:
+`S2A_OPER_GIP_<TYPE>_MPC__<creation>_V<validity-start>_<validity-stop>_<band>.xml`; validity-stop
+`21000101` is ESA's open-ended placeholder, so the **validity-start is the effective calibration epoch**.
+This is a single static snapshot — one version per GIPP type (R2EQOG resolved per band B01–B12 / B8A) — not
+the monthly series ESA issues operationally.
+
+| GIPP | Role | Reverse step | Creation | Validity-start (epoch) | Bands |
+|---|---|---|---|---|---|
+| `R2EQOG` | equalization / NUC (per-pixel dark + PRNU) | S7, S11 | 2020-03-10 | **2020-03-17** | per-band (B01–B12, B8A) |
+| `R2DEPI` | defective-pixel map | S10 | 2018-07-13 | 2018-07-16 | B00 |
+| `R2PARA` | radiometric offset (−100 L1B) | S4 | 2016-06-07 | 2015-06-22 | B00 |
+| `R2CRCO` | crosstalk | S9 | 2015-10-23 | 2015-06-22 | B00 |
+| `BLINDP` | blind-pixel columns | S10 | 2015-06-05 | 2015-06-22 | B00 |
+| `R2BINN` | 60 m binning kernel | S5 | 2015-06-05 | 2015-06-22 | B00 |
+
+No absolute-cal GIPP (`R2ABCA`) and no PSF are present in this set — PSF ships packaged (see *Data items*) and
+absolute cal is derived at S1. The NUC we correct with (`R2EQOG`, epoch **2020-03-17**) is the binding
+constraint: it is ~4 years older than the ESA EOPF `REQOG` ADF (2024-04-17) below, and further still from any
+2024-era acquisition — the core temporal-provenance issue tracked in issue #1.
+
+## ESA calibration ADF set (bucket snapshot)
+
+Source: ESA EOPF Auxiliary Data Files on OVH S3, `dpr-common/ADF-S02MSI/` (path-style addressing).
+Snapshot inventory: **3858 objects, ~7.0 GiB**, per satellite (`S2A`/`S2B`; some processor-common `S2_`).
+File names encode `S2x_ADF_<TYPE>_<applicability-start>_<validity-stop>_<creation>.json`. The validity-stop
+`21000101` is ESA's open-ended placeholder, so the **applicability-start is the date that ADF version was
+last (re)computed and became valid** — i.e. the effective calibration epoch.
+
+Radiometric subset consumed by the reverse chain, with the epoch(s) present in the snapshot and the
+recompute cadence:
+
+| ADF (EOPF) | Role / GIPP | Reverse step | Epoch(s) in snapshot | Size (S2A+S2B) | Recompute cadence |
+|---|---|---|---|---|---|
+| `REQOG` | R2EQOG — equalization / NUC (per-pixel dark + PRNU) | S7, S11 | 2024-04-17 | 123.6 MB | **~monthly** (ESA S2 MSI Annual Performance Report) |
+| `RABCA` | R2ABCA — absolute radiometric gain | (abs. cal.; not yet wired) | 2024-04-17, **2024-07-04** | 0.2 MB | periodic — two epochs ~78 d apart in snapshot |
+| `RPARA` | R2PARA — radiometric offset (−100 L1B) | S4 | 2024-04-17 | small | static / event-driven |
+| `RBINN` | R2BINN — 60 m binning kernel | S5 | 2024-04-17 | small | static |
+| `RCRCO` | R2CRCO — crosstalk | S9 | 2024-04-17 | small | static |
+| `RDEPI` | R2DEPI — defective-pixel map | S10 | **2024-04-16**, 2024-04-17 | 0.1 MB | event-driven (new dead pixels) |
+| `BLIND` | blind-pixel columns | S10 | 2024-04-17 | 0.5 MB | event-driven |
+| `RSWIR` | SWIR band re-arrangement LUT | S8-related | 2024-04-17 | 2.5 MB | static |
+
+Non-radiometric ADFs found at other dates (for reference; the two later epochs the inventory surfaced):
+`MRLUT` **2024-04-30** (reflectance-conversion LUT, L1C/L2A — not sensor NUC), `DATAT` 2024-04-17 &
+**2024-07-22** (datation table), `TILEP` 2024-04-15, and the L2A atmospheric set
+(`L2AGS`/`L2ALC`/`L2ASN`/`L2AWB`) 2024-03-01. Two large non-reverse-chain radiometric tables are also
+present at 2024-04-17: `REOB2` (125.9 MB) and `VDIRP` (58.8 MB) — roles not yet mapped.
+
+**Temporal-validity implication** — every reverse-chain radiometric ADF in this snapshot has an
+applicability-start in **2024-04 (± days)**, so it is only temporally valid for acquisitions sensed around
+**2024-04 – 2024-05**. Correcting an earlier acquisition (e.g. the 2018 turkey L1B) with this set applies a
+~6-year-stale NUC; the pipeline's `_adf_temporal_validity` guard flags exactly this gap (issue #1). The
+snapshot is a point-in-time export of the *currently-valid* ADF versions, so for most types it holds a
+single epoch — the cadence column reflects the ESA APR (REQOG) and the multi-epoch evidence in the
+snapshot (RABCA, RDEPI), not a per-type derivation.
