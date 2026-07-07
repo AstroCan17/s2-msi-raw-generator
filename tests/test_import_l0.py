@@ -104,3 +104,17 @@ def test_import_detector_env_selects_source_detector(tmp_path, public_l0_zip, mo
     assert report["detector"] == 2
     g = zarr.open_group(report["output"], mode="r")
     assert dict(g.attrs)["other_metadata"]["import_provenance"]["source_detector"] == 2
+
+
+def test_l0_dir_env_rehomes_produced_l0(tmp_path, monkeypatch):
+    out = tmp_path / "curated" / "outputs" / "L0"
+    monkeypatch.setenv("S2_E2ES_L0_DIR", str(out))
+    store = drv._store_paths(tmp_path / "store")
+    assert store["l0"] == out and out.is_dir()
+    assert store["report"] == tmp_path / "store" / "report"   # only l0 is re-homed
+
+
+def test_l0_dir_default_stays_in_store(tmp_path, monkeypatch):
+    monkeypatch.delenv("S2_E2ES_L0_DIR", raising=False)
+    store = drv._store_paths(tmp_path / "store")
+    assert store["l0"] == tmp_path / "store" / "l0"
