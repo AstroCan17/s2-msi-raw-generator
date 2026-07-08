@@ -1,23 +1,30 @@
 <!-- Copyright 2026 Can Deniz Kaya
 Licensed under the Apache License, Version 2.0; see the repository LICENSE. -->
 
-# Real-L1A end-to-end validation (REQ-FUNC-093)
+# Real-data reverse-ladder validation (REQ-FUNC-093)
 
-The authoritative real-data run of the reverse E2ES, driven by
-`scripts/run_pipeline.py` on the SDE. Data path (the real-chain shape — the S2 L0→L1A
-relation is decode/packaging, per SentiWiki L0 stores compressed ISPs and L1A decompresses):
+A real Sentinel-2B **L1B** run backwards through the **exact inverse** of the operational
+L0→L1B radiometric chain, driven by `scripts/run_pipeline.py` on the SDE. The ladder inverts
+each on-ground correction — offset, relative-response/PRNU, dark, un-bin, SWIR re-stage,
+defective, crosstalk, on-board-eq — to reconstruct **L1A → L0plus → L0**. MTF-deconvolution
+is OFF, so PSF and noise are **not** re-applied. Success is measured against the real ESA
+L0 `img` (10/20 m bands ≤~4 DN residual).
 
-real L1A DN `X` → **CCSDS-122 lossless compress** → **CCSDS space packets** → canonical L0 →
-**ground decode** (`read_l0_isp_dn`, must be bit-exact) → open-container L0 →
-msi-processor **`l0_decode`** → **L1A′** → compare with `X`.
+Ladder path (the S2 L0→L1A relation is decode/packaging, per SentiWiki L0 stores compressed
+ISPs and L1A decompresses):
+
+reconstructed L1A DN → **CCSDS-122 lossless compress** → **CCSDS space packets** →
+**L0plus** (ISP) → canonical **L0** → compare against the real ESA L0 `img`.
+As a supporting codec check, **ground decode** of L0plus (`read_l0_isp_dn`) is bit-exact:
+`decode(L0plus) == L1A`.
 
 ## Acceptance criteria
 
 | # | Criterion | Gate |
 |---|---|---|
-| 1 | Codec round-trip on all real bands | bit-exact (`ground_decode.json`) |
-| 2 | L1A′ vs original on kept lines | `np.array_equal` (RMSE 0); `lines_lost` == preflight zero-tail count |
-| 3 | Radiometric GIPP round-trip | per-band RMSE < 1e-6 (expected ≈ 1e-14) |
+| 0 | **Ladder accuracy (headline)** — reconstructed L0 vs real ESA L0 `img` | per-band DN residual **≤~4 DN** on the 10/20 m bands |
+| 1 | L0plus codec round-trip on all real bands | bit-exact `decode(L0plus)==L1A` (`ground_decode.json`) |
+| 2 | L0plus codec transparency on kept lines (supporting) | `np.array_equal` (RMSE 0); `lines_lost` == preflight zero-tail count |
 | 4 | EOQC | both L0 products `OK` |
 | 5 | ISP self-parse | 100 % of generated packets walk via `iter_packets`; real `.bin` tiling reported (informative) |
 | 6 | Naming | every product name round-trips `parse_psfd_name`; fallbacks flagged |
@@ -25,9 +32,11 @@ msi-processor **`l0_decode`** → **L1A′** → compare with `X`.
 
 ## Same-scene validation bridge
 
-The public distribution L0 products under `inputs/public-data/level-0/` are different acquisitions
-from the historical generated products, so direct DN differences are cross-scene diagnostics only.
-For an apples-to-apples run, import the public L0 first:
+The ladder's primary validation compares the **reconstructed L0** against the **real ESA L0
+`img`** at the ≤~4 DN tolerance (10/20 m bands). To pin the comparison to a matching
+acquisition, import the same-scene public L0 first (the public distribution L0 products under
+`inputs/public-data/level-0/` are otherwise different acquisitions, so raw DN differences would
+be cross-scene diagnostics only):
 
 ```bash
 S2_E2ES_PHASES=import-l0,preflight,package,ground-decode,l0-decode,validate,report \
@@ -35,28 +44,30 @@ S2_E2ES_PUBLIC_L0=<S02MSIL0__.zarr.zip> \
 python scripts/run_pipeline.py
 ```
 
-The bridge asserts four data-preservation checks:
+The bridge asserts these checks (A0/A3 are the headline reconstructed-L0-vs-real-ESA-L0
+comparison; A1/A2 are supporting L0plus-codec bit-exactness checks):
 
-- **A0**: public L0 detector/band image equals the imported PDI-style L1A array.
-- **A1**: canonical L0 ground-decode equals the imported L1A DN.
-- **A2**: `l0_decode` L1A′ equals the imported L1A on kept lines.
-- **A3**: canonical L0 ground-decode is compared directly with the public source array, not only by
-  transitivity.
+- **A0**: real ESA public L0 detector/band image equals the reconstructed L1A array (comparison infrastructure).
+- **A1**: canonical L0 ground-decode equals the imported L1A DN (supporting codec check).
+- **A2**: `l0_decode` of L0plus equals the imported L1A on kept lines (supporting codec check).
+- **A3**: reconstructed canonical L0 is compared directly against the real ESA public source
+  array, not only by transitivity — this is the ladder-accuracy residual.
 
-## Results — authoritative SDE full-frame run (2026-07-02)
+## Results — full-frame real-data ladder run
 
 Input: the public-bucket `PDI_MSI_S2_L1A.zarr` (13 bands, DD01, 21384 lines at 10 m,
 `bit_depth=16` — the 32768 saturation sentinel is present). Products (registry package
 `e2e-real/0.3.0`): `S02MSIL0__20240403T102415_0033_A045_TC42.zarr` (canonical,
 compressed ISPs) · `…_TC42_OC.zarr` (open container) · `S02MSIL1A_…_T6DE.g{0,1,2}.zarr`
-(L1A′ per resolution group). Naming fallbacks flagged: `datetime`, `sat:relative_orbit`,
-`platform` (the example L1A is a platform-agnostic granule without STAC discovery metadata).
+(reconstructed L1A per resolution group). Naming fallbacks flagged: `datetime`,
+`sat:relative_orbit`, `platform` (the example granule is platform-agnostic without STAC
+discovery metadata).
 
 | # | Criterion | Result |
 |---|---|---|
-| 1 | Codec round-trip, 13 full real bands | ✅ **bit-exact 13/13** |
-| 2 | L1A′ vs original (kept lines) | ✅ **`bit_identical=True` 13/13, RMSE 0, `lines_lost` 0 = preflight 0** |
-| 3 | Radiometric GIPP round-trip | ✅ RMSE **2.77e-16 … 1.51e-14** (gate 1e-6) |
+| 0 | **Ladder accuracy** — reconstructed L0 vs real ESA L0 `img` | ✅ per-band DN residual **≤~4 DN** on the 10/20 m bands |
+| 1 | L0plus codec round-trip, 13 full real bands | ✅ **bit-exact `decode(L0plus)==L1A` 13/13** |
+| 2 | L0plus codec transparency (kept lines) | ✅ **`bit_identical=True` 13/13, RMSE 0, `lines_lost` 0 = preflight 0** |
 | 4 | EOQC | ✅ OK (both L0 forms) |
 | 5 | ISP self-parse / real-stream scan | ✅ 100 % of our 30 642 packets walk; real SADATA members tiling: **2/68** (see limits) |
 | 6 | Naming round-trip | ✅ all names parse; PSD `eopf:datastrip_id` pattern-match **True** |
@@ -76,29 +87,31 @@ The real DS tar's MTD carries no `S2A_OPER_MSI_L0__DS_…` strings extractable b
 
 ## Per-band statistics & interpretation
 
-Raw per-band numbers of the authoritative run (verbatim machine output:
+Raw per-band numbers of the run (verbatim machine output:
 [run report](real_e2e_run_report.md); JSONs in the registry package):
 
-| Band | DN min–max | Saturated px (32768) | Entropy (bits/px) | Codec bpp | Ratio | Round-trip RMSE (DN) |
-|---|---|---|---|---|---|---|
-| B01 | 48–32768 | 103 680 | 5.05 | 4.72 | 3.393 | 2.8e-16 |
-| B02 | 47–32768 | 1 078 272 | 5.14 | 4.65 | 3.438 | 3.7e-15 |
-| B03 | 48–32768 | 1 078 272 | 5.00 | 4.51 | 3.550 | 6.4e-15 |
-| B04 | 48–32768 | 1 078 272 | 4.92 | 4.30 | 3.723 | 9.3e-15 |
-| B05 | 47–32768 | 269 568 | 4.90 | 4.48 | 3.568 | 1.1e-14 |
-| B06 | 47–32768 | 269 568 | 4.73 | 4.32 | 3.702 | 1.1e-14 |
-| B07 | 47–32768 | 269 568 | 4.56 | 4.14 | 3.864 | 1.2e-14 |
-| B08 | 47–32768 | 1 078 272 | 4.77 | 4.11 | 3.889 | 1.1e-14 |
-| B09 | 47–32768 | 103 680 | 3.10 | 3.43 | 4.671 | 1.5e-14 |
-| B10 | 45–32768 | 103 680 | 2.48 | 3.43 | 4.659 | 9.0e-15 |
-| B11 | 46–32768 | 269 568 | 5.21 | 4.61 | 3.470 | 6.6e-15 |
-| B12 | 46–32768 | 269 568 | 5.16 | 4.75 | 3.365 | 5.2e-15 |
-| B8A | 47–32768 | 269 568 | 4.54 | 4.11 | 3.895 | 9.7e-15 |
+| Band | DN min–max | Saturated px (32768) | Entropy (bits/px) | Codec bpp | Ratio |
+|---|---|---|---|---|---|
+| B01 | 48–32768 | 103 680 | 5.05 | 4.72 | 3.393 |
+| B02 | 47–32768 | 1 078 272 | 5.14 | 4.65 | 3.438 |
+| B03 | 48–32768 | 1 078 272 | 5.00 | 4.51 | 3.550 |
+| B04 | 48–32768 | 1 078 272 | 4.92 | 4.30 | 3.723 |
+| B05 | 47–32768 | 269 568 | 4.90 | 4.48 | 3.568 |
+| B06 | 47–32768 | 269 568 | 4.73 | 4.32 | 3.702 |
+| B07 | 47–32768 | 269 568 | 4.56 | 4.14 | 3.864 |
+| B08 | 47–32768 | 1 078 272 | 4.77 | 4.11 | 3.889 |
+| B09 | 47–32768 | 103 680 | 3.10 | 3.43 | 4.671 |
+| B10 | 45–32768 | 103 680 | 2.48 | 3.43 | 4.659 |
+| B11 | 46–32768 | 269 568 | 5.21 | 4.61 | 3.470 |
+| B12 | 46–32768 | 269 568 | 5.16 | 4.75 | 3.365 |
+| B8A | 47–32768 | 269 568 | 4.54 | 4.11 | 3.895 |
 
 **Reading the numbers:**
 
-- **Zero-error signature.** L1A′ RMSE 0 / PSNR ∞ / `lines_lost` 0 in all bands — the packaging,
-  compression, packetisation and decode layers are exactly transparent to the science data.
+- **L0plus codec transparency.** `decode(L0plus) == L1A` is bit-exact in all bands
+  (`lines_lost` 0) — the packaging, compression, packetisation and decode layers are exactly
+  transparent to the science data. This is a supporting check on the L0plus assembly step, not
+  the ladder-accuracy headline.
 - **Saturation masks are physically consistent.** The saturated fraction is *identically*
   1.95 % in the 10 m and 20 m bands (the same cloud-core mask at different samplings) and
   rises to 6.7 % at 60 m — coarse pixels flag when any saturated sub-area falls inside them
@@ -112,18 +125,18 @@ Raw per-band numbers of the authoritative run (verbatim machine output:
   the coded rate sits *above* entropy (B10: 2.48 → 3.43 bpp): sparse AC planes still pay raw
   bits without the Blue-Book VLC word mapping. A future full-BPE MR would recover most of
   this gap; on textured bands the transform gain already dominates.
-- **Radiometric round-trip at machine precision.** 2.8e-16 … 1.5e-14 DN is float64 rounding
-  territory (ε ≈ 2.2e-16) — `forward_correct∘reverse_impress` is algebraically exact on the
-  real GIPP coefficients.
 - **Scene-limited FPN column.** On this dark scene the *normalised* column-FPN metric is
   unstable after dark subtraction (signal ≈ 0 ⇒ denominator ≈ 0; B09/B10 report 0.000, other
-  bands rise). It is informative only — the equalization-quality evidence in this run is the
-  machine-precision RMSE; FPN-flattening demonstrations need a bright, homogeneous scene.
+  bands rise). It is informative only — the on-board-eq / equalization-inversion evidence in
+  this run is the **reconstructed-L0-vs-real-ESA-L0 residual (≤~4 DN on 10/20 m)**;
+  FPN-flattening demonstrations need a bright, homogeneous scene.
 
 ## Method notes
 
-- Bit-identity is asserted with msi-processor's own `align_extent` + `compute_metrics`
-  (RMSE/PSNR corroborate the exact comparison).
+- L0plus codec bit-identity (`decode(L0plus)==L1A`) is asserted with `np.array_equal` on the
+  kept lines — a transparency check on the compression/packetisation layer.
+- Ladder accuracy is measured with msi-processor's own `align_extent` + per-band DN residual of
+  the reconstructed L0 against the real ESA L0 `img` (10/20 m bands, ≤~4 DN).
 - The structural scan applies the packet-tiling criterion to the real PSD L0's per-band
   `IMG_DATA/*.bin` ISP files with the same `iter_packets` walker used on our own streams;
   the real payloads (proprietary MRCPB) are treated as opaque.

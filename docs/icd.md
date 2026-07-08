@@ -22,16 +22,23 @@ Companion to the SRS (`docs/srs.md`, interface requirements REQ-IF-001/002/003) 
 
 ## Introduction
 
-This document specifies the external and internal interfaces of the reverse E2ES: the products it
-consumes (Sentinel-2 L1A/L1B EOPF Zarr), the auxiliary calibration data it reads (the operational
-GIPP), and the synthetic **L0 RAW** product it produces (the normative interface **ICD-IF-L0**). All
-data interfaces are file-based (Zarr / XML); there is no network, hardware, or database interface.
+This document specifies the external and internal interfaces of the reverse E2ES. The generator
+consumes a real Sentinel-2B **L1B** granule (EOPF Zarr) plus the operational **GIPP**, inverts the
+operational L0→L1B radiometric chain to reconstruct **L1A → L0plus → L0**, and emits the synthetic
+**L0 RAW** product (the normative interface **ICD-IF-L0**). L1A and L0plus are produced intermediates,
+not co-equal consumed inputs — the real L1A is read only as a validation reference. All data
+interfaces are file-based (Zarr / XML); there is no network, hardware, or database interface.
 
 ## Software overview
 
 `s2_msi_raw_generator` is a pure-Python library (runtime deps `numpy`, plus `zarr` for product I/O). It reads a real
-L1A/L1B granule, runs the radiometric reverse chain (ATBD §5, S1–S15), and assembles a 156-array L0 RAW
-EOProduct. Auxiliary inputs (PSF matrices, SRF, operational GIPP) areS2 data.
+**L1B** granule + operational GIPP and runs the reverse ladder (ATBD §5, steps S1–S15) — inverting
+offset, relative-response/PRNU, dark, un-bin, SWIR re-stage, defective, crosstalk and
+on-board-equalization — to reconstruct **L1A**, encode **L0plus** (CCSDS-122), and assemble the
+156-array **L0 RAW** EOProduct, validated against the real ESA L0 `img` (10/20 m bands ≤~4 DN).
+MTF-deconvolution is **OFF** by default, so PSF and noise are **not** re-applied. Auxiliary inputs
+(PSF matrices, SRF, operational GIPP) are carried in the ADF set for provenance; the PSF matrices/SRF
+are not applied by the ladder.
 
 ## Interface design
 
@@ -42,8 +49,8 @@ EOProduct. Auxiliary inputs (PSF matrices, SRF, operational GIPP) areS2 data.
 | `sensor` | `band(name, unit)`, `all_bands()`, `spectral_band_info(unit)`, `unit_from_platform()`, constants | Pure data/model; leaf module — per-band gains/TDI/SRF/noise constants. |
 | `gipp` | `load_gipp_set(dir)` → `GippSet`; `read_r2eqog_band`, `read_r2depi`, `read_blindp`, `read_r2para`, `read_r2crco` | Parses  S2A GIPP XML → per-pixel arrays (`DetectorEq`, `BandEq`, `RadioParams`). |
 | `adf` | `BandADF` (`from_gipp`, `from_product`, `synthesize`), `real_psf_kernel`, `noise_coeffs` | Builds the per-band ADF set (PSF, noise α,β, per-pixel dark/PRNU). |
-| `reverse` | `s1..s14` step functions, `reverse_mvp`, `reverse_full`, `reverse_radiometric`/`forward_radiometric` | NumPy reverse chain on `(lines, detector_columns)` arrays. |
-| `forward_radiometric_atbd` | `forward_correct`, `reverse_impress`, `forward_equalize`/`inverse_equalize`, `column_fpn` | Public-ATBD forward model + exact inverse (round-trip bridge). |
+| `reverse` | `s1..s14` step functions, `reverse_mvp`, `reverse_full`, `reverse_radiometric` | NumPy reverse chain on `(lines, detector_columns)` arrays. |
+| `forward_radiometric_atbd` | `reverse_l1b_to_l0`/`reverse_impress` (invert offset + relative-response/PRNU + dark only), `inverse_equalize`, `column_fpn`; `forward_correct`, `forward_equalize` model the operational L0→L1B chain | The operational L0→L1B radiometric chain and its exact inverse used by the reverse ladder; the round-trip is an internal consistency check, not an advertised capability. |
 | `calibration` | `calibrate`, `estimated_adf`, `synth_dark_acquisition`, `synth_diffuser_acquisition` | Two-reference calibration sub-set → derived coefficients. |
 | `io` | `read_l1b_band`, `read_l1a_raw` | Lightweight Zarr reader (no full EOPF CPM). |
 | `isp` | `frame_isp_headers`, `build_sad_packets`, `build_primary_header`, `apid_for` | CCSDS ISP / SAD telemetry (S15). |
@@ -56,15 +63,20 @@ Dependency direction: `sensor` (leaf) → `adf`/`gipp` → `reverse`/`forward_ra
 
 - **IF-IN-L1B** — Sentinel-2 **L1B** radiance, EOPF Zarr (`.zarr` dir or `.zarr.zip`). Path
   `measurements/d{DD}/b{xx}/img`, `float32` radiance, dims `(alt, act)`. Read by `io.read_l1b_band`.
-- **IF-IN-L1A** — Sentinel-2 **L1A** raw counts, EOPF Zarr. Path `measurements/DD{nn}/B{xx}/l1a_raw_image`,
-  `float64` DN (offset $\approx 48$, saturation sentinel 32768). Read by `io.read_l1a_raw`.
+- **IF-IN-L1A** *(validation reference, not a driving input)* — Sentinel-2 **L1A** raw counts, EOPF Zarr. Path `measurements/DD{nn}/B{xx}/l1a_raw_image`,
+  `float64` DN (offset $\approx 48$, saturation sentinel 32768). Read by `io.read_l1a_raw`. The ladder
+  **produces** L1A; real L1A is retained only as an optional **validation reference** —
+  reconstructed-L1A-vs-real-L1A comparison and the L0plus `decode()==L1A` bit-exact check — not a
+  driving forward input (the driving inputs are IF-IN-L1B + IF-IN-GIPP).
 - **IF-IN-GIPP** — operational S2A GIPP, directory of `S2A_OPER_GIP_<TYPE>_*.xml`
   (R2EQOG ×13, R2DEPI, BLINDP, R2PARA, R2CRCO). Read by `gipp.load_gipp_set`.
 - **IF-OUT-L0-CAL** — calibration-campaign L0 products: dark `S02MSIDCA…zarr` (operation
   mode `DASC`) and sun-diffuser `S02MSISCA…zarr` (`ABSR`) — same canonical carrier as
   ICD-IF-L0 (CCSDS-122 compressed ISPs, PSFD naming, full root metadata); written under
   `<store>/caldb/` next to the cal-DB ADFs.
-- **IF-IN-ADF** — packaged PSF matrices (`s2_msi_raw_generator/data/psf/{S2A,S2B,S2C}/*.csv`, 33×33 oversampled).
+- **IF-IN-ADF** — packaged PSF matrices (`s2_msi_raw_generator/data/psf/{S2A,S2B,S2C}/*.csv`, 33×33
+  oversampled), carried for ADF/provenance completeness. These are **not** applied by the ladder because
+  MTF-deconvolution is OFF by default (no PSF/noise re-application).
 - **IF-OUT-L0** — synthetic **L0 RAW** EOProduct (Zarr v2) — see ICD-IF-L0 below.
 - **IF-MMI** — man-machine: command-line scripts (`scripts/*.py`); stdout reports.
 

@@ -16,15 +16,18 @@
 
 # Qualification Review (QR) report
 
-**Project:** Sentinel-2 MSI Synthetic Raw Data Generator (`s2_msi_raw_generator`) · ECSS-E-ST-40C Rev.1
-qualification review of the **v0.3.0** baseline (2026-07-02). Review implementation: [SRevP](srevp.md)
-(QR-equivalent held as release MR !32 + this consolidated report).
+**Project:** `s2_msi_raw_generator` · ECSS-E-ST-40C Rev.1 qualification review of the **v0.3.0** baseline
+(2026-07-02). The qualified capability is the **reverse ladder**: running a real Sentinel-2B **L1B**
+backwards through the operational L0→L1B radiometric chain to reconstruct **L1A → L0plus → L0**, validated
+against the real ESA L0 `img`. Review implementation: [SRevP](srevp.md) (QR-equivalent held as release
+MR !32 + this consolidated report).
 
 ## 1. QR objectives
 
 Confirm that (a) the requirements baseline is verified, (b) the document set is complete per the tailored
-DRL, (c) the acceptance criteria of the real-data E2E are met, and (d) remaining limitations are known,
-dispositioned and risk-tracked.
+DRL, (c) the acceptance criteria of the real-data E2E — the reverse ladder — are met, i.e. the
+reconstructed L0 agrees with the real ESA L0 `img` (10/20 m bands ≤~4 DN), with MTF-deconvolution OFF so
+noise and PSF are not re-applied, and (d) remaining limitations are known, dispositioned and risk-tracked.
 
 ## 2. Data package inventory (tailored DRL)
 
@@ -60,10 +63,12 @@ dispositioned and risk-tracked.
   recorded rationale.
 - **Unit/integration campaign:** 206 collected cases, **201 passed, 0 failed**, 5 env-gated skips that
   pass on the SDE ([SUITR](vv/suitr.md)); latest `main` pipeline #31052 green.
-- **Real-data E2E acceptance criteria — all 6 met** ([Real-L1A E2E validation](vv/real_e2e.md)):
-  codec bit-exact 13/13 real bands; **L1A′ bit-identical 13/13** (RMSE 0, `lines_lost` 0); GIPP
-  radiometric round-trip RMSE 2.8e-16…1.5e-14 (gate 1e-6); EOQC OK on both L0 forms; ISP self-parse
-  100 % (30 642 packets); PSFD naming round-trip on every product.
+- **Real-data E2E (reverse-ladder) acceptance criteria — all 5 met**
+  ([Real-L1A E2E validation](vv/real_e2e.md)): **primary** — the reverse-ladder reconstruction agrees
+  with the real ESA L0 `img` on the 10/20 m bands (≤~4 DN), with MTF-deconvolution OFF so noise and PSF
+  are not re-applied. Supporting shared-machinery checks: L0plus codec bit-exact 13/13 real bands
+  (decode(L0plus)==L1A round-trip); ISP self-parse 100 % (30 642 packets); PSFD naming round-trip on
+  every product; EOQC OK on both L0 forms.
 - **Release evidence:** GitLab Release v0.3.0; products + run reports frozen in the generic package
   registry `e2e-real/0.3.0`; docs site published (strict-build pipeline).
 
@@ -73,12 +78,14 @@ dispositioned and risk-tracked.
 |---|---|
 | Real image-ISP `.bin` accounting impossible (bucket GET-403) | informative-only by design; recorded verbatim in `isp_structural.json` (RSK-01) |
 | Codec not interoperable with reference decoders (§4.5.3 divergence) | documented in ICD-IF-C122 + DEC-05; packaged decoder is the consumer path (RSK-02) |
-| Public L1A is DN-scaled | accepted; absolute radiometry via GIPP round-trip self-consistency (RSK-04) |
+| Public L1A is DN-scaled | accepted; absolute-radiometry confidence from the reconstructed L0 matching the real ESA L0 `img` (≤~4 DN on the 10/20 m bands) (RSK-04) |
 | Deferred requirements (043/053/062) | carried to a future cycle; no impact on the qualified scope |
 
 ## 5. Conclusion
 
-**The v0.3.0 baseline is qualified for its stated purpose** (synthetic L0 generation +
-round-trip/bit-identity V&V of the msi-processor chain on real data): the tailored DRL is complete, the
-verification campaign is green with exact acceptance criteria met on real data, and all residual
+**The v0.3.0 baseline is qualified for its stated purpose** — the reverse ladder: from a real
+Sentinel-2B L1B, reconstruct **L1A → L0plus → L0** by inverting the operational L0→L1B chain (offset,
+relative-response/PRNU, dark, un-bin, SWIR re-stage, defective, crosstalk, on-board-eq; MTF-deconvolution
+OFF), validated against the real ESA L0 `img` (10/20 m bands ≤~4 DN): the tailored DRL is complete, the
+verification campaign is green with the acceptance criteria met on real data, and all residual
 limitations are external-data properties, dispositioned and risk-tracked. No blocking findings.

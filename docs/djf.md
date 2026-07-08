@@ -18,7 +18,15 @@
 
 **Project:** Sentinel-2 MSI Synthetic Raw Data Generator (`s2_msi_raw_generator`) · **DRD:** ECSS-E-ST-40C Rev.1
 (DJF — design justification). Design baseline: [SDD](sdd/index.rst); requirements: [SRS](srs.md);
-verification evidence: [V&V report](vv/report.md) and [Real-L1A E2E validation](vv/real_e2e.md).
+verification evidence: [V&V report](vv/report.md) and [reverse-ladder L0-reconstruction validation](vv/real_e2e.md).
+
+The design realises a **reverse ladder**: a real Sentinel-2B L1B is run backwards through the exact
+inverse of the operational L0→L1B radiometric chain (invert offset, relative-response/PRNU, dark, un-bin,
+SWIR re-stage, defective, crosstalk, on-board-equalisation) to reconstruct **L1A → L0plus (CCSDS-122 ISP)
+→ L0**. MTF-deconvolution is off, so PSF and noise are not re-applied. Success is the reconstructed L0
+agreeing with the real ESA L0 `img` (10/20 m bands ≤ ~4 DN); the L0plus codec round-trip
+`decode(L0plus) == L1A` is bit-exact as a supporting check. The decisions below are justified against
+this ladder.
 
 ## 1. Approach
 
@@ -30,21 +38,24 @@ verification evidence that the decision holds. Decisions were taken at increment
 
 ### DEC-01 — Entry at L1A/L1B; geometry reverse cancelled
 **Alternatives:** L1C entry with de-orthorectification vs L1A/L1B entry in per-detector sensor geometry.
-**Decision:** L1A/L1B entry; geometry inversion cancelled (REQ-FUNC-090, MR !1).
+**Decision:** the ladder enters at real S2B L1B in per-detector sensor geometry; geometry inversion
+cancelled (REQ-FUNC-090, MR !1).
 **Rationale:** L1A/L1B is already in per-detector sensor geometry — there is no orthorectification to
 undo; a geometry reverse would add a large, unverifiable model for no fidelity gain on the radiometric
 chain, which is the V&V target.
-**Evidence:** the radiometric round-trip closes at machine precision without any geometric resampling
-(RMSE ≈ 1e-14, [V&V report](vv/report.md) §3).
+**Evidence:** with no geometric resampling in the ladder, the reconstructed L0 agrees with the real ESA
+L0 `img` on the 10/20 m bands within ≤ ~4 DN ([V&V report](vv/report.md) §3).
 
 ### DEC-02 — real S2B-sourced ADFs vs fitted/synthetic instrument models
-**Alternatives:** parametric synthetic PSF/PRNU/noise vs official ESA data.
-**Decision:** every radiometric ADF in the realized path is real — official PSF matrices, SRF
-characterisation, product noise model, operational GIPP (MR !2, !3). A synthetic fallback exists but is
-flagged as such (REQ-FUNC-044).
-**Rationale:** the E2ES's value is representativeness; fitted effects would make the round-trip V&V an
+**Alternatives:** parametric synthetic PRNU/dark/offset vs official ESA data.
+**Decision:** the ladder inverts the L0→L1B radiometric chain using real ESA ADFs only — operational
+GIPP dark, relative-response/PRNU, offset, defective, crosstalk and on-board-equalisation coefficients
+(MR !2, !3). MTF-deconvolution and noise are off in the ladder, so no PSF matrices or noise model are
+applied.
+**Rationale:** the E2ES's value is representativeness; fitted effects would make the reconstruction V&V an
 inverse crime.
-**Evidence:** SNR@Lref reproduced < 1 % typical (REQ-PERF-002); GIPP dark within DQR range.
+**Evidence:** the reconstructed L0 agrees with the real ESA L0 `img` within ≤ ~4 DN on the 10/20 m bands;
+GIPP dark within DQR range.
 
 ### DEC-03 — Calibration sub-set as the inverse-crime cure
 **Alternatives:** hand the processor the truth coefficients vs derive them from simulated calibration
@@ -62,10 +73,12 @@ deriving them reproduces the real calibration flow and bounds its recovery error
 **Decision:** CCSDS 122.0-B, lossless profile (MR !27).
 **Rationale:** MRCPB is proprietary and unpublishable — it cannot be implemented faithfully from public
 sources; CCSDS 122 is the documented alternative compression ASIC for the mission and is fully public.
-The *lossless* profile (the real MRCPB runs lossy at 2.4–2.97×) is required so the E2E acceptance
-criterion L1A′ ≡ L1A stays provable — a lossy chain could never demonstrate bit-identity.
-**Evidence:** 13/13 real bands encode→decode bit-exact; overall 3.66× on the authoritative run
-([Real-L1A E2E validation](vv/real_e2e.md)).
+The *lossless* profile (the real MRCPB runs lossy at 2.4–2.97×) is required so the L0plus codec stays
+exactly transparent and the round-trip `decode(L0plus) == L1A` stays provable — a lossy chain could never
+demonstrate bit-identity.
+**Evidence:** the L0plus codec round-trip is bit-exact on 13/13 reconstructed bands (`decode(L0plus)`
+reproduces the ladder's L1A); the ladder-L0plus lossless compression ratio is 3.66×
+([reverse-ladder L0-reconstruction validation](vv/real_e2e.md)).
 
 ### DEC-05 — §4.5.3 word-mapping simplification in the codec
 **Alternatives:** full Blue-Book BPE (VLC word mapping) vs raw-packed AC bit-planes.
@@ -76,7 +89,7 @@ bounds implementation effort while keeping the chain bit-exact; the cost is ~10�
 interoperability with reference decoders (our decoder ships in the package).
 **Evidence:** the predicted signature is visible in the data — near-empty bands code above first-order
 entropy (B10: 2.48 → 3.43 bpp) while textured bands code below it (B04: 4.92 → 4.30 bpp)
-([Real-L1A E2E validation](vv/real_e2e.md), Per-band statistics).
+([reverse-ladder L0-reconstruction validation](vv/real_e2e.md), Per-band statistics).
 
 ### DEC-06 — EOPF PSFD §3 product naming vs legacy PSD naming
 **Alternatives:** legacy S2 PSD names (`S2A_OPER_PRD_MSIL0P_…`) vs EOPF PSFD §3 names
@@ -87,7 +100,7 @@ entropy (B10: 2.48 → 3.43 bpp) while textured bands code below it (B04: 4.92 �
 format — the format belongs to the mission specification, which for EOPF products is PSFD §3. Parsing is
 total: `parse_psfd_name` round-trips every emitted name; underivable fields fall back to documented,
 flagged defaults.
-**Evidence:** naming round-trip criterion ✅ in the authoritative run.
+**Evidence:** naming round-trip criterion ✅ on the reverse-ladder run.
 
 ### DEC-07 — Open-container L0 written from reconstructed (ground-decoded) DN
 **Alternatives:** write the open container directly from the pre-compression DN vs from the
@@ -122,7 +135,8 @@ pinning would force dual venvs on every consumer.
 **Decision:** `zlib.crc32(bname)` seeds (fixed in MR !32 cycle; CHANGELOG v0.3.0 Fixed).
 **Rationale:** REQ-QUAL-004 (reproducibility) requires identical DN streams across processes; salted
 `hash()` broke that silently.
-**Evidence:** seeded-determinism test; synthetic demo outputs changed once, recorded in the CHANGELOG.
+**Evidence:** crc32-determinism test; the ladder / calibration-acquisition outputs are bit-reproducible
+across processes (the one determinism regression is recorded in the CHANGELOG).
 
 ### DEC-11 — Per-line `isp_header` array removed in favour of the packet stream
 **Alternatives:** keep both the legacy per-line header array and the packet stream vs single source.
