@@ -130,13 +130,25 @@ locally (numpy+zarr only): `S2_E2ES_PHASES=figures S2_E2ES_L1B=<L1B.zarr[.zip]> 
 the PSF/SRF/noise model are real S2B data; the per-pixel dark/PRNU are the synthetic fallback
 (set `S2_E2ES_GIPP_DIR=<dir>` for the operational-GIPP versions).
 
-## Reverse L1B → L0 (full chain) — real-data validation
+## Reverse L1B → L1A → L0plus → L0 (full ladder) — real-data validation
 
 The generator's headline capability is the **exact reverse of the operational L0→L1B radiometric
-chain**: given a real S2B **L1B** (digital counts), `forward_radiometric_atbd.reverse_l1b_to_l0`
-reconstructs the **L0 RAW** by inverting *every* ON forward step, in reverse order — validated on the
-real **2024-04-08 S2B PPB** L0/L1B pair (detector d05, framing-aligned to the ADF_PRDLO
-co-registration crop):
+chain**, materialised as the **full EOPF product ladder** (the canonical forward chain
+`L0 → L0plus → L1A → L1B` run backwards): given a real S2B **L1B** (digital counts),
+`forward_radiometric_atbd.reverse_l1b_to_l0` reconstructs the raw counts by inverting *every* ON
+forward step, and the pipeline persists each product level:
+
+- **L1A** (`reverse-l1b` phase → `import_l0.write_l1a_product`): decompressed raw counts,
+  `measurements/DD{dd}/{BAND}/l1a_raw_image` — the same layout the real EOPF L1A/L0-`img` carries.
+- **L0plus** (`package-l0` phase → `l0product.write_l0_product`, `S2MSIL0plus`): CCSDS-122 lossless ISP
+  + `conditions/ancillary_data` SAD/datation — the processing-ready, *as-downlinked* form.
+- **L0** (`package-l0` → `l0product.write_l0_decoded_product`, `S02MSIL0_`): the L0plus ISP decoded back
+  to `measurements/d{DD}/b{BB}/img` + decode-quality attrs — **format-identical to the real ESA
+  `S02MSIL0__…` product** (verified against the 2024-04-08 TC7D granule), for a direct array comparison.
+
+`validate-reverse` compares the synthetic L1A against the **real ESA L0 `img`** directly (no decoding —
+the archived EOPF L0 already stores decompressed `img`), framing-aligned to the ADF_PRDLO co-registration
+crop. Validated on the real **2024-04-08 S2B PPB** L0/L1B pair (detector d05):
 
 | Forward step | Reverse op | ADF / GIPP |
 |---|---|---|
@@ -167,9 +179,13 @@ drops their residual from ~50 DN of stripe texture to ~3 DN (the diff panels go 
 
 ![SWIR B11/B12 — plain (no S8, rmse ~40) vs full chain (rmse ~5); the stagger residual vanishes](docs/_static/showcase/reverse_l1b_swir_s8.png)
 
-Run it: `S2_E2ES_PHASES=reverse-l1b S2_E2ES_L1B=<L1B.zarr> python scripts/run_pipeline.py` (auto-finds
-the RSWIR/REOB2/RCRCO ADFs next to `$S2_E2ES_EQOG_ADF`; `S2_E2ES_REVERSE_FULL=0` → radiometric-only).
-Visual compare: `notebooks/reverse_l1b_compare.ipynb`.
+Run the full ladder:
+`S2_E2ES_PHASES=reverse-l1b,package-l0,validate-reverse S2_E2ES_L1B=<L1B.zarr> S2_E2ES_REAL_L0=<L0.zarr> python scripts/run_pipeline.py`
+(auto-finds the RSWIR/REOB2/RCRCO ADFs next to `$S2_E2ES_EQOG_ADF`; `S2_E2ES_REVERSE_FULL=0` →
+radiometric-only; `S2_E2ES_JOBS=1` on NFS-backed stores). `validate-reverse` needs the real L0
+(`$S2_E2ES_REAL_L0`) and the ADF_PRDLO framing offsets (`$S2_E2ES_FRAMING` or auto-found under
+`esa-source/aux/framing/`) for the ≤3 DN line-aligned comparison. Visual compare:
+`notebooks/reverse_l1b_compare.ipynb`.
 
 ## Package
 
