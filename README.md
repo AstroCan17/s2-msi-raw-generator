@@ -180,6 +180,11 @@ figure with `scripts/reverse_compare_figure.py`.
 
 ![Full-chain reverse — synthetic vs original ESA L0, all 13 bands (synthetic | real | diff); the diff panels are flat to a few DN for the 10/20 m bands, textured for the three 60 m bands](docs/_static/showcase/reverse_l1b_allbands.png)
 
+> *The "real ESA L0" panels above contain **modified Copernicus Sentinel data 2024** (Sentinel-2B,
+> 2024-04-08 datatake), used here for validation and shown as low-resolution demo previews only — no raw
+> product data is redistributed in this repository. Input products (L0/L1B) and operational GIPP/ADF are
+> ESA/Copernicus assets held in the `ipf/data-store`, not in git.*
+
 The **S8 SWIR re-arrangement** is decisive for B11/B12 — re-introducing the staggered detector readout
 drops their residual from ~50 DN of stripe texture to ~3 DN (the diff panels go from noisy to flat):
 
