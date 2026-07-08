@@ -104,7 +104,7 @@ SEQ_FIRST/CONT/LAST grammar), `build_sad_packets()`; `frame_isp_headers()` is le
 
 ### l0product.py — L0 RAW assembly (REQ-FUNC-030..-034, -045; REQ-IF-002)
 `reverse_to_l0_frames()`, `build_root_metadata()`, `write_l0_product()` (L0plus — CCSDS ISP + ancillary,
-`eopf_type` selectable), **`write_l0_decoded_product()`** (decompressed-`img` L0 mirroring the real ESA
+`eopf_type` selectable), **`write_l0_decoded_product()`** (decompressed-`img` L0 mirroring the original S2B
 `S02MSIL0__` layout — `measurements/d{DD}/b{BB}/img` + decode-quality attrs, for a direct real-L0 compare),
 `read_l0_isp_dn()`.
 
@@ -115,7 +115,7 @@ reverse ladder's materialised L1A writer: multi-detector raw counts → `measure
 
 The reverse ladder (`run_pipeline` phases) is **`reverse-l1b` → `package-l0` → `validate-reverse`**:
 reconstruct real L1B → materialise L1A, then L1A → L0plus (ISP) → L0 (decoded img), then compare the
-synthetic L1A against the real ESA L0 `img` (framing-aligned; no decoding — the archived EOPF L0 already
+synthetic L1A against the original S2B L0 `img` (framing-aligned; no decoding — the archived EOPF L0 already
 stores decompressed `img`, verified on the 2024-04-08 TC7D granule).
 
 ## Software components design — Aspects of each component

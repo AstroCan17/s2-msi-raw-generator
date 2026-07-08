@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Generate the reverse-ladder validation figure + per-band table (all 13 bands).
 
-Compares the synthetic **L1A** raw counts (``reverse-l1b`` output) against the **real ESA L0 `img`**
+Compares the synthetic **L1A** raw counts (``reverse-l1b`` output) against the **original S2B L0 `img`**
 for the 2024-04-08 S2B PPB datatake, framing-aligned (ADF_PRDLO ``begin_nb_lines_to_cut`` from the L1B
 metadata) with a small cross-correlation refinement for the ~28-line legacy datation drift — the exact
 method of ``notebooks/reverse_l1b_compare.ipynb``, extended to every band.
@@ -128,7 +128,7 @@ def main() -> int:
         ax[i, 0].imshow(stretch(syn, realb), cmap="gray", aspect="auto")
         ax[i, 0].set_title(f"{bn} synthetic (reverse)", fontsize=8)
         ax[i, 1].imshow(stretch(realb, realb), cmap="gray", aspect="auto")
-        ax[i, 1].set_title(f"{bn} real ESA L0", fontsize=8)
+        ax[i, 1].set_title(f"{bn} original S2B L0", fontsize=8)
         lim = np.percentile(np.abs(d), 98) + 1e-6
         ax[i, 2].imshow(d, cmap="RdBu_r", aspect="auto", vmin=-lim, vmax=lim)
         ax[i, 2].set_title(f"{bn} diff  rmse={rmse:.1f} DN  off={off} drift={drift:+d}", fontsize=8)
