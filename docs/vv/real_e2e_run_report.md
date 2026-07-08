@@ -32,6 +32,13 @@ un-bin is a ×3 line replication — the sub-pixel detail the forward 60 m binni
 
 ![Full-chain reverse — synthetic L1A vs original ESA L0, all 13 bands (synthetic | real | diff); diff panels flat to a few DN for 10/20 m, textured for the three 60 m bands](../_static/showcase/reverse_l1b_allbands.png)
 
+```{note}
+The "real ESA L0" panels contain **modified Copernicus Sentinel data 2024** (Sentinel-2B, 2024-04-08
+datatake), shown as low-resolution demo previews for validation only. No raw product data is
+redistributed here — input L0/L1B products and operational GIPP/ADF are ESA/Copernicus assets kept in
+the `ipf/data-store`, not in the repository.
+```
+
 **S8 SWIR re-arrangement** is the decisive step for the SWIR bands: re-introducing the staggered
 detector readout (ADF_RSWIR per-column ±1-line shift map) drops the B11/B12 residual from ~50 DN of
 stripe texture to ~3 DN. Plain (no S8, diff rmse ~40) vs full chain (diff rmse ~5):
