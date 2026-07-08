@@ -12,7 +12,7 @@ back to a synthetic **L0 RAW** product (focal-plane DN, 12 detectors × 13 bands
 3. **Real-L1B → L1A → L0plus → L0 ladder** — the exact inverse of the *full* operational L0→L1B
    radiometric chain (offset, relative response, on-board equalization, dark, binning, **SWIR
    re-arrangement**, defective, crosstalk), materialised as the full EOPF product ladder: a real S2B
-   L1B → synthetic **L1A** → **L0plus** (CCSDS ISP) → **L0** (decoded `img`), agreeing with the real ESA
+   L1B → synthetic **L1A** → **L0plus** (CCSDS ISP) → **L0** (decoded `img`), agreeing with the original S2B
    L0 to **≤ ~4 DN on the ten 10 m + 20 m bands** (the three native-60 m bands are un-bin-limited)
    ([see below](#reverse-l1b--l1a--l0plus--l0-full-ladder--real-data-validation)).
 
@@ -145,10 +145,10 @@ forward step, and the pipeline persists each product level:
 - **L0plus** (`package-l0` phase → `l0product.write_l0_product`, `S2MSIL0plus`): CCSDS-122 lossless ISP
   + `conditions/ancillary_data` SAD/datation — the processing-ready, *as-downlinked* form.
 - **L0** (`package-l0` → `l0product.write_l0_decoded_product`, `S02MSIL0_`): the L0plus ISP decoded back
-  to `measurements/d{DD}/b{BB}/img` + decode-quality attrs — **format-identical to the real ESA
+  to `measurements/d{DD}/b{BB}/img` + decode-quality attrs — **format-identical to the original S2B
   `S02MSIL0__…` product** (verified against the 2024-04-08 TC7D granule), for a direct array comparison.
 
-`validate-reverse` compares the synthetic L1A against the **real ESA L0 `img`** directly (no decoding —
+`validate-reverse` compares the synthetic L1A against the **original S2B L0 `img`** directly (no decoding —
 the archived EOPF L0 already stores decompressed `img`), framing-aligned to the ADF_PRDLO co-registration
 crop. Validated on the real **2024-04-08 S2B PPB** L0/L1B pair (detector d05):
 
@@ -182,7 +182,7 @@ figure with `scripts/reverse_compare_figure.py`.
 
 ![Full-chain reverse — synthetic vs original ESA L0, all 13 bands (synthetic | real | diff); the diff panels are flat to a few DN for the 10/20 m bands, textured for the three 60 m bands](docs/_static/showcase/reverse_l1b_allbands.png)
 
-> *The "real ESA L0" panels above contain **modified Copernicus Sentinel data 2024** (Sentinel-2B,
+> *The "original S2B L0" panels above contain **modified Copernicus Sentinel data 2024** (Sentinel-2B,
 > 2024-04-08 datatake), used here for validation and shown as low-resolution demo previews only — no raw
 > product data is redistributed in this repository. Input products (L0/L1B) and operational GIPP/ADF are
 > ESA/Copernicus assets held in the `ipf/data-store`, not in git.*

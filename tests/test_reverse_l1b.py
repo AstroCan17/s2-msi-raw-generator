@@ -192,7 +192,7 @@ def test_write_l1a_product_round_trip(tmp_path):
 
 
 def test_l0_decoded_product_matches_real_esa_layout(tmp_path):
-    """write_l0_decoded_product uses the real ESA L0 layout: measurements/d{DD}/b{BB}/img + decode QA."""
+    """write_l0_decoded_product uses the original S2B L0 layout: measurements/d{DD}/b{BB}/img + decode QA."""
     from s2_msi_raw_generator import l0product, sensor
     import zarr
 

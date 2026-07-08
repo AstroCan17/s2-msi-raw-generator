@@ -10,7 +10,7 @@ The exact inverse of the *full* operational L0→L1B radiometric chain
 (`forward_radiometric_atbd.reverse_l1b_to_l0`), materialised as the full EOPF product ladder
 (`reverse-l1b` → **L1A** raw counts; `package-l0` → **L0plus** CCSDS ISP + ancillary → **L0** decoded
 `img`), validated against the **real S2B L0/L1B pair** for the 2024-04-08 PPB datatake (detector d05, all
-13 bands). The synthetic **L1A** is compared to the **real ESA L0 `img`** directly — the archived EOPF L0
+13 bands). The synthetic **L1A** is compared to the **original S2B L0 `img`** directly — the archived EOPF L0
 stores decompressed `img` (verified on the TC7D granule), so no decoding is needed on the reference side;
 our own codec is only round-tripped on the synthetic L0plus (asserted bit-exact). Alignment uses the exact
 ADF_PRDLO `begin_nb_lines_to_cut` per band/detector (from the L1B metadata) + a small cross-correlation
@@ -33,7 +33,7 @@ un-bin is a ×3 line replication — the sub-pixel detail the forward 60 m binni
 ![Full-chain reverse — synthetic L1A vs original ESA L0, all 13 bands (synthetic | real | diff); diff panels flat to a few DN for 10/20 m, textured for the three 60 m bands](../_static/showcase/reverse_l1b_allbands.png)
 
 ```{note}
-The "real ESA L0" panels contain **modified Copernicus Sentinel data 2024** (Sentinel-2B, 2024-04-08
+The "original S2B L0" panels contain **modified Copernicus Sentinel data 2024** (Sentinel-2B, 2024-04-08
 datatake), shown as low-resolution demo previews for validation only. No raw product data is
 redistributed here — input L0/L1B products and operational GIPP/ADF are ESA/Copernicus assets kept in
 the `ipf/data-store`, not in the repository.
