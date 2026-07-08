@@ -19,14 +19,14 @@
 ```mermaid
 flowchart LR
     BKT[("public S3 bucket dpr-common:<br/>real L1A · real PSD L0 SAFE · GIPP")]
-    L1["L1A / L1B<br/>Sentinel-2 product<br/>(EOPF Zarr, radiance / raw counts)"]
+    L1["real Sentinel-2B L1B<br/>(EOPF Zarr, radiance / counts)<br/>— ladder input"]
     GIPP["operational S2A GIPP<br/>R2EQOG / R2DEPI / BLINDP /<br/>R2PARA / R2CRCO (XML)"]
-    ADF["ADF<br/>PSF matrices (CSV), SRF,<br/>product noise model"]
-    E2ES["s2_msi_raw_generator reverse E2ES<br/>(S1–S15 incl. CCSDS-122 + packetize)"]
+    ADF["ADF<br/>SRF (spectral characterisation)"]
+    E2ES["s2_msi_raw_generator reverse ladder<br/>(invert L0→L1B corrections;<br/>CCSDS-122 + packetize)"]
     L0["L0 RAW EOProduct<br/>(Zarr, compressed-ISP streams + STAC,<br/>PSFD names — ICD-IF-NAME)"]
     CAL["calibration sub-set:<br/>synth diffuser + dark →<br/>derived ADF (inverse-crime)"]
     MSI["msi-processor l0_decode<br/>→ L1A′"]
-    REP["validation & report:<br/>bit-identity · GIPP round-trip ·<br/>real-L0 structural scan (data-store report/)"]
+    REP["validation & report:<br/>reconstructed-L0 vs real ESA L0 'img'<br/>(10/20 m ≤~4 DN) · L0plus codec<br/>round-trip decode==L1A bit-exact"]
     BKT -->|"s3fetch"| L1
     BKT -.->|"real L0 (structural ref)"| REP
     L1 --> E2ES
@@ -38,20 +38,25 @@ flowchart LR
     L1 -.-> REP
 ```
 
-**Inputs.** A Sentinel-2 **L1A** (raw DN) or **L1B** (radiance) EOPF Zarr granule; the operational
-S2A **GIPP** (per-pixel dark + relative response, defects, offsets, crosstalk); packaged ADFs (ESA
-**PSF** matrices, **SRF** spectral characterisation, per-band **noise** model $\alpha,\beta$).
+**Inputs.** The primary input is a **real Sentinel-2B L1B** (radiance / counts) EOPF Zarr granule; the
+operational S2A **GIPP** (per-pixel dark + relative response/PRNU, defects, offsets, crosstalk,
+on-board-eq); and the **SRF** for spectral characterisation. L1A is not an input — it is an intermediate
+the ladder *produces* on the way down to L0.
 
-**Processing.** The reverse chain (S1–S15) impresses the instrument effects to reconstruct
-focal-plane counts. A separate **calibration sub-set** synthesises sun-diffuser + dark acquisitions and
-*derives* the calibration coefficients back — the coefficients a downstream processor would actually use
-(inverse-crime cure).
+**Processing.** The reverse ladder runs the real L1B backwards through the **exact inverse** of the
+operational L0→L1B radiometric correction chain — invert offset, relative-response/PRNU, dark, un-bin,
+SWIR re-stage, defective, crosstalk, on-board-eq — to reconstruct **L1A → L0plus → L0**. MTF-deconvolution
+is OFF, so PSF and noise are **not** re-applied. A separate **calibration sub-set** synthesises
+sun-diffuser + dark acquisitions and *derives* the calibration coefficients back — the coefficients a
+downstream processor would actually use (inverse-crime cure).
 
-**Output.** A synthetic **L0 RAW** EOProduct (the ICD-IF-L0 Zarr: 156 detector/band frames, quality masks,
-optional CCSDS ISP telemetry, STAC + sensor-configuration metadata).
+**Output.** The reconstructed **L0 RAW** EOProduct (the ICD-IF-L0 Zarr: 156 detector/band frames, quality
+masks, optional CCSDS ISP telemetry, STAC + sensor-configuration metadata); the ladder also emits the
+**L1A** and **L0plus** (CCSDS-122 ISP) intermediates en route.
 
-**Verification context.** The radiometric round-trip (`raw → forward correct → reverse impress → raw′`)
-on a L1A with the GIPP confirms the forward and reverse are exact inverses (residual $\approx 0$).
+**Verification context.** The reconstructed **L0** is compared against the **real ESA L0 'img'**: the
+10/20 m bands agree to **≤~4 DN**. As a supporting check, the **L0plus codec round-trip** is bit-exact —
+`decode(L0plus) == L1A`.
 
 ## Calibration database (ADF output)
 
@@ -70,25 +75,21 @@ flowchart LR
         DK["dark k"]
         AA["abs gain (~1/A)"]
         ES["ESUN (solar irradiance)"]
-        NO["noise alpha, beta"]
     end
     subgraph DB["cal-DB — EOPF ADFs (zarr v2)"]
         NUC["nuc.zarr<br/>/gain, /offset"]
         DARK["dark.zarr<br/>/dark_offset"]
         RADO["radiometric.zarr<br/>/gain, /offset"]
         SPECT["spectral.zarr<br/>/esun"]
-        NOI["noise.zarr<br/>/alpha, /beta"]
     end
     PR --> NUC
     OF --> NUC
     DK --> DARK
     AA --> RADO
     ES --> SPECT
-    NO --> NOI
 ```
 
 The NUC `gain`/`offset` follow the processor's two-point convention (`estimate_nuc`); the absolute
 `radiometric.gain` is diffuser-derived ($\approx 1/\mathrm{cal\_gain}$); `spectral.zarr` carries the per-band
 **ESUN** (Thuillier 2003, S2A — ATBD §A.3) the processor's `toa` unit needs for TOA reflectance. Written by
-`s2_msi_raw_generator.adf_writer` (`s2_msi_raw_generator.caldb`, pipeline phase `build-caldb`); `noise.zarr` (RNOMO) is E2ES-side and not read
-by the processor.
+`s2_msi_raw_generator.adf_writer` (`s2_msi_raw_generator.caldb`, pipeline phase `build-caldb`).

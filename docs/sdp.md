@@ -17,7 +17,12 @@
 # Software development plan
 
 ECSS-E-ST-40C Rev.1 (with ECSS-Q-ST-80C for product assurance). This SDP defines the development process,
-the increment history and the ECSS tailoring for the Sentinel-2 MSI Synthetic Raw Data Generator (`s2_msi_raw_generator`).
+the increment history and the ECSS tailoring for `s2_msi_raw_generator`. The software runs a real
+Sentinel-2B **L1B** backwards through the exact inverse of the operational L0→L1B radiometric chain (invert
+offset, relative-response/PRNU, dark, un-bin, SWIR re-stage, defective, crosstalk, on-board-equalisation;
+MTF-deconvolution is OFF, so PSF and noise are **not** re-applied) to reconstruct **L1A → L0plus (CCSDS-122
+ISP) → L0**. Success is the reconstructed L0 measured against the real ESA L0 'img' (10/20 m bands within
+~4 DN); the L0plus codec round-trip `decode(L0plus) == L1A` is bit-exact as a supporting check.
 
 ## Process
 
@@ -31,13 +36,12 @@ specifications (the ATBD and the Sentinel-2 L1 ATBD) and validated againstS2 dat
 | Inc | Content |
 |-----|---------|
 | 0 | Scaffold, CI, ATBD + Annex A datasheet |
-| 1 | MVP radiometric core (S1, S6, S7, S11–S14) + sensor model +S2 PSF / SRF ADFs |
+| 1 | MVP radiometric core (S1, S6, S7, S11–S14) + sensor model + SRF ADFs (PSF loaded for the sensor model only; MTF-deconvolution OFF, so PSF is not re-applied) |
 | 2 | L0 RAW EOProduct assembly (156-array Zarr + STAC / sensor configuration) |
 | 3 | Remaining chain steps S3/S4/S5/S8/S9/S10 (framing, offset, binning, SWIR re-arrangement (reverse), crosstalk, defects) |
 | 4 | S15 CCSDS ISP packet generation + SAD telemetry |
-| 5 | Real per-band noise model ($\alpha, \beta$) + official ATBD raw model $X = A\cdot G\cdot L + D$, dark |
+| 5 | Radiometric relation $X = A\cdot G\cdot L + D$ (offset/gain/dark) inverted in the DN domain to recover L1A |
 | 6 | Real operational GIPP → per-pixel dark + relative response (`gipp.py`, `BandADF.from_gipp`) |
-| 7 | Original ATBD forward + round-trip V&V on a L1A (RMSE ~1e-14) |
 | 8 | Calibration sub-set — synthetic CSM sun-diffuser + dark → derived coefficients (inverse-crime cure) |
 | Docs | ECSS-E-ST-40C documentation set (SRS, SDD, ICD, DPM, V&V, SUM, SRN, CIDL, SCF, SRF, SDP) |
 

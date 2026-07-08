@@ -17,27 +17,28 @@
 # Software design
 
 ## General
-The design realizes the reverse radiometric chain as a set of small, pure-NumPy functions (one per ATBD
-§5 step) composed into the `reverse_mvp` / `reverse_full` pipelines, parameterized by per-band ADFs and
-driven byS2 calibration data. The package is layered: a constants/sensor leaf, an ADF/GIPP layer,
-the chain, and a product-assembly integrator. Every algorithm is implemented from the public L1 ATBD and
-the GIPP data format.
+The design realizes the **reverse ladder**: it inverts the operational L0→L1B radiometric chain from real
+Sentinel-2B **L1B** DN (offset → relative-response/PRNU → dark → un-bin → SWIR re-stage → defective →
+crosstalk → on-board-eq) via `forward_radiometric_atbd.reverse_l1b_to_l0`, reconstructing L1A → L0plus
+(CCSDS-122 ISP) → L0. The inversion is orchestrated by the `run_pipeline` phases **`reverse-l1b` →
+`package-l0` → `validate-reverse`**, with MTF-deconvolution OFF so PSF and noise are **not** re-applied, and
+validated against the real ESA L0 `img` (10/20 m bands ≤~4 DN). The package is layered: a constants/sensor
+leaf, an ADF/GIPP layer, the chain, and a product-assembly integrator. Every algorithm is implemented from
+the public L1 ATBD and the GIPP data format.
 
 ## Overall architecture
 
 ### Key design decisions
-- **Official ATBD raw model $X = A \cdot G \cdot L + D$.** S1 applies the absolute-calibration multiply $\mathrm{DN} = A \cdot L$;
-  S7 the relative response `G`; S11 the dark `D`. This matches the public L1 ATBD §4.1.1 forward model so
-  the reverse is its exact conjugate.
-- **`cal_gain` anchored on the noise model + SNR.** The absolute coefficient `A` (`Band.cal_gain`)
-  is derived from the per-band noise α,β and the spec SNR@Lref, so the chain reproduces SNR@Lref
-  exactly on the true 12-bit DN scale (the product `physical_gain` is retained as metadata).
+- **Official ATBD radiometric model $X = A \cdot G \cdot L + D$.** The ladder takes the operational
+  relation — relative response `G`, dark `D`, on-board equalization and offset — **only as the model it
+  inverts** in the downlink DN domain from real L1B. It is the exact conjugate inversion of that chain, not
+  a forward generator, and it does not apply the forward radiance→DN absolute multiply.
 - **Real per-pixel dark + relative response from the operational GIPP** (R2EQOG `COEFF_D` / cubic
-  (A,B,C) / bilinear (A1,A2,Zs)); no fitted or seeded values in the realized path.
-- **Noise impressed on the signal DN, before the dark pedestal**, so $\sigma = \sqrt{\alpha^2 + \beta \cdot \mathrm{DN}_\mathrm{signal}}$ reproduces
-  the spec SNR@Lref.
-- **Calibration sub-set (inverse-crime cure).** Coefficients handed to a downstream processor are
-  *derived* from synthetic CSM sun-diffuser + dark acquisitions, not the truth impressed in S7/S11.
+  (A,B,C) / bilinear (A1,A2,Zs)); no fitted or seeded values in the realized path — these are the
+  coefficients the ladder inverts.
+- **Calibration sub-set (inverse-crime cure).** The downstream calibration coefficients are *derived*
+  independently from synthetic CSM sun-diffuser + dark acquisitions, rather than reusing the exact ADF
+  values the ladder consumed for its inversion.
 - **Original, self-contained.** No external processor is installed, imported, or named; the forward model
   comes from the public L1 ATBD and the calibration coefficients from the GIPP data files only.
 
@@ -59,25 +60,24 @@ Original `xml.etree` parser → per-pixel arrays. API: `DetectorEq` (`.rel_gain`
 `read_rcrco_eopf()` (13×13 crosstalk, `ADF_RCRCO`); `GippSet` carries the ADF paths and reads
 `swir_shift()` / `onboard_eq()` lazily.
 
-### adf.py — ADF assembly (REQ-FUNC-014, -044, -046; REQ-IF-003)
+### adf.py — ADF assembly (REQ-FUNC-044, -046; REQ-IF-003)
 `BandADF` frozen dataclass with `from_gipp()` (per-pixel dark + PRNU, blind-column width alignment),
-`from_product()` (L1B-derived), `synthesize()` (fallback); `real_psf_kernel()`, `load_oversampled_psf()`,
-`noise_coeffs()`, `fit_noise_coeffs()`.
+`from_product()` (L1B-derived), `synthesize()` (fallback) — the ladder's ADF inputs.
 
-### forward_radiometric_atbd.py — ATBD model + exact inverse (REQ-FUNC-015, -010; REQ-PERF-003)
-`forward_equalize()`, `inverse_equalize()` (cubic via Newton, bilinear closed-form), `forward_correct()`
-(L1A→L1B), `reverse_impress()` (L1B→L1A), `column_fpn()`. **Full real-L1B→L0 reverse:**
-`reverse_l1b_to_l0()` inverts the full radiometric chain in the downlink DN domain (offset → `G⁻¹` →
-on-board eq → dark → un-bin → SWIR re-stage → defective), with helpers `reapply_onboard_eq()` (REOB2
-bilinear non-linearity) and `restage_swir_lines()` (S8 whole-line roll / B10 sub-pixel kernel).
-Restoration/deconvolution (fwd step 8) is off, so PSF re-blur / noise are not re-applied.
+### forward_radiometric_atbd.py — reverse ladder + operational-eq inversion (REQ-FUNC-010, -011, -013, -015, -016, -020, -022)
+**Full real-L1B→L0 reverse (the ladder):** `reverse_l1b_to_l0()` inverts the full radiometric chain in the
+downlink DN domain (offset → `G⁻¹` (relative-response/PRNU) → on-board eq → dark → un-bin → SWIR re-stage →
+defective), with `inverse_equalize()` / `forward_equalize()` (on-board-eq inversion — cubic via Newton,
+bilinear closed-form) and helpers `reapply_onboard_eq()` (REOB2 bilinear non-linearity) and
+`restage_swir_lines()` (S8 whole-line roll / B10 sub-pixel kernel). The reconstructed DN is clipped and
+rounded to the 12-bit `uint16` product scale inline (`np.clip`/`np.rint`, REQ-FUNC-022).
+Restoration/deconvolution (fwd step 8) is off, so PSF re-blur / noise are **not** re-applied.
 
-### reverse.py — reverse chain (REQ-FUNC-010..-022)
-One function per step: `s1_radiance_to_dn`, `s3_undo_framing`, `s4_undo_radiometric_offset`, `s5_unbin`,
-`s6_psf_reblur`, `s7_impress_relative_response`, `s8_restage_swir`, `s9_apply_crosstalk`,
-`s10_inject_defects`, `s11_reapply_dark`, `s12_reapply_onboard_eq`, `s13_add_noise`, `s14_quantize`;
-chains `reverse_mvp()`, `reverse_full()`; exact-inverse bridge `reverse_radiometric()` /
-`forward_radiometric()`.
+### reverse.py — exact-inverse bridge (retained module)
+Thin module retained and imported at package load. It exposes the exact-inverse bridge
+`reverse_radiometric()` / `forward_radiometric()` between the DN and L1B domains. The operational
+radiometric inversion of real L1B is performed by `forward_radiometric_atbd.reverse_l1b_to_l0` and `gipp`
+(see above), not by a per-step forward-impress chain.
 
 ### calibration.py — calibration sub-set (REQ-FUNC-047; REQ-PERF-004)
 `DerivedCalibration`; `synth_dark_acquisition()`, `synth_diffuser_acquisition()`, `derive_dark()`,
@@ -125,6 +125,6 @@ the L0 `adf_provenance` metadata (REQ-FUNC-045).
 
 ## Internal interface design
 Arrays are 2-D `(lines, detector_columns)`; per-pixel coefficients are `(act,)` broadcast over lines.
-`BandADF` is the contract object between `adf`/`gipp` and `reverse`; `DetectorEq` between `gipp` and
-`forward_radiometric_atbd`; `FrameKey = tuple[int, str]` (detector, band) keys the L0 frame dict in
+`BandADF` is the contract object between `adf`/`gipp` and the ladder (`forward_radiometric_atbd`);
+`DetectorEq` between `gipp` and `forward_radiometric_atbd`; `FrameKey = tuple[int, str]` (detector, band) keys the L0 frame dict in
 `l0product`. See the ICD (`docs/icd.md`) for the external product interfaces.
