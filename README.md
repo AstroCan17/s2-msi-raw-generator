@@ -1,5 +1,7 @@
 # Sentinel-2 MSI Synthetic Raw Data Generator (`s2_msi_raw_generator`)
 
+📖 **Documentation site:** <https://s2-msi-raw-generator-901362.pages.eopf.copernicus.eu>
+
 End-to-End performance Simulator for Sentinel-2 MSI — the **reverse / forward-instrument
 conjugate** of the `msi-processor` (L0c→L2A). It degrades a  Sentinel-2 **L1A/L1B** product
 back to a synthetic **L0 RAW** product (focal-plane DN, 12 detectors × 13 bands), for:
