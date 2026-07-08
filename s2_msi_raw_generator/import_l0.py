@@ -14,6 +14,7 @@ from pathlib import Path
 import numpy as np
 
 from . import _zarrio, io as gio, metadata, naming, sensor
+from .datation import Datation
 
 
 def read_public_l0_identity(public_l0_path: str | Path) -> dict:
@@ -208,3 +209,106 @@ def convert(
         },
         "per_band": per_band,
     }
+
+
+def write_l1a_product(
+    out_path: str | Path,
+    frames: dict[tuple[int, str], np.ndarray],
+    *,
+    datation: Datation | None = None,
+    platform: str = "Sentinel-2B",
+    orbit: dict | None = None,
+    footprint: dict | None = None,
+    source_l1b: str | None = None,
+    provenance: dict | None = None,
+) -> dict:
+    """Write reconstructed raw-DN frames as an EOPF **L1A** product (multi-detector).
+
+    This is the reverse chain's materialised intermediate (``reverse-l1b`` phase): the real L1B → L0
+    reconstruction stops at the raw-count L1A domain and persists it before the separate L1A→L0
+    packaging (CCSDS/ISP) step. ``frames`` maps ``(detector 1–12, band "B03")`` to a ``uint16``
+    ``(line, column)`` raw-DN array; each is written to
+    ``measurements/DD{dd}/{BAND}/l1a_raw_image`` (the layout :func:`~s2_msi_raw_generator.io.read_l1a_raw`
+    consumes) and re-read to assert a bit-identical round-trip. Writes stay **serial** (one array at a
+    time) — parallel writes corrupt the measurements arrays on the NFS-backed data-store.
+
+    Root attrs carry an L1A STAC identity (``processing:level=L1A``, ``product:type=S02MSIL1A``) plus the
+    reverse provenance. Returns a summary dict (output path, per-frame shape/crc32).
+    """
+    if not frames:
+        raise ValueError("write_l1a_product: no frames")
+    d = datation or Datation()
+    out = Path(out_path)
+    root = _zarrio.open_group_w(out)
+    meas = root.create_group("measurements")
+
+    detectors = sorted({det for det, _ in frames})
+    n_lines = int(next(iter(frames.values())).shape[0])
+    per_frame: dict[str, dict] = {}
+    det_groups: dict[int, object] = {}
+    for (det, band), arr in sorted(frames.items(), key=lambda kv: (kv[0][0], kv[0][1])):
+        dg = det_groups.get(det)
+        if dg is None:
+            dg = meas.create_group(f"DD{det:02d}")
+            det_groups[det] = dg
+        bg = dg.create_group(band.upper())
+        src = np.asarray(arr, dtype=np.uint16)
+        _zarrio.put_array(bg, "l1a_raw_image", src, dtype="uint16")
+        reread = np.asarray(root[f"measurements/DD{det:02d}/{band.upper()}/l1a_raw_image"])
+        if not np.array_equal(src, reread):
+            raise ValueError(f"L1A write mismatch for d{det:02d} {band.upper()}")
+        per_frame[f"d{det:02d}_{band.upper()}"] = {
+            "shape": list(src.shape),
+            "min": int(src.min(initial=0)),
+            "max": int(src.max(initial=0)),
+            "crc32": f"{zlib.crc32(src.tobytes()):08x}",
+        }
+        del src, reread
+
+    orb = {"relative_orbit": naming.DEFAULT_RELATIVE_ORBIT, "absolute_orbit": 0, "orbit_state": "descending"}
+    orb.update(orbit or {})
+    start_iso, end_iso = d.span_utc(n_lines)
+    unit = sensor.unit_from_platform(platform)
+    props = {
+        "platform": platform,
+        "constellation": "sentinel-2",
+        "instrument": "Multi Spectral Imager MSI",
+        "product:type": "S02MSIL1A",
+        "eopf:type": "S02MSIL1A",
+        "processing:level": "L1A",
+        "datetime": start_iso,
+        "start_datetime": start_iso,
+        "end_datetime": end_iso,
+        "sat:relative_orbit": orb["relative_orbit"],
+        "sat:absolute_orbit": orb["absolute_orbit"],
+        "sat:orbit_state": orb["orbit_state"],
+    }
+    root.attrs.update(
+        {
+            "stac_discovery": {
+                "type": "Feature",
+                "bbox": (footprint or {}).get("bbox"),
+                "geometry": (footprint or {}).get("geometry"),
+                "properties": props,
+            },
+            "other_metadata": {
+                "sensor_configuration": {
+                    "acquisition_configuration": {
+                        "active_detectors_list": ",".join(f"{x:02d}" for x in detectors),
+                        "spectral_band_info": sensor.spectral_band_info(unit),
+                    },
+                    "time_stamp": {
+                        "line_period": sensor.LINE_PERIOD_MS,
+                        "acquisition_epoch_utc": d.epoch_utc,
+                    },
+                },
+                "reverse_provenance": {
+                    "source_l1b": source_l1b,
+                    "materialised_from": "reverse-l1b (real L1B → L1A raw counts)",
+                    **(provenance or {}),
+                },
+            },
+        }
+    )
+    return {"output": str(out), "n_frames": len(frames), "detectors": detectors,
+            "n_lines": n_lines, "per_frame": per_frame}

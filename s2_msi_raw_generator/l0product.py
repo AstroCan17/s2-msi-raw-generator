@@ -389,6 +389,72 @@ def write_l0_product(
     return out_path
 
 
+def write_l0_decoded_product(
+    out_path: str,
+    frames: dict[FrameKey, np.ndarray],
+    *,
+    datation: Datation | None = None,
+    platform: str = "Sentinel-2B",
+    orbit: dict | None = None,
+    footprint: dict | None = None,
+    eopf_type: str = "S2MSIL0_",
+) -> str:
+    """Write decoded raw-count frames as an EOPF **L0** product mirroring the *real* ESA L0-zarr layout.
+
+    The archived EOPF L0 stores the losslessly-decompressed counts as ``measurements/d{DD}/b{BB}/img``
+    (uint16, dims ``alt,act``) plus per-band decode-quality group attrs (``decoding_error_number``,
+    ``valid_line_percentage`` …), verified against the real ``S02MSIL0__…TC7D.zarr``. This makes the
+    synthetic L0 **format-identical** to the real product for a direct array comparison (``validate-l0``);
+    the compressed as-downlinked transport lives in the sibling L0plus (:func:`write_l0_product`). Frames
+    must be uint16 ``(line, column)``.
+    """
+    if zarr is None:
+        raise ImportError("zarr is required to write L0 products")
+    from . import _zarrio
+
+    if datation is None:
+        datation = Datation()
+    detectors = sorted({det for det, _ in frames})
+    n_lines = max((dn.shape[0] for dn in frames.values()), default=1)
+    root = _zarrio.open_group_w(out_path)
+    meas = root.create_group("measurements")
+    det_groups: dict[int, object] = {}
+    for (det, bname), dn in sorted(frames.items()):
+        if dn.dtype != np.uint16:
+            raise TypeError(f"frame ({det},{bname}) must be uint16, got {dn.dtype}")
+        dg = det_groups.get(det)
+        if dg is None:
+            dg = meas.create_group(f"d{det:02d}")
+            det_groups[det] = dg
+        bg = dg.create_group(sensor.zarr_band_key(bname))
+        _zarrio.put_array(bg, "img", np.asarray(dn, dtype=np.uint16), dtype="uint16")
+        n = int(dn.shape[0])
+        bg.attrs.update(
+            {
+                "decoding_error_number": 0,
+                "decoding_error_percentage": 0.0,
+                "degraded_line_number": 0,
+                "degraded_line_percentage": 0.0,
+                "missing_line_number": 0,
+                "missing_line_percentage": 0.0,
+                "valid_line_number": n,
+                "valid_line_percentage": 100.0,
+            }
+        )
+    root.attrs.update(
+        build_root_metadata(
+            platform=platform,
+            datation=datation,
+            n_lines=n_lines,
+            active_detectors=detectors,
+            footprint=footprint,
+            orbit=orbit,
+            eopf_type=eopf_type,
+        )
+    )
+    return out_path
+
+
 def read_l0_isp_dn(path: str, det: int, bname: str) -> np.ndarray:
     """Ground decompression: canonical L0 ISP stream → the exact uint16 DN frame.
 

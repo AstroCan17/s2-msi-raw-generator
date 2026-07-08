@@ -162,3 +162,61 @@ def test_reverse_crosstalk_adds_back_within_resolution_group():
     assert np.allclose(out["B02"], 100.0 + 0.01 * 200.0)       # crosstalk added back
     assert np.allclose(out["B03"], 200.0) and np.allclose(out["B01"], 50.0)
     assert drv._reverse_crosstalk(sig, np.zeros((13, 13)))["B02"].tolist() == sig["B02"].tolist()
+
+
+# --- L1B → L1A → L0plus → L0 ladder (materialised intermediate + ESA-parity L0) --------------
+
+def _ladder_frames():
+    rng = np.random.default_rng(2)
+    return {
+        (5, "B02"): rng.integers(40, 600, size=(48, 2592), dtype=np.uint16),
+        (5, "B11"): rng.integers(40, 600, size=(48, 1296), dtype=np.uint16),
+        (6, "B02"): rng.integers(40, 600, size=(48, 2592), dtype=np.uint16),
+    }
+
+
+def test_write_l1a_product_round_trip(tmp_path):
+    """write_l1a_product persists multi-detector raw counts read back bit-identically as L1A."""
+    from s2_msi_raw_generator import import_l0, io as gio
+
+    frames = _ladder_frames()
+    out = str(tmp_path / "L1A.zarr")
+    info = import_l0.write_l1a_product(out, frames, platform="Sentinel-2B", orbit={"relative_orbit": 105})
+    assert info["detectors"] == [5, 6] and info["n_frames"] == 3
+    for (det, band), arr in frames.items():
+        assert np.array_equal(gio.read_l1a_raw(out, det, band, dtype=np.uint16), arr)
+    import zarr
+
+    p = zarr.open_group(out, mode="r").attrs["stac_discovery"]["properties"]
+    assert p["processing:level"] == "L1A" and p["product:type"] == "S02MSIL1A"
+
+
+def test_l0_decoded_product_matches_real_esa_layout(tmp_path):
+    """write_l0_decoded_product uses the real ESA L0 layout: measurements/d{DD}/b{BB}/img + decode QA."""
+    from s2_msi_raw_generator import l0product, sensor
+    import zarr
+
+    frames = _ladder_frames()
+    out = str(tmp_path / "L0.zarr")
+    l0product.write_l0_decoded_product(out, frames, platform="Sentinel-2B")
+    g = zarr.open_group(out, mode="r")
+    img = np.asarray(g[f"measurements/d05/{sensor.zarr_band_key('B02')}/img"])
+    assert np.array_equal(img, frames[(5, "B02")])
+    qa = dict(g[f"measurements/d05/{sensor.zarr_band_key('B02')}"].attrs)
+    assert qa["valid_line_percentage"] == 100.0 and qa["decoding_error_number"] == 0
+    assert g.attrs["stac_discovery"]["properties"]["processing:level"] == "L0"
+
+
+def test_ladder_l0plus_codec_round_trip(tmp_path):
+    """L1A → L0plus (CCSDS ISP) → decode is bit-exact, and the decoded L0 img equals the L1A counts."""
+    from s2_msi_raw_generator import l0product
+
+    frames = _ladder_frames()
+    l0plus = str(tmp_path / "L0plus.zarr")
+    l0product.write_l0_product(l0plus, frames, with_isp=True, store_decoded=False,
+                               platform="Sentinel-2B", eopf_type="S2MSIL0plus", jobs=1)
+    for (det, band), arr in frames.items():
+        assert np.array_equal(l0product.read_l0_isp_dn(l0plus, det, band), arr)
+    import zarr
+
+    assert zarr.open_group(l0plus, mode="r").attrs["stac_discovery"]["properties"]["product:type"] == "S2MSIL0plus"
