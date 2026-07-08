@@ -17,8 +17,11 @@
 # Software user manual
 
 **Project:** Sentinel-2 MSI Synthetic Raw Data Generator (`s2_msi_raw_generator`) · **DRD:** ECSS-E-ST-40C Rev.1 (SUM). The E2ES
-degrades a Sentinel-2 L1A/L1B product back to a synthetic L0 RAW product and provides real-data
-verification & calibration tooling.
+runs a **real Sentinel-2B L1B** backward through the **exact inverse of the operational L0→L1B
+radiometric chain** (invert offset, relative-response/PRNU, dark, un-bin, SWIR re-stage, defective,
+crosstalk, on-board-eq; MTF-deconvolution is OFF, so PSF and noise are **not** re-applied) to
+reconstruct **L1A → L0plus (CCSDS-122 ISP) → L0**. Success is the reconstructed L0 matching the real
+ESA L0 `img` (10/20 m bands ≤~4 DN). It also provides cal-DB derivation tooling.
 
 ## 1. Installation
 
@@ -51,9 +54,9 @@ every calibration product (the `S02MSIDCA`/`S02MSISCA` campaign L0s + the cal-DB
 
 | Phase set | Phases | Needs |
 |---|---|---|
-| **Nominal mode** (default; REQ-FUNC-093) | `fetch-l1a fetch-l0 preflight package ground-decode l0-decode validate radiometric-vv scan-l0 quicklook report` — real S2 product → synthetic RAW downlink | numpy+zarr; `ground-decode`/`l0-decode`/`validate` need `eopf==2.8.1` + `msi_processor` |
+| **Nominal mode** (default; REQ-FUNC-093) | `fetch-l1a fetch-l0 preflight package ground-decode l0-decode validate radiometric-vv scan-l0 quicklook report` — real S2B L1B → inverse radiometric chain → reconstructed L1A → L0plus → L0, validated vs the real ESA L0 | numpy+zarr; `ground-decode`/`l0-decode`/`validate` need `eopf==2.8.1` + `msi_processor` |
 | **Calibration mode** (`calibration`; REQ-FUNC-048) | `cal-acquire cal-package build-caldb report` — dark (DASC) + sun-diffuser (ABSR) campaign → **real downlink L0 products** `S02MSIDCA`/`S02MSISCA` + Option-Y cal-DB, all under `<store>/caldb/` | numpy+zarr only |
-| **On demand** | `derive-adf` · `figures` | numpy+zarr only |
+| **On demand** | `derive-adf` | numpy+zarr only |
 | **Data-store sync** | `fetch-store` (pull, anonymous) · `publish-store` (push, job/`glab` token) | numpy+stdlib; DB = the [ipf/data-store](https://gitlab.eopf.copernicus.eu/ipf/data-store) registry |
 
 ```bash
@@ -75,9 +78,6 @@ S2_E2ES_PHASES=build-caldb python scripts/run_pipeline.py
 
 # real per-detector PRNU (+ dark from a dark-calibration granule) → .npz for BandADF.from_product
 S2_E2ES_PHASES=derive-adf S2_E2ES_L1A=<L1A.zarr> [S2_E2ES_DARK=<dark.zarr>] python scripts/run_pipeline.py
-
-# README/docs single-band stage figures + quality metrics table
-S2_E2ES_PHASES=figures S2_E2ES_L1B=<L1B.zarr[.zip]> python scripts/run_pipeline.py
 ```
 
 Run the gated tests on real data:
@@ -97,14 +97,14 @@ S2_E2ES_GIPP_DIR=<GIPP_dir> S2_E2ES_L1A=<L1A.zarr> pytest tests/ -q
 | `S2_E2ES_PHASES` | mode's default set | comma phase list, e.g. `preflight,package` |
 | `S2_E2ES_LINES` | `0` (full) | first-N-lines window (preflight→validate, quicklook, derive-adf) |
 | `S2_E2ES_BANDS` | all 13 | band list, e.g. `B03,B04` (preflight chain, cal-acquire, derive-adf) |
-| `S2_E2ES_SEED` | `0` | RNG seed (cal-acquire, build-caldb, figures) |
+| `S2_E2ES_SEED` | `0` | RNG seed (cal-acquire, build-caldb) |
 | `S2_E2ES_NDET` | `400` | campaign / cal-DB detector width (cal-acquire, build-caldb) |
 | `S2_E2ES_CAL_LINES` | `256` | calibration-acquisition lines per frame (cal-acquire, cal-package) |
 | `S2_E2ES_JOBS` | all cores | parallel workers: per-band CCSDS-122 compress/packetize (package, cal-package), ground-decode verification, S3 fetch threads |
 | `S2_E2ES_L1A` | store download | L1A path override (preflight chain, derive-adf) |
 | `S2_E2ES_DARK` | — | dark-calibration granule (derive-adf) |
-| `S2_E2ES_GIPP_DIR` | — | operational GIPP dir (radiometric-vv, figures) |
-| `S2_E2ES_L1B` | — | real L1B for the `figures` phase |
+| `S2_E2ES_GIPP_DIR` | — | operational GIPP dir feeding the inverse-radiometric inversion / `validate` chain |
+| `S2_E2ES_L1B` | — | real S2B L1B — the nominal reverse-ladder input the chain inverts (preflight→validate) |
 | `S2_E2ES_PUBLISH_NAME` / `_VERSION` / `_LAYER` | `products` / — / `products` | publish-store package coordinates (`_VERSION` is required by the phase) |
 
 Phases are idempotent and re-runnable individually; each writes its JSON under
@@ -119,7 +119,8 @@ Phases are idempotent and re-runnable individually; each writes its JSON under
 - **Open-container L0 + cal-DB + L1B** — the processor handoff products (PSFD `_OC` suffix; ADF set
   `nuc/dark/radiometric/spectral[/noise].zarr` + calibration acquisitions `flatfield.zarr`,
   `dark.zarr:/frame`; PSFD-named L1B reflectance).
-- **V&V evidence** — per-phase JSONs + `e2e_report.md` under `<store>/report/`
-  (`radiometric-vv` = the GIPP round-trip table).
-- **Images** — `quicklook/` PNGs and the `figures` phase's stage-by-stage set
-  (`result_<band>_*.png`, committed under `docs/_static/showcase/`).
+- **V&V evidence** — per-phase JSONs + `e2e_report.md` under `<store>/report/`. The primary
+  acceptance evidence is the `validate` phase: reconstructed L0 vs the real ESA L0 `img` (10/20 m
+  bands ≤~4 DN). `radiometric-vv` is a secondary self-consistency sanity check of the inverse
+  radiometric operators.
+- **Images** — `quicklook/` PNGs (the reconstructed-L0 quicklook).

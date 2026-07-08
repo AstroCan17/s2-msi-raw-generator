@@ -23,44 +23,44 @@ The software is the single Python package `s2_msi_raw_generator` (one CSC). Modu
 
 | Module | Responsibility |
 |---|---|
-| `sensor.py` | Sentinel-2 sensor model — harvested constants: bands, GSD, physical gains, Lref/SNR, integration time, TDI/SWIR sets, per-unit SRF (centre/bandwidth/equivalent wavelength), noise model α/β, dark pedestal, EQ-gain stability, quantization. `Band` dataclass (`.dn_ref`, `.cal_gain`, `.dark_dsnu`). |
+| `sensor.py` | Sentinel-2 sensor model — harvested constants: bands, GSD, physical gains, Lref/SNR, integration time, TDI/SWIR sets, per-unit SRF (centre/bandwidth/equivalent wavelength), dark pedestal, EQ-gain stability, quantization. `Band` dataclass (`.dn_ref`, `.cal_gain`, `.dark_dsnu`). |
 | `gipp.py` | Original parser of the  operational S2A GIPP XML → per-pixel arrays: R2EQOG (dark `COEFF_D` + cubic/bilinear relative-response gains), R2DEPI (defective), BLINDP (blind), R2PARA (offsets/flags), R2CRCO (crosstalk). |
-| `adf.py` | Per-band ADF assembly:S2 PSF matrices (`data/psf/`), noise coefficients; builds `BandADF` `from_gipp` / `from_product` / `synthesize`. |
-| `forward_radiometric_atbd.py` | Original implementation of the public L1 ATBD on-ground model $Z = X - D$, $Y = G(Z)$ and its **exact inverse** — the round-trip bridge. |
-| `reverse.py` | The reverse radiometric chain — one pure-NumPy function per ATBD §5 step, plus the `reverse_mvp` / `reverse_full` chains and the exact-inverse `reverse_radiometric` / `forward_radiometric` bridge. |
+| `adf.py` | Per-band ADF assembly; builds `BandADF` `from_gipp` / `from_product` / `synthesize`. |
+| `forward_radiometric_atbd.py` | Original implementation of the public L1 ATBD on-ground model $Z = X - D$, $Y = G(Z)$; the ladder applies its **exact inverse** (re-add dark $D$, invert gain $G$) to step L1B→L1A. |
+| `reverse.py` | The radiometric inversion chain — one pure-NumPy function per ATBD §5 step, driving the `reverse_mvp` / `reverse_full` chains that reconstruct L1A→L0plus→L0 from the real L1B with MTF-deconvolution and noise off. |
 | `calibration.py` | In-flight two-reference calibration sub-set: synthesize CSM sun-diffuser + dark, derive the dark/relative-response/absolute coefficients back (inverse-crime cure). |
 | `isp.py` | S15 — CCSDS Instrument Source Packet + SAD telemetry generation. |
 | `io.py` | Lightweight `zarr` reader for EOPF L1A/L1B products (no full EOPF dependency). |
-| `l0product.py` | Assembly of the synthetic L0 RAW EOProduct Zarr (the ICD-IF-L0). |
+| `l0product.py` | Assembly of the reconstructed L0 RAW EOProduct Zarr (the ICD-IF-L0) produced by the ladder from the real L1B. |
 
 ### Data flow
-Entry is at-sensor radiance (L1B) in per-detector geometry. The full ATBD §5 reverse chain:
+Entry is a real Sentinel-2B **L1B** (digital counts, per-detector geometry). The ladder steps it
+*backwards* through the operational L0→L1B chain — the **exact inverse** of each ATBD §5 radiometric
+step — to reconstruct **L1A → L0plus → L0**. MTF-deconvolution is OFF, so the PSF is **not** re-applied
+and noise is **not** re-injected; the two forward-only stages (PSF re-blur, add noise) are absent:
 
 ```mermaid
 flowchart TD
-    IN["L1B radiance"]
-    S1["S1 · radiance→DN (DN = A·L)"]
-    S3["S3 · undo framing"]
-    S4["S4 · undo offset (−100)"]
-    S5["S5 · undo 60 m binning"]
-    S6["S6 · PSF re-blur (ESA matrices; B10 = identity)"]
-    S7["S7 · impress relative response"]
-    S8["S8 · SWIR re-arrangement (reverse)"]
-    S9["S9 · crosstalk"]
-    S10["S10 · blind/defective"]
-    S11["S11 · re-apply dark (+D)"]
-    S12["S12 · reverse onboard equalization"]
-    S13["S13 · add noise σ=√(α²+β·DN)"]
+    IN["L1B digital counts"]
+    S1["S1 · invert gain (DN = A·L)"]
+    S3["S3 · invert framing"]
+    S4["S4 · invert offset (−100)"]
+    S5["S5 · un-bin 60 m"]
+    S7["S7 · invert relative response / PRNU"]
+    S8["S8 · SWIR re-stage"]
+    S9["S9 · invert crosstalk"]
+    S10["S10 · invert blind/defective"]
+    S11["S11 · re-add dark (+D)"]
+    S12["S12 · invert onboard equalization"]
     S14["S14 · quantize 12-bit"]
-    S15["S15 · format L0 RAW (156 frames + ISP + STAC)"]
-    IN --> S1 --> S3 --> S4 --> S5 --> S6 --> S7 --> S8 --> S9 --> S10 --> S11 --> S12 --> S13 --> S14 --> S15
+    S15["S15 · format L0 (156 frames + ISP + STAC)"]
+    IN --> S1 --> S3 --> S4 --> S5 --> S7 --> S8 --> S9 --> S10 --> S11 --> S12 --> S14 --> S15
 ```
 
-The **implemented MVP execution order** (`reverse.reverse_mvp`) is `S1 → S6 → S7 → S13 → S11 → S12 →
-S14`: noise (S13) is impressed on the **signal** DN *before* the S11 dark pedestal, so $\sigma = \sqrt{\alpha^2 + \beta \cdot \mathrm{DN}_\mathrm{signal}}$
-reproduces the spec SNR@Lref exactly. `reverse_full` adds S8 (SWIR re-arrangement, reverse) and S10 (defects):
-`S1 → S6 → S7 → [S8] → S13 → S11 → S12 → [S10] → S14`. The exact-inverse bridge `reverse_radiometric`
-applies only `S1 → S7 → S11 → S12` (no PSF/noise/quantize) so it is algebraically invertible.
+The reconstructed L0 RAW is validated against the real ESA L0 `img` (10/20 m bands agree within
+≤ ~4 DN). The `reverse.reverse_mvp` / `reverse_full` chains run these inversion steps in the
+algebraically invertible order; because PSF and noise are off, no stochastic stage sits between the
+gain, relative-response/PRNU, dark and on-board-equalization inversions.
 
 ### Dependency graph
 `sensor` is the foundational leaf (no intra-package imports). `adf` and `gipp` depend on `sensor`;
@@ -96,12 +96,13 @@ flowchart LR
 ## Software dynamic architecture
 The software is a synchronous library, not a long-running service: a caller reads an L1A/L1B frame
 (`io`), builds a per-band ADF (`adf.from_gipp` / `synthesize`), runs the reverse chain (`reverse`) and
-assembles the L0 product (`l0product`). The round-trip V&V and calibration sub-set are driven by the
-`scripts/` entry points. There is no internal concurrency requirement; frames are independent and may be
+assembles the L0 product (`l0product`). Validation of the reconstructed L0 against the real ESA L0 `img`
+and the calibration sub-set are driven by the `scripts/` entry points. There is no internal concurrency requirement; frames are independent and may be
 processed in any order (embarrassingly parallel per detector/band).
 
 ## Software behaviour
-Deterministic for a fixed RNG seed (REQ-QUAL-004). Errors are raised as explicit Python exceptions
+Fully deterministic (REQ-QUAL-004): the ladder uses no RNG because noise is not re-applied, so a given
+L1B always yields the same L0. Errors are raised as explicit Python exceptions
 (unknown band/unit → `KeyError`; wrong dtype into the L0 writer → `TypeError`). Saturated/no-data pixels
 are flagged in the quality masks; the dark pedestal and per-pixel coefficients come from the GIPP
 when supplied, else fall back to the published DQR/datasheet values.

@@ -22,10 +22,15 @@ This Software Design Document (SDD) describes the architecture and detailed desi
 **ECSS-E-ST-40C Rev.1** (SDD DRD), tailored for a single Configuration Software Component (CSC).
 
 ## Objective
-Define how the software realizes the reverse radiometric chain (ATBD §5, steps S1–S15) that degrades a
- Sentinel-2 **L1A/L1B** product back to a synthetic **L0 RAW** product, so that the requirements in
-the SRS are met and verifiable. The design also supports the radiometric **round-trip V&V** (forward
-correct ∘ reverse impress) and the in-flight **calibration sub-set** (inverse-crime cure).
+Define how the software **inverts** the operational Sentinel-2 L0→L1B radiometric correction chain,
+running a real Sentinel-2B **L1B** product backwards through the exact inverse of each operational step
+— undoing offset, relative-response/PRNU, dark, un-binning, SWIR re-staging, defective-pixel, crosstalk
+and on-board equalisation — to reconstruct **L1A → L0plus → L0**. MTF-deconvolution is OFF, so PSF and
+noise are **not** re-applied. Success is validated against the real ESA **L0 'img'** (reconstructed L0
+DN agrees within ≤ ~4 DN on the 10/20 m bands), so that the requirements in the SRS are met and
+verifiable. The design also supports the in-flight **calibration sub-set** (inverse-crime cure). The
+inversion stages correspond to the ladder steps of ATBD §5 (exact numbering per the ATBD §5 stage
+listing).
 
 ## Scope
 Covers the static architecture (the `s2_msi_raw_generator` Python package and its modules), the dynamic data flow of

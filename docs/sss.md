@@ -24,14 +24,19 @@ Annex B (SSS). System-level requirements (SYS-NNN) are refined into the software
 
 ### 1.1 Purpose
 Specify, at system level, the **reverse End-to-End performance Simulator (E2ES)** of the Sentinel-2 MSI:
-a ground software system that degrades a real Sentinel-2 **L1A/L1B** product back to a synthetic
-**L0 RAW** product carrying the true instrument effects, so that the forward `msi-processor` chain can be
-exercised and validated end-to-end when true Sentinel-2 L0 data is unavailable.
+a ground software system that runs a real Sentinel-2B **L1B** product backwards through the **exact
+inverse of the operational L0→L1B radiometric chain** — inverting offset, relative-response/PRNU, dark,
+un-bin, SWIR re-stage, defective, crosstalk and on-board-equalization, with MTF-deconvolution OFF so
+PSF and noise are **not** re-applied — to reconstruct its **L1A → L0plus → L0 RAW**. The reconstructed
+L0 is validated against the real ESA L0 `img` (10/20 m bands ≤ ~4 DN), so that the forward `msi-processor`
+chain can be exercised and validated end-to-end when true Sentinel-2 L0 data is unavailable.
 
 ### 1.2 Scope
 One Computer Software Configuration Item (CSCI): the Python package `s2_msi_raw_generator` with its
-driver scripts. Radiometric-only reverse chain (ATBD §5, steps S1–S15); geometry inversion is cancelled
-(not applicable to an L1A/L1B entry). This SSS is deliberately compact for a single-CSC system — the
+driver scripts. Radiometric-only reverse ladder (ATBD §5): the invert steps of the operational
+L0→L1B chain (invert offset, relative-response/PRNU, dark, un-bin, SWIR re-stage, defective, crosstalk,
+on-board-equalization); geometry inversion is cancelled (L1B entry, not applicable). This SSS is
+deliberately compact for a single-CSC system — the
 requirement mass lives in the [SRS](srs.md); tailoring is recorded in the [SDP](sdp.md).
 
 ### 1.3 Applicable & reference documents
@@ -47,18 +52,21 @@ requirement mass lives in the [SRS](srs.md); tailoring is recorded in the [SDP](
 ## 2. General description
 
 ### 2.1 System context
-The system is the **forward-instrument conjugate** of the `msi-processor` (the EOPF Sentinel-2 MSI
-processing prototype). Where the processor *inverts* instrument effects, this system *impresses* them:
+The system runs the operational Sentinel-2 MSI radiometric chain **backwards**: where the `msi-processor`
+(the EOPF Sentinel-2 MSI processing prototype) inverts instrument effects L0→L1B, this system applies the
+**exact inverse of that same chain** L1B→L0, reconstructing the L1A → L0plus → L0 by inverting each
+operational step (PSF and noise are not re-applied):
 
 ```mermaid
 flowchart LR
-  L1A["Real L1A/L1B<br/>(EOPF Zarr, public bucket)"] --> GEN["s2_msi_raw_generator<br/>reverse chain S1–S15"]
-  GIPP["Operational GIPP<br/>PSF / SRF / noise model"] --> GEN
-  GEN --> L0C["Canonical L0<br/>(CCSDS-122 compressed ISPs)"]
+  L1B0["Real L1B<br/>(EOPF Zarr, public bucket)"] --> GEN["s2_msi_raw_generator<br/>reverse ladder: invert offset / PRNU /<br/>dark / un-bin / SWIR / defective /<br/>crosstalk / on-board-eq · PSF+noise OFF"]
+  GIPP["Operational GIPP / SRF<br/>dark · PRNU · offset · defective · crosstalk"] --> GEN
+  GEN --> L1Ar["Reconstructed L1A"]
+  L1Ar --> L0P["L0plus<br/>(CCSDS-122 ISPs)"]
+  L0P --> L0C["Canonical L0<br/>(CCSDS-122 compressed ISPs)"]
   GEN --> L0O["Open-container L0"]
   L0O --> PROC["msi-processor<br/>l0_decode → radiometric → toa"]
-  PROC --> L1B["L1A′ / L1B products"]
-  L1B -. "bit-identity / round-trip V&V" .-> L1A
+  L0C -. "compare reconstructed L0 vs real ESA L0 img (≤ ~4 DN)" .-> ESA["Real ESA L0 img"]
 ```
 
 External actors: the public Sentinel-2 sample-data S3 bucket (inputs), the EOPF Sample Data Environment
@@ -66,14 +74,16 @@ External actors: the public Sentinel-2 sample-data S3 bucket (inputs), the EOPF 
 L0 and the calibration-database ADFs), and the GitLab platform (CI, Pages, package registry).
 
 ### 2.2 General capabilities
-1. **L0 RAW generation** — reconstruct a focal-plane L0 (12 detectors × 13 bands, 12-bit DN) from an
-   L1A/L1B entry, impressing PSF blur, relative response/PRNU, dark signal, onboard equalization, noise,
-   defects, SWIR arrangement and quantization from real S2B-sourced ADFs.
+1. **L0 RAW generation** — reconstruct a focal-plane L1A→L0plus→L0 (12 detectors × 13 bands, 12-bit DN)
+   from a real L1B entry by **inverting** relative-response/PRNU, dark, offset, on-board equalization,
+   crosstalk, defective, un-bin and SWIR re-stage from real S2B-sourced ADFs, then quantizing to 12-bit
+   DN. PSF (MTF-deconvolution) and sensor noise are **not** re-applied.
 2. **Downlink-representative packaging** — carry the image data as CCSDS-122-lossless-compressed
    payloads in real CCSDS space packets (canonical L0), with a bit-exact ground decode; emit the
    open-container L0 the `msi-processor` ingests.
-3. **Round-trip V&V** — prove `forward_correct ∘ reverse_impress` exactness on real L1A DN with the
-   operational GIPP, and L1A′ ≡ L1A bit-identity through the full package → decode → `l0_decode` chain.
+3. **L0-vs-real-ESA-L0 validation + codec transparency** — validate the reconstructed L0 against the
+   real ESA L0 `img` (10/20 m bands ≤ ~4 DN), and demonstrate packaging/codec transparency:
+   `decode(L0plus) == L1A` bit-exact and L1A′ ≡ L1A through the full package → decode → `l0_decode` chain.
 4. **Calibration sub-set** — derive dark/relative-response/absolute coefficients from synthetic CSM
    sun-diffuser + dark acquisitions (inverse-crime cure).
 
@@ -91,8 +101,8 @@ full-frame runs on the EOPF SDE. Products and reports are published through GitL
 package registry).
 
 ### 2.5 Assumptions and dependencies
-- The public bucket L1A is DN-scaled (not physically-calibrated radiance); absolute-radiometry checks use
-  round-trip self-consistency with the GIPP (SRN §4).
+- The public bucket L1B is DN-scaled (not physically-calibrated radiance); radiometric correctness is
+  checked by comparing the reconstructed L0 against the real ESA L0 `img` (10/20 m bands ≤ ~4 DN).
 - The real PSD L0 SAFE image-ISP `.bin` objects are GET-403 under the bucket policy; real image-packet
   accounting is therefore informative-only (see [Real-L1A E2E validation](vv/real_e2e.md), Known limits).
 
@@ -100,11 +110,12 @@ package registry).
 
 System-level requirements; each is refined by the listed SRS requirements, where it is verified.
 
-- **SYS-01 — Reverse E2ES function.** *The system shall generate a synthetic Sentinel-2 MSI L0 RAW
-  product from a real L1A/L1B entry, impressing the instrument effects the forward processor removes.*
-  → REQ-FUNC-010…022 (chain), REQ-FUNC-030…034 (product). **V: T**.
-- **SYS-02 — Real-ADF fidelity.** *All radiometric instrument characteristics impressed by the system
-  shall originate from real S2B-published data (PSF, SRF, noise model, operational GIPP).*
+- **SYS-01 — Reverse E2ES function.** *The system shall reconstruct L1A→L0plus→L0 from a real Sentinel-2B
+  L1B by inverting the operational L0→L1B radiometric chain (PSF/noise not re-applied).*
+  → REQ-FUNC-010/012/013/015/016/017/018/019/020/022 (invert chain), REQ-FUNC-030…034 (product). **V: T**.
+- **SYS-02 — Real-ADF fidelity.** *All radiometric instrument characteristics inverted by the system
+  shall originate from real S2B-published data (dark, PRNU, offset, defective, crosstalk from the
+  operational GIPP, plus SRF).*
   → REQ-FUNC-015/046, REQ-FUNC-044 (fallback flagged as such). **V: T/I**.
 - **SYS-03 — Processor interoperability.** *The system's L0 outputs shall be consumable by the
   `msi-processor` without modification of that processor.* → REQ-FUNC-042, REQ-IF-002. **V: T/I**.
@@ -112,9 +123,9 @@ System-level requirements; each is refined by the listed SRS requirements, where
   band data as losslessly compressed payloads in CCSDS space packets, ground-decodable bit-exactly.*
   → REQ-FUNC-092. **V: T**.
 - **SYS-05 — End-to-end verifiability.** *The system shall demonstrate, on real data, that its packaging
-  and the processor's decode are exactly transparent to the science data (L1A′ ≡ L1A on kept lines) and
-  that its radiometric model is exactly invertible (round-trip RMSE → 0).* → REQ-FUNC-093, REQ-PERF-003.
-  **V: T/I** (authoritative SDE run, 2026-07-02: 13/13 bit-identical, RMSE ≈ 1e-14).
+  and the processor's decode are exactly transparent to the science data (L1A′ ≡ L1A on kept lines, via
+  the L0plus codec round-trip) and that the reconstructed L0 matches the real ESA L0 `img` (10/20 m bands
+  ≤ ~4 DN).* → REQ-FUNC-093. **V: T/I**.
 - **SYS-06 — Product identification.** *Every emitted product shall carry a unique, parseable
   identification per the EOPF PSFD §3 coding system (ECSS-M-ST-40C identification requirement).*
   → REQ-FUNC-091. **V: T**.

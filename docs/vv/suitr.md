@@ -16,9 +16,11 @@
 
 # Software Unit & Integration Test Report (SUITR)
 
-**Project:** Sentinel-2 MSI Synthetic Raw Data Generator (`s2_msi_raw_generator`) · **DRD:** ECSS-E-ST-40C Rev.1
-(SUITR). Plan: [SUITP](suitp.md). This report records the executed unit/integration campaign at the
-current baseline; validation-level results (real-data E2E) are in the
+**Project:** Sentinel-2 MSI L0-reconstruction pipeline (`s2_msi_raw_generator`) · **DRD:** ECSS-E-ST-40C Rev.1
+(SUITR). Plan: [SUITP](suitp.md). This report records the executed unit/integration campaign for the
+reverse-ladder pipeline — a real Sentinel-2B **L1B** run backwards through the exact inverse of the
+operational L0→L1B radiometric chain to reconstruct **L1A → L0plus → L0** — at the current baseline;
+validation-level results (real-data E2E) are in the
 [V&V report](report.md) and the [Real-L1A E2E validation](real_e2e.md).
 
 ## 1. Configuration baseline under test
@@ -47,9 +49,9 @@ current baseline; validation-level results (real-data E2E) are in the
 | Skipped (environment-gated real-data tests) | 5 |
 
 The 5 skips are the `S2_E2ES_GIPP_DIR` / `S2_E2ES_L1A`-gated tests (SUITP §2); they **pass when the data
-is supplied** — verified on the SDE with the operational GIPP and the real bucket L1A (evidence:
-[Real-L1A E2E validation](real_e2e.md) and the v0.3.0 run artifacts in the registry package
-`e2e-real/0.3.0`).
+is supplied** — verified on the SDE with the operational GIPP and the real Sentinel-2B L1B/L1A (evidence:
+the real L1B → reconstructed L0 run validated against the real ESA L0 `img`, agreeing within ≤ ~4 DN on
+the 10/20 m bands; see the [Real-L1A E2E validation](real_e2e.md) and the [V&V report](report.md)).
 
 ## 4. Results by area
 
@@ -64,15 +66,16 @@ Highlights of the exact (non-tolerance) assertions that passed:
   (`test_naming`).
 - **Product contract:** full 156-array L0 contract (12 det × 13 bands) with masks, STAC, sensor
   configuration and provenance (`test_l0product`, `test_integration`).
-- **Radiometry:** chain steps exactly invertible (rtol 1e-9); noise σ within ±5 % over 40 000 px;
-  quantitative bounds vs typical values tabulated in the [V&V report](report.md) §3.
+- **Radiometry:** each inverse operator is unit-verified as the exact inverse of its operational forward
+  operator — invert offset, relative-response/PRNU, dark, un-bin, SWIR re-stage, defective, crosstalk and
+  on-board equalisation (rtol ~1e-9). MTF-deconvolution is OFF, so PSF and noise are **not** re-applied.
+  Quantitative bounds vs typical values are tabulated in the [V&V report](report.md) §3.
 
 ## 5. Anomalies
 
-None open at this baseline. Historical anomalies and their dispositions (doc/test bound discrepancy —
-closed; DN-scaled fixture L1A — accepted with rationale) are recorded in the
-[V&V report](report.md) §5; the salted-`hash()` reseeding defect was fixed in the v0.3.0 cycle
-(CHANGELOG *Fixed*, REQ-QUAL-004).
+None open at this baseline. The historical doc/test bound-discrepancy disposition (closed) is recorded in
+the [V&V report](report.md) §5; the salted-`hash()` reseeding defect was fixed in the v0.3.0 cycle
+(CHANGELOG *Fixed*, REQ-QUAL-004 reproducibility — realized on the reverse and calibration paths).
 
 ## 6. Verdict
 

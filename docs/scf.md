@@ -16,18 +16,24 @@
 
 # Software configuration file
 
-ECSS-E-ST-40C Rev.1. This SCF records the as-built configuration of the Sentinel-2 MSI Synthetic Raw Data Generator.
+ECSS-E-ST-40C Rev.1. This SCF records the as-built configuration of `s2_msi_raw_generator`, the SW config
+item that runs a real Sentinel-2B L1B backwards through the exact inverse of the operational L0→L1B
+radiometric chain to reconstruct L1A → L0plus → L0.
 
 ## Introduction
 
 The Software Configuration File documents the inventory, baseline, build means and known issues of the
-`s2_msi_raw_generator` software configuration item, so that the delivered package can be rebuilt and run reproducibly.
+`s2_msi_raw_generator` software configuration item, so that the delivered package can be rebuilt and run
+reproducibly. The item inverts the operational radiometric chain step by step (invert offset,
+relative-response/PRNU, dark, un-bin, SWIR re-stage, defective, crosstalk, on-board-eq); MTF-deconvolution
+is OFF, so PSF and noise are not re-applied. Success is the reconstructed L0 'img' matching the real ESA L0
+(10/20 m bands ≤ ~4 DN).
 
 ## Software configuration item overview
 
 | Field | Value |
 |-------|-------|
-| Name | Sentinel-2 MSI Synthetic Raw Data Generator |
+| Name | Sentinel-2 MSI L1B → L1A/L0plus/L0 reverse reconstruction |
 | Package | `s2_msi_raw_generator` |
 | Version | `0.3.0` (`s2_msi_raw_generator/__init__.py`) |
 | Repository | `gitlab.eopf` `ipf/s2-msi-raw-generator`, branch `main` |
@@ -77,15 +83,19 @@ referenced by configurable paths (not bundled), e.g. `data/gipp` and `data/PDI_M
 
 ## Change list
 
-See `CHANGELOG.md`. Increments 0–4 delivered the S1–S15 reverse chain, PSF/SRF ADFs and the L0 RAW
-assembly; increment 5 adopted the official ATBD raw model and the product noise model; increment 6
-added the operational-GIPP per-pixel ADFs; increment 7 the round-trip V&V; increment 8 the calibration
-sub-set; the documentation increment delivered the ECSS DRD set.
+See `CHANGELOG.md`. Increments 0–4 delivered the S1–S15 reverse inversion chain, PSF/SRF ADFs and the
+L0 product assembly; increment 5 aligned the per-step inversion with the operational radiometric chain
+(the same chain the ladder reruns backwards, with MTF-deconvolution OFF); increment 6 added the
+operational-GIPP per-pixel ADFs; increment 7 the L0plus codec round-trip check (decode(L0plus)==L1A,
+bit-exact) and L0 'img' validation against the real ESA L0 (10/20 m ≤ ~4 DN); increment 8 the calibration
+sub-set (cal-DB / PRNU-dark derivation); the documentation increment delivered the ECSS DRD set.
 
 ## Possible problems and known errors
 
-- The bundled / referenced test L1A (`PDI_MSI_S2_L1A`) is a **DN-scaled CPM fixture**, not physically
-  calibrated radiance — suitable for structure and round-trip verification, not for absolute radiometry.
+- The operational input is a real Sentinel-2B **L1B**, and the reconstructed L0 'img' is validated against
+  the real ESA L0 (10/20 m bands ≤ ~4 DN). Where a **DN-scaled CPM fixture** L1A (`PDI_MSI_S2_L1A`) is used
+  instead, it is not physically calibrated radiance — suitable for structure checks and for the L0plus codec
+  round-trip (decode(L0plus)==L1A is bit-exact), not for absolute radiometry.
 - The operational **GIPP** and **L1A** are not stored in the repository (size / provenance); supply
   them via the configurable path arguments / environment variables (`S2_E2ES_GIPP_DIR`, `S2_E2ES_L1A`).
 - L1C entry + geometry reverse is **cancelled** (not applicable to an L1A/L1B entry); a few requirements

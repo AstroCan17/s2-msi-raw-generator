@@ -16,30 +16,38 @@
 
 # Requirements to design traceability
 
-Each requirement from the SRS (`docs/srs.md`) is traced to its design component, code, test, verification
-method (T/A/I/R) and status. Verification details and quantitative results are in the V&V report
-(`docs/vv/report.md`).
+`s2_msi_raw_generator` reconstructs **L1A -> L0plus -> L0** by running a real Sentinel-2B L1B backwards
+through the exact inverse of the operational L0->L1B radiometric chain; success is the reconstructed L0
+matching the real ESA L0 `img` (10/20 m bands <=~4 DN). Each requirement from the SRS (`docs/srs.md`) is
+traced to its design component, code, test, verification method (T/A/I/R) and status. Verification details
+and quantitative results are in the V&V report (`docs/vv/report.md`).
 
 ## Functional requirements
+
+The rows below trace the reverse radiometric ladder: descending a real L1B through the exact inverse of the
+operational L0->L1B chain (invert gain/offset, relative response / PRNU, dark, un-bin, SWIR re-stage,
+defective, crosstalk, on-board equalization) to reconstruct L1A -> L0plus (CCSDS-122 ISP) -> L0.
+MTF-deconvolution is OFF, so PSF and noise are intentionally **not** re-applied (REQ-FUNC-014 and
+REQ-FUNC-021 retired below).
 
 | REQ ID | Requirement | Design (module) | Code | Test | Method | Status |
 |---|---|---|---|---|---|---|
 | REQ-FUNC-001 | Accept L1A/L1B inputs | io | `io.read_l1b_band`, `read_l1a_raw` | `test_roundtrip_atbd`, `test_real_data` | T | realized |
 | REQ-FUNC-003 | Per-unit (S2A/B/C) support | sensor | `sensor.unit_from_platform` | `test_real_data` | T | realized |
 | REQ-FUNC-005 | Reject unsupported inputs | sensor | `sensor.band` (KeyError) | `test_real_data` | T | realized |
-| REQ-FUNC-010 | Inverse absolute calibration (S1) | reverse, sensor | `reverse.s1_radiance_to_dn`, `Band.cal_gain` | `test_reverse`, `test_real_data` | T | realized |
+| REQ-FUNC-010 | Invert absolute calibration (DN-domain gain/offset) — radiometric entry of the reverse ladder | reverse, sensor | `reverse.s1_radiance_to_dn`, `Band.cal_gain` | `test_reverse`, `test_real_data` | T | realized |
 | REQ-FUNC-011 | Reverse scene framing (S3) | reverse | `reverse.s3_undo_framing` | `test_inc3_steps` | T | realized |
 | REQ-FUNC-012 | Remove radiometric offset (S4) | reverse, gipp | `reverse.s4_undo_radiometric_offset` | `test_inc3_steps` | T | realized |
 | REQ-FUNC-013 | Reverse 60 m binning (S5) | reverse | `reverse.s5_unbin` | `test_inc3_steps` | T | realized |
-| REQ-FUNC-014 | PSF re-blur (S6) | adf, reverse | `adf.real_psf_kernel`, `reverse.s6_psf_reblur` | `test_reverse`, `test_real_data` | T | realized |
-| REQ-FUNC-015 | Impress relative response / PRNU (S7) | forward_radiometric_atbd, adf, gipp | `inverse_equalize`, `adf.from_gipp`, `reverse.s7_impress_relative_response` | `test_roundtrip_atbd`, `test_gipp` | T | realized |
+| REQ-FUNC-014 | PSF re-blur — **retired** (reverse ladder runs with MTF-deconvolution OFF; PSF is not re-applied) | — | — | — | — | retired |
+| REQ-FUNC-015 | Re-apply relative response / PRNU when descending L1B->L0 | reverse, adf, gipp | `reverse.s7_impress_relative_response`, `adf.from_gipp`, `gipp` | `test_gipp`, `test_real_data` | T | realized |
 | REQ-FUNC-016 | Restore SWIR arrangement (S8) | reverse | `reverse.s8_restage_swir` | `test_inc3_steps`, `test_integration` | T | realized |
 | REQ-FUNC-017 | Re-apply crosstalk (S9) | reverse, gipp | `reverse.s9_apply_crosstalk`, `gipp.read_r2crco` | `test_inc3_steps`, `test_gipp` | T | realized |
 | REQ-FUNC-018 | Re-insert blind/defective (S10) | reverse, gipp | `reverse.s10_inject_defects`, `gipp.read_r2depi`/`read_blindp` | `test_inc3_steps`, `test_integration` | T | realized |
 | REQ-FUNC-019 | Re-apply dark signal (S11) | reverse, gipp | `reverse.s11_reapply_dark`, GIPP `COEFF_D` | `test_gipp`, `test_calibration` | T | realized |
 | REQ-FUNC-020 | Reverse onboard equalization (S12) | reverse | `reverse.s12_reapply_onboard_eq` | `test_reverse` | T | realized |
-| REQ-FUNC-021 | Add sensor noise (S13) | reverse, sensor | `reverse.s13_add_noise`, `sensor.NOISE_ALPHA/BETA` | `test_reverse::test_noise_sigma_matches_model_within_5pct` | T | realized |
-| REQ-FUNC-022 | Quantize to 12-bit (S14) | reverse | `reverse.s14_quantize` | `test_reverse` | T | realized |
+| REQ-FUNC-021 | Add sensor noise — **retired** (noise is not re-introduced in the reverse ladder) | — | — | — | — | retired |
+| REQ-FUNC-022 | Cast reconstructed L0 to 12-bit DN (final integer cast, part of L0 assembly) | reverse | `reverse.s14_quantize` | `test_reverse` | T | realized |
 | REQ-FUNC-030 | L0 RAW EOProduct (Zarr) | l0product | `l0product.write_l0_product` | `test_l0product` | T | realized |
 | REQ-FUNC-031 | 156 measurement arrays | l0product | `write_l0_product` | `test_l0product::test_full_156_array_contract` | T | realized |
 | REQ-FUNC-032 | 156 quality masks | l0product | `write_l0_product` | `test_l0product` | T | realized |
@@ -60,7 +68,7 @@ method (T/A/I/R) and status. Verification details and quantitative results are i
 | REQ-FUNC-048 | Calibration-campaign L0 products (DASC/ABSR) | calibration, caldb, l0product, scripts | `phase_cal_acquire`/`phase_cal_package`/`caldb.derive_from_acquisitions`; PSFD `S02MSIDCA`/`S02MSISCA` | `test_cal_mode` | T | realized |
 | REQ-FUNC-091 | PSFD §3 product naming (ICD-IF-NAME) | `naming.py` | `test_naming`, `test_real_e2e_driver` | realized |
 | REQ-FUNC-092 | CCSDS-122 compressed ISP payloads + ground decode | `ccsds122.py`, `isp.py`, `l0product.py` | `test_ccsds122`, `test_isp_packetize`, `test_isp`, `test_integration` | realized |
-| REQ-FUNC-093 | Real-L1A E2E validation driver + report | `scripts/run_pipeline.py`, `s3fetch.py` | `test_real_e2e_driver`; SDE run (`docs/vv/real_e2e.md`) | realized |
+| REQ-FUNC-093 | Reverse-ladder real-L1B E2E: reconstruct L1A->L0plus->L0 from a real S2B L1B and validate against the real ESA L0 `img` (10/20 m bands <=~4 DN); L0plus codec round-trip (`decode(L0plus)==L1A`) kept as an internal check | `scripts/run_pipeline.py`, `s3fetch.py` | `test_real_e2e_driver`; SDE run (`docs/vv/real_e2e.md`) | realized |
 | REQ-FUNC-043 | Credentialed ADF API | — | — | — | — | deferred |
 | REQ-FUNC-053 | Configurable PU orchestration | — | — | — | — | deferred |
 | REQ-FUNC-062 | Dask distribution | — | — | — | — | deferred |
@@ -70,10 +78,11 @@ method (T/A/I/R) and status. Verification details and quantitative results are i
 
 | REQ ID | Requirement | Design | Code | Test | Method | Status |
 |---|---|---|---|---|---|---|
-| REQ-PERF-001 | Noise $\sigma$ within ±5 % over $\ge 10^4$ px | reverse | `s13_add_noise` | `test_reverse::test_noise_sigma_matches_model_within_5pct` | T | realized |
-| REQ-PERF-002 | SNR@Lref fidelity | sensor, reverse | `Band.cal_gain`, `s13_add_noise` | `test_real_data` | T,A | realized |
-| REQ-PERF-003 | Round-trip exactness ($\mathrm{RMSE} \to 0$) | forward_radiometric_atbd | `forward_correct`/`reverse_impress` | `test_roundtrip_atbd`, pipeline phase `radiometric-vv` | T | realized |
+| REQ-PERF-001 | Noise $\sigma$ within ±5 % — **retired** (no noise model is impressed in the reverse ladder) | — | — | — | — | retired |
+| REQ-PERF-002 | SNR@Lref fidelity — **retired** (measured against the injected noise model; noise not re-applied) | — | — | — | — | retired |
+| REQ-PERF-003 | Round-trip exactness (RMSE $\to 0$) — **retired** (L1A forward exact-inverse round-trip; superseded by reverse-ladder L0 validation, REQ-PERF-005) | — | — | — | — | retired |
 | REQ-PERF-004 | Calibration recovery accuracy | calibration | `calibrate` | `test_calibration` | T | realized |
+| REQ-PERF-005 | Reconstructed L0 DN agrees with the real ESA L0 `img` within <=~4 DN on the 10/20 m bands | reverse, l0product | reverse ladder + `write_l0_product` | `test_real_e2e_driver`; `docs/vv/real_e2e.md` | T,A | realized |
 
 ## Interface requirements
 
@@ -90,4 +99,4 @@ method (T/A/I/R) and status. Verification details and quantitative results are i
 | REQ-QUAL-001 | Minimal dependencies | (packaging) | `pyproject.toml` | — | I | realized |
 | REQ-QUAL-002 | Test coverage & CI | (all) | `tests/`, `.gitlab-ci.yml` | 201 tests (v0.3.0) | T | realized |
 | REQ-QUAL-003 | Originality (no external-processor source) | (all) | repo | grep | I,R | realized |
-| REQ-QUAL-004 | Reproducibility (seeded RNG) | reverse, calibration | `np.random.default_rng(seed)` | `test_*` | T | realized |
+| REQ-QUAL-004 | Reproducibility (deterministic output; crc32 checks) | reverse, calibration | crc32 determinism checks | `test_*` | T | realized |
