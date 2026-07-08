@@ -29,3 +29,13 @@ docs/api/
 .claude/
 CLAUDE.md
 graphify-out/
+
+# Secrets / credentials (never commit)
+secrets.json
+.eopf/
+*.pem
+*.key
+id_rsa*
+.netrc
+.aws/
+.env
