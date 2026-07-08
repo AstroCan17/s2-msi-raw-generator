@@ -166,13 +166,19 @@ crop. Validated on the real **2024-04-08 S2B PPB** L0/L1B pair (detector d05):
 False`). L1B therefore keeps the full instrument PSF, so PSF re-blur (S6) and noise (S13) are **not**
 re-applied — they would double-count (both are non-invertible anyway). See `docs/dpm/parameters-data-list.md`.
 
-**Synthetic L0 (CCSDS-decoded) vs original ESA L0 — all 13 bands ≤ 3 DN, drift 0:**
+**Synthetic L1A vs original ESA L0 `img` — all 13 bands, detector d05, framing-aligned (drift 0):**
 
-| band | B02 | B03 | B04 | B08 | B8A | B11 | B12 |
-|---|---|---|---|---|---|---|---|
-| RMSE (DN) | 0.8 | 1.5 | 1.8 | 0.8 | 1.1 | **2.9** | **3.0** |
+| band | B01 | B02 | B03 | B04 | B05 | B06 | B07 | B08 | B8A | B09 | B10 | B11 | B12 |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| RMSE (DN) | *149.6* | 0.8 | 1.5 | 1.8 | 1.1 | 1.0 | 0.9 | 0.8 | 1.1 | *96.9* | *22.0* | **4.2** | **3.9** |
+| resolution | 60 m | 10 m | 10 m | 10 m | 20 m | 20 m | 20 m | 10 m | 20 m | 60 m | 60 m | 20 m | 20 m |
 
-![Full-chain reverse — synthetic vs original ESA L0 (B03/B08/B11/B12); the difference panels are flat to a few DN](docs/_static/showcase/reverse_l1b_fullchain.png)
+All **ten 10 m + 20 m bands agree to ≤ ~4 DN**. The three *native-60 m* bands (**B01/B09/B10**, italic) have
+higher RMSE because the reverse un-bin is a ×3 line replication — the sub-pixel detail the forward 60 m
+binning averaged away is **irrecoverable** (median offsets stay small: 0.7–5.9 %). Regenerate the table +
+figure with `scripts/reverse_compare_figure.py`.
+
+![Full-chain reverse — synthetic vs original ESA L0, all 13 bands (synthetic | real | diff); the diff panels are flat to a few DN for the 10/20 m bands, textured for the three 60 m bands](docs/_static/showcase/reverse_l1b_allbands.png)
 
 The **S8 SWIR re-arrangement** is decisive for B11/B12 — re-introducing the staggered detector readout
 drops their residual from ~50 DN of stripe texture to ~3 DN (the diff panels go from noisy to flat):
