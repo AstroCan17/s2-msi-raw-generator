@@ -103,7 +103,20 @@ SEQ_FIRST/CONT/LAST grammar), `build_sad_packets()`; `frame_isp_headers()` is le
 `read_l1b_band()`, `read_l1a_raw()`.
 
 ### l0product.py — L0 RAW assembly (REQ-FUNC-030..-034, -045; REQ-IF-002)
-`reverse_to_l0_frames()`, `build_root_metadata()`, `write_l0_product()`.
+`reverse_to_l0_frames()`, `build_root_metadata()`, `write_l0_product()` (L0plus — CCSDS ISP + ancillary,
+`eopf_type` selectable), **`write_l0_decoded_product()`** (decompressed-`img` L0 mirroring the real ESA
+`S02MSIL0__` layout — `measurements/d{DD}/b{BB}/img` + decode-quality attrs, for a direct real-L0 compare),
+`read_l0_isp_dn()`.
+
+### import_l0.py — L1A materialisation + public-L0 import (REQ-FUNC-001, -045)
+`read_public_l0_identity()`, `convert()` (public L0 → PDI-style L1A), **`write_l1a_product()`** — the
+reverse ladder's materialised L1A writer: multi-detector raw counts → `measurements/DD{dd}/{BAND}/l1a_raw_image`
++ L1A STAC, serial (NFS-safe) with a bit-identical re-read assert. Consumed back by `io.read_l1a_raw()`.
+
+The reverse ladder (`run_pipeline` phases) is **`reverse-l1b` → `package-l0` → `validate-reverse`**:
+reconstruct real L1B → materialise L1A, then L1A → L0plus (ISP) → L0 (decoded img), then compare the
+synthetic L1A against the real ESA L0 `img` (framing-aligned; no decoding — the archived EOPF L0 already
+stores decompressed `img`, verified on the 2024-04-08 TC7D granule).
 
 ## Software components design — Aspects of each component
 All components are stateless functions or frozen dataclasses operating on NumPy arrays; the only I/O is in

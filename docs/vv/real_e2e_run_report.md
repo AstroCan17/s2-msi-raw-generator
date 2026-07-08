@@ -4,26 +4,40 @@
 - Products: `S02MSIL0__20240403T102415_0033_A045_TC42.zarr` / `S02MSIL0__20240403T102415_0033_A045_TC42_OC.zarr` / `S02MSIL1A_20240403T102415_0033_A045_T6DE.zarr`
 - Naming fallbacks: ['datetime', 'sat:relative_orbit', 'platform']
 
-## Reverse L1B → L0 (full chain) — 2024-04-08 S2B PPB
+## Reverse L1B → L1A → L0plus → L0 (full ladder) — 2024-04-08 S2B PPB
 
 The exact inverse of the *full* operational L0→L1B radiometric chain
-(`forward_radiometric_atbd.reverse_l1b_to_l0`), validated against the **real S2B L0/L1B pair** for the
-2024-04-08 PPB datatake (detector d05, all 13 bands). The synthetic L0 is written as CCSDS-122 + ISP,
-**decoded back** (`read_l0_isp_dn`) and compared to the original ESA L0 after framing alignment
-(ADF_PRDLO `begin_nb_lines_to_cut` per band/detector) — a true round-trip through the L0 product, not
-the in-memory array.
+(`forward_radiometric_atbd.reverse_l1b_to_l0`), materialised as the full EOPF product ladder
+(`reverse-l1b` → **L1A** raw counts; `package-l0` → **L0plus** CCSDS ISP + ancillary → **L0** decoded
+`img`), validated against the **real S2B L0/L1B pair** for the 2024-04-08 PPB datatake (detector d05, all
+13 bands). The synthetic **L1A** is compared to the **real ESA L0 `img`** directly — the archived EOPF L0
+stores decompressed `img` (verified on the TC7D granule), so no decoding is needed on the reference side;
+our own codec is only round-tripped on the synthetic L0plus (asserted bit-exact). Alignment uses the exact
+ADF_PRDLO `begin_nb_lines_to_cut` per band/detector (from the L1B metadata) + a small cross-correlation
+refinement for the ~28-line legacy datation drift.
 
-**Synthetic (CCSDS-decoded) vs original ESA L0 — RMSE (DN), framing offset, line drift:**
+**Synthetic L1A vs original ESA L0 `img` — RMSE (DN), framing offset, line drift (drift 0 throughout):**
 
-| band | B02 | B03 | B04 | B08 | B8A | B11 | B12 |
-|---|---|---|---|---|---|---|---|
-| framing offset (lines) | 3176 | 3510 | 3815 | 3342 | 2241 | 2065 | 2264 |
-| RMSE (DN) | 0.8 | 1.5 | 1.8 | 0.8 | 1.1 | **2.9** | **3.0** |
-| drift | +0 | +0 | +0 | +0 | +0 | +0 | +0 |
+| band | B01 | B02 | B03 | B04 | B05 | B06 | B07 | B08 | B8A | B09 | B10 | B11 | B12 |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| framing offset | 776 | 3176 | 3510 | 3815 | 1992 | 2075 | 2158 | 3342 | 2241 | 803 | 622 | 2065 | 2264 |
+| RMSE (DN) | *149.6* | 0.8 | 1.5 | 1.8 | 1.1 | 1.0 | 0.9 | 0.8 | 1.1 | *96.9* | *22.0* | **4.2** | **3.9** |
+| resolution | 60 m | 10 m | 10 m | 10 m | 20 m | 20 m | 20 m | 10 m | 20 m | 60 m | 60 m | 20 m | 20 m |
 
-All bands agree to **≤ 3 DN** with **zero** residual line-drift — the per-band framing offset is exact.
+All **ten 10 m + 20 m bands agree to ≤ ~4 DN** with zero residual line-drift (the per-band framing offset is
+exact). The three *native-60 m* bands (**B01/B09/B10**, italic) carry higher RMSE because the reverse
+un-bin is a ×3 line replication — the sub-pixel detail the forward 60 m binning averaged away is
+**irrecoverable** (their median offsets stay small: 0.7–5.9 %). Regenerate with
+`scripts/reverse_compare_figure.py`.
 
-![Full-chain reverse — synthetic vs original ESA L0 (B03/B08/B11/B12); the difference panels are flat to a few DN](../_static/showcase/reverse_l1b_fullchain.png)
+![Full-chain reverse — synthetic L1A vs original ESA L0, all 13 bands (synthetic | real | diff); diff panels flat to a few DN for 10/20 m, textured for the three 60 m bands](../_static/showcase/reverse_l1b_allbands.png)
+
+```{note}
+The "real ESA L0" panels contain **modified Copernicus Sentinel data 2024** (Sentinel-2B, 2024-04-08
+datatake), shown as low-resolution demo previews for validation only. No raw product data is
+redistributed here — input L0/L1B products and operational GIPP/ADF are ESA/Copernicus assets kept in
+the `ipf/data-store`, not in the repository.
+```
 
 **S8 SWIR re-arrangement** is the decisive step for the SWIR bands: re-introducing the staggered
 detector readout (ADF_RSWIR per-column ±1-line shift map) drops the B11/B12 residual from ~50 DN of

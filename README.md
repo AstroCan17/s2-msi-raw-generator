@@ -9,10 +9,12 @@ back to a synthetic **L0 RAW** product (focal-plane DN, 12 detectors × 13 bands
    operational GIPP**: raw `X` → forward correction (dark + equalization) → `Y` → reverse impress →
    `X′`. The residual `X′ − X` ≈ 0 (verified to ~1e-14 on S2 DN) proves the forward and reverse
    are exact inverses. Built from the public L1 ATBD — no external processor.
-3. **Real-L1B → L0 reverse** — the exact inverse of the *full* operational L0→L1B radiometric chain
-   (offset, relative response, on-board equalization, dark, binning, **SWIR re-arrangement**,
-   defective, crosstalk), reconstructing L0 RAW from a real S2B L1B to **≤ 3 DN on all 13 bands**
-   ([see below](#reverse-l1b--l0-full-chain--real-data-validation)).
+3. **Real-L1B → L1A → L0plus → L0 ladder** — the exact inverse of the *full* operational L0→L1B
+   radiometric chain (offset, relative response, on-board equalization, dark, binning, **SWIR
+   re-arrangement**, defective, crosstalk), materialised as the full EOPF product ladder: a real S2B
+   L1B → synthetic **L1A** → **L0plus** (CCSDS ISP) → **L0** (decoded `img`), agreeing with the real ESA
+   L0 to **≤ ~4 DN on the ten 10 m + 20 m bands** (the three native-60 m bands are un-bin-limited)
+   ([see below](#reverse-l1b--l1a--l0plus--l0-full-ladder--real-data-validation)).
 
 **Scope:** radiometric-only, 14-step chain (S1 radiance→DN … S15 ISP packets); input is
 L1A/L1B, already in per-detector sensor geometry, so there is no geometry inversion (Issue #17).
@@ -130,13 +132,25 @@ locally (numpy+zarr only): `S2_E2ES_PHASES=figures S2_E2ES_L1B=<L1B.zarr[.zip]> 
 the PSF/SRF/noise model are real S2B data; the per-pixel dark/PRNU are the synthetic fallback
 (set `S2_E2ES_GIPP_DIR=<dir>` for the operational-GIPP versions).
 
-## Reverse L1B → L0 (full chain) — real-data validation
+## Reverse L1B → L1A → L0plus → L0 (full ladder) — real-data validation
 
 The generator's headline capability is the **exact reverse of the operational L0→L1B radiometric
-chain**: given a real S2B **L1B** (digital counts), `forward_radiometric_atbd.reverse_l1b_to_l0`
-reconstructs the **L0 RAW** by inverting *every* ON forward step, in reverse order — validated on the
-real **2024-04-08 S2B PPB** L0/L1B pair (detector d05, framing-aligned to the ADF_PRDLO
-co-registration crop):
+chain**, materialised as the **full EOPF product ladder** (the canonical forward chain
+`L0 → L0plus → L1A → L1B` run backwards): given a real S2B **L1B** (digital counts),
+`forward_radiometric_atbd.reverse_l1b_to_l0` reconstructs the raw counts by inverting *every* ON
+forward step, and the pipeline persists each product level:
+
+- **L1A** (`reverse-l1b` phase → `import_l0.write_l1a_product`): decompressed raw counts,
+  `measurements/DD{dd}/{BAND}/l1a_raw_image` — the same layout the real EOPF L1A/L0-`img` carries.
+- **L0plus** (`package-l0` phase → `l0product.write_l0_product`, `S2MSIL0plus`): CCSDS-122 lossless ISP
+  + `conditions/ancillary_data` SAD/datation — the processing-ready, *as-downlinked* form.
+- **L0** (`package-l0` → `l0product.write_l0_decoded_product`, `S02MSIL0_`): the L0plus ISP decoded back
+  to `measurements/d{DD}/b{BB}/img` + decode-quality attrs — **format-identical to the real ESA
+  `S02MSIL0__…` product** (verified against the 2024-04-08 TC7D granule), for a direct array comparison.
+
+`validate-reverse` compares the synthetic L1A against the **real ESA L0 `img`** directly (no decoding —
+the archived EOPF L0 already stores decompressed `img`), framing-aligned to the ADF_PRDLO co-registration
+crop. Validated on the real **2024-04-08 S2B PPB** L0/L1B pair (detector d05):
 
 | Forward step | Reverse op | ADF / GIPP |
 |---|---|---|
@@ -154,22 +168,37 @@ co-registration crop):
 False`). L1B therefore keeps the full instrument PSF, so PSF re-blur (S6) and noise (S13) are **not**
 re-applied — they would double-count (both are non-invertible anyway). See `docs/dpm/parameters-data-list.md`.
 
-**Synthetic L0 (CCSDS-decoded) vs original ESA L0 — all 13 bands ≤ 3 DN, drift 0:**
+**Synthetic L1A vs original ESA L0 `img` — all 13 bands, detector d05, framing-aligned (drift 0):**
 
-| band | B02 | B03 | B04 | B08 | B8A | B11 | B12 |
-|---|---|---|---|---|---|---|---|
-| RMSE (DN) | 0.8 | 1.5 | 1.8 | 0.8 | 1.1 | **2.9** | **3.0** |
+| band | B01 | B02 | B03 | B04 | B05 | B06 | B07 | B08 | B8A | B09 | B10 | B11 | B12 |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| RMSE (DN) | *149.6* | 0.8 | 1.5 | 1.8 | 1.1 | 1.0 | 0.9 | 0.8 | 1.1 | *96.9* | *22.0* | **4.2** | **3.9** |
+| resolution | 60 m | 10 m | 10 m | 10 m | 20 m | 20 m | 20 m | 10 m | 20 m | 60 m | 60 m | 20 m | 20 m |
 
-![Full-chain reverse — synthetic vs original ESA L0 (B03/B08/B11/B12); the difference panels are flat to a few DN](docs/_static/showcase/reverse_l1b_fullchain.png)
+All **ten 10 m + 20 m bands agree to ≤ ~4 DN**. The three *native-60 m* bands (**B01/B09/B10**, italic) have
+higher RMSE because the reverse un-bin is a ×3 line replication — the sub-pixel detail the forward 60 m
+binning averaged away is **irrecoverable** (median offsets stay small: 0.7–5.9 %). Regenerate the table +
+figure with `scripts/reverse_compare_figure.py`.
+
+![Full-chain reverse — synthetic vs original ESA L0, all 13 bands (synthetic | real | diff); the diff panels are flat to a few DN for the 10/20 m bands, textured for the three 60 m bands](docs/_static/showcase/reverse_l1b_allbands.png)
+
+> *The "real ESA L0" panels above contain **modified Copernicus Sentinel data 2024** (Sentinel-2B,
+> 2024-04-08 datatake), used here for validation and shown as low-resolution demo previews only — no raw
+> product data is redistributed in this repository. Input products (L0/L1B) and operational GIPP/ADF are
+> ESA/Copernicus assets held in the `ipf/data-store`, not in git.*
 
 The **S8 SWIR re-arrangement** is decisive for B11/B12 — re-introducing the staggered detector readout
 drops their residual from ~50 DN of stripe texture to ~3 DN (the diff panels go from noisy to flat):
 
 ![SWIR B11/B12 — plain (no S8, rmse ~40) vs full chain (rmse ~5); the stagger residual vanishes](docs/_static/showcase/reverse_l1b_swir_s8.png)
 
-Run it: `S2_E2ES_PHASES=reverse-l1b S2_E2ES_L1B=<L1B.zarr> python scripts/run_pipeline.py` (auto-finds
-the RSWIR/REOB2/RCRCO ADFs next to `$S2_E2ES_EQOG_ADF`; `S2_E2ES_REVERSE_FULL=0` → radiometric-only).
-Visual compare: `notebooks/reverse_l1b_compare.ipynb`.
+Run the full ladder:
+`S2_E2ES_PHASES=reverse-l1b,package-l0,validate-reverse S2_E2ES_L1B=<L1B.zarr> S2_E2ES_REAL_L0=<L0.zarr> python scripts/run_pipeline.py`
+(auto-finds the RSWIR/REOB2/RCRCO ADFs next to `$S2_E2ES_EQOG_ADF`; `S2_E2ES_REVERSE_FULL=0` →
+radiometric-only; `S2_E2ES_JOBS=1` on NFS-backed stores). `validate-reverse` needs the real L0
+(`$S2_E2ES_REAL_L0`) and the ADF_PRDLO framing offsets (`$S2_E2ES_FRAMING` or auto-found under
+`esa-source/aux/framing/`, else read from the L1B metadata) for the line-aligned comparison. Visual
+compare (all 13 bands): `notebooks/reverse_l1b_compare.ipynb`.
 
 ## Package
 
@@ -183,7 +212,7 @@ Visual compare: `notebooks/reverse_l1b_compare.ipynb`.
 | `s2_msi_raw_generator/reverse.py` | Reverse chain steps **S1–S14** + `reverse_full` / `reverse_mvp` |
 | `s2_msi_raw_generator/isp.py` | **S15** — CCSDS ISP packet generation + SAD telemetry |
 | `s2_msi_raw_generator/io.py` | Real EOPF L1A/L1B Zarr reader (`zarr`) |
-| `s2_msi_raw_generator/import_l0.py` | Public L0 → PDI-style L1A same-scene bridge (`import-l0` phase) |
+| `s2_msi_raw_generator/import_l0.py` | Public L0 → PDI-style L1A bridge (`import-l0`) **+ `write_l1a_product`** — the reverse ladder's materialised L1A writer (`reverse-l1b` phase) |
 | `s2_msi_raw_generator/inventory.py` | Metadata-only data-store inventory + consistency report (`inventory` phase) |
 | `s2_msi_raw_generator/l0product.py` | L0 RAW EOProduct assembly (156-array Zarr + STAC/sensor-config + ISP) |
 | `s2_msi_raw_generator/adf_writer.py` | **Calibration database** — writes derived coeffs as EOPF ADFs (`nuc`/`dark`/`radiometric`/`spectral`/`noise`) for the downstream L1PP processor |
