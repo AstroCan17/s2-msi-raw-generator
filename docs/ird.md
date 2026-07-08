@@ -16,7 +16,9 @@
 
 # Interface Requirements Document (IRD)
 
-**Project:** Sentinel-2 MSI Synthetic Raw Data Generator (`s2_msi_raw_generator`) · **DRD:** ECSS-E-ST-40C Rev.1
+**Project:** Sentinel-2 MSI L0 reconstruction generator (`s2_msi_raw_generator`) — runs a real Sentinel-2B
+**L1B** backwards through the exact inverse of the operational L0→L1B radiometric chain to reconstruct
+**L1A → L0plus (CCSDS-122 ISP) → L0**, validated against the real ESA L0 `img`. · **DRD:** ECSS-E-ST-40C Rev.1
 Annex C (IRD). The interface *requirements* are owned by the [SRS](srs.md) (single source, REQ-IF-NNN);
 this IRD collects and contextualises them without duplicating their normative text. The interface
 *designs* satisfying them are controlled in the [ICD](icd.md).
@@ -29,7 +31,7 @@ is controlled. The system context and actors are described in the [SSS](sss.md) 
 
 ### 1.2 Convention
 Requirement IDs below are **references** into the SRS §5 (and, for interfaces introduced by the
-real-data E2E, SRS §3.4b); the SRS text is normative. ICD anchors (`ICD-IF-*`) name the controlling
+real-data reverse-ladder run, SRS §3.4b); the SRS text is normative. ICD anchors (`ICD-IF-*`) name the controlling
 design section in the [ICD](icd.md).
 
 ## 2. Interface inventory
@@ -42,7 +44,7 @@ design section in the [ICD](icd.md).
 | Compressed ISP payload / CCSDS-122 codec stream | internal ↔ out | REQ-FUNC-092 | ICD-IF-C122, ICD-IF-ISP |
 | Product file naming (EOPF PSFD §3) | out | REQ-FUNC-091 | ICD-IF-NAME |
 | Calibration-database ADFs (`spectral.zarr`, cal-DB) | out | REQ-FUNC-039 | ICD §ADF outputs |
-| Public S3 bucket fetch (anonymous, verified GET) | in | REQ-FUNC-093 (driver) | ICD §Data sources |
+| Public S3 bucket fetch (anonymous, verified GET) — pulls the real S2B L1B that seeds the ladder | in | REQ-FUNC-093 (reverse-ladder real-L1B fetch/validation) | ICD §Data sources |
 | `msi-processor` handoff (open-container L0 + ADFs) | out | REQ-FUNC-042, SYS-03 | ICD-IF-L0; processor ICD |
 
 ## 3. Interface requirements
@@ -68,6 +70,8 @@ design section in the [ICD](icd.md).
 
 ## 4. Validation
 Each interface requirement carries its verification method and evidence in the SRS and the
-[traceability matrix](sdd/traceability.md); interface-level validation on real data (bit-identity through
-the full interface chain, naming round-trip, EOQC on both L0 forms) is reported in the
-[Real-L1A E2E validation](vv/real_e2e.md).
+[traceability matrix](sdd/traceability.md). The primary interface-level validation on real data is the
+reverse ladder itself: the reconstructed L0 RAW `img` compared to the real ESA L0 `img`, with the 10/20 m
+bands agreeing to ≤~4 DN. The supporting interface checks — CCSDS-122 / L0plus bit-exact ground decode
+(`decode(L0plus)==L1A`, REQ-FUNC-092), PSFD naming round-trip (REQ-FUNC-091), and EOQC on both L0 forms —
+are reported in the [real-data reverse-ladder validation](vv/real_e2e.md).

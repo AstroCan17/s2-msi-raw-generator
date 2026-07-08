@@ -1,5 +1,5 @@
 ---
-title: "Sentinel-2 MSI Synthetic Raw Data Generator — L1→L0 Algorithms Theoretical Basis Document"
+title: "Sentinel-2 MSI L1B→L1A→L0plus→L0 Reverse Reconstruction — Algorithm Theoretical Basis Document"
 document_number: "S2MSI-E2ES-ATBD-0001"
 version: "1.0"
 date: "2026-06-30"
@@ -9,14 +9,16 @@ confidentiality: Internal
 
 # Algorithm Theoretical Basis Document (ATBD)
 
-> **Issued.** This ATBD defines the Sentinel-2 MSI **reverse** End-to-End performance Simulator
-> (E2ES) — the L1→L0 algorithm chain (S1–S15). Algorithm structure, conjugacy, and **real**
-> numerical values are populated: per-band gains/TDI/timing from products, official ESA PSF
-> matrices, the SRF spectral characterisation, the product noise model, and the **operational
-> S2A GIPP** (per-pixel dark + relative response). Radiometric inversion is validated by an original
-> round-trip on a **L1A** (RMSE ~1e-14), and the calibration sub-set derives the coefficients
-> from synthetic CSM-diffuser + dark acquisitions (inverse-crime cure). Implemented from the public
-> L1 ATBD + GIPP data only.
+> **Issued.** This ATBD defines the algorithm basis by which `s2_msi_raw_generator` runs a real
+> Sentinel-2B **L1B** backwards through the **exact inverse of the operational L0→L1B radiometric
+> chain** (invert offset, relative-response/PRNU G⁻¹, on-board equalization, dark, un-bin, SWIR
+> re-stage, defective, crosstalk) to reconstruct **L1A → L0plus (CCSDS-122 ISP) → L0**.
+> **MTF-deconvolution is OFF**, so PSF and noise are **NOT** re-applied. Success is the reconstructed
+> L0 measured against the **real ESA L0 `img`** (10/20 m bands ≤~4 DN). Real numerical values are
+> populated: per-band gains/TDI/timing from products, the SRF spectral characterisation, and the
+> **operational S2A GIPP** (per-pixel dark + relative response), with **CCSDS-122 lossless** codec for
+> the L0plus. The calibration sub-set derives the coefficients from CSM-diffuser + dark acquisitions
+> to build a **cal-DB** (inverse-crime cure). Implemented from the public L1 ATBD + GIPP data only.
 
 ---
 
@@ -24,31 +26,28 @@ confidentiality: Internal
 
 ## 1.1 Project description
 
-The Sentinel-2 MSI Synthetic Raw Data Generator (a **reverse E2ES**) is the **forward-instrument conjugate** of the `msi-processor`
-(a generic high-resolution push-broom MSI processor, EOPF CPM 2.8.1, L0c→L2A, 8 units,
-CI-green). Where the processor *inverts* instrument effects (radiometric calibration, PSF
-deconvolution, co-registration, orthorectification, atmospheric correction), the E2ES
-*impresses* them: it takes a Sentinel-2 **L1A/L1B** product (at-sensor radiance, already in
-per-detector sensor geometry) and degrades it back to a synthetic **L0 RAW** product (focal-plane
-digital numbers, 12 staggered detectors × 13 bands). Because L1A/L1B are already sensor-geometry,
-the chain is **radiometric-only** — there is no geometry inversion (orthorectification undo) to
-perform (Issue #17). An L1C entry + geometry-reverse module was considered and **cancelled**: with
-an L1A/L1B entry there is nothing to de-orthorectify.
+`s2_msi_raw_generator` (a **reverse reconstructor**) **inverts** the operational L0→L1B radiometric
+chain of the `msi-processor` (a generic high-resolution push-broom MSI processor, EOPF CPM 2.8.1,
+L0c→L2A, 8 units, CI-green). Where the processor *applies* the corrections that carry L0 up to L1B
+(radiometric calibration, PSF deconvolution, co-registration, orthorectification, atmospheric
+correction), this tool runs the **exact inverse** of each radiometric correction: it takes a real
+Sentinel-2 **L1B** product (already in per-detector sensor geometry) and **reconstructs** its
+**L1A → L0plus → L0** products (focal-plane digital numbers, 12 staggered detectors × 13 bands).
+Because L1B is already sensor-geometry, the chain is **radiometric-only** — there is no geometry
+inversion (orthorectification undo) to perform (Issue #17). An L1C entry + geometry-reverse module was
+considered and **cancelled**: with an L1B entry there is nothing to de-orthorectify.
 
-The E2ES serves two purposes:
-1. **RAW generation** — produce realistic L0 RAW when true Sentinel-2 L0 is
-   proprietary/unavailable, feeding processor development and testing.
-2. **Round-trip V&V** — an original radiometric round-trip on a **L1A** with the **GIPP**:
-   raw `X` → our ATBD forward correction (dark subtract + relative-response equalization) → corrected
-   `Y` → our reverse impress → `X′`. The residual `X′ − X` ≈ 0 (verified to ~1e-14 on S2 DN)
-   proves the forward and reverse are exact inverses; a controlled per-pixel-PRNU test shows the
-   equalization genuinely flattens fixed-pattern noise (`forward_radiometric_atbd`,
-   the pipeline's `radiometric-vv` phase). Implemented from the public L1 ATBD — no external processor.
+The reconstruction is validated **end-to-end against ground truth**: the reconstructed L0 DN is
+compared with the **real ESA L0 `img`** (10/20 m bands ≤~4 DN). As a supporting check, the L0plus
+CCSDS-122 codec round-trip is bit-exact — `decode(L0plus) == L1A`. Implemented from the public
+L1 ATBD + operational GIPP data only — no external processor.
 
 ## 1.2 Purpose of document
 
-Present the L1→L0 reverse data flow and the physical/mathematical treatment at each stage,
-with explicit traceability to the `msi-processor` forward function each reverse step conjugates.
+Present the L1B→L1A→L0plus→L0 reverse-reconstruction data flow and the physical/mathematical
+treatment at each stage — reconstructing the L1A/L0plus/L0 products by **inverting** each operational
+forward correction, with explicit traceability to the `msi-processor` forward function each reverse
+step conjugates.
 
 ## 1.3 Scope
 
@@ -88,10 +87,10 @@ Mechanism), GRI (Global Reference Image), SSO (Sun-Synchronous Orbit), MGRS (Mil
 Reference System). `[extend as needed]`
 
 ### 1.5.2 Definitions
-- **Reverse step (R#):** an E2ES operation that undoes one `msi-processor` forward operation.
-- **Conjugate:** the processor function a reverse step inverts.
-- **Impress (true physics):** apply the *real* instrument effect, distinct from the processor's
-  *estimated* correction — the basis of meaningful round-trip residuals (§Risk inverse-crime).
+- **Reverse step (R#):** an operation that inverts one `msi-processor` forward correction.
+- **Conjugate:** the processor forward function a reverse step inverts.
+- **Invert (exact inverse):** apply the analytic inverse of the operational forward correction to
+  reconstruct the down-level (L1A/L0plus/L0) product from the level above.
 
 ### 1.5.3 Definition of quantities
 | Symbol | Name | Units |
@@ -122,30 +121,30 @@ The Sentinel-2 MSI is a solar-reflective push-broom instrument: **13 spectral ba
 (**VNIR** Si-CMOS + **SWIR** MCT) each with **12 staggered detector modules** across a 20.6° FOV,
 on-board **sun-diffuser** (CSM) radiometric calibration, **12-bit** quantization (DN 0–4095).
 **TDI:** the product `tdi_configuration_list` shows TDI **APPLIED on B03, B04, B11, B12** (2 VNIR +
-2 SWIR); model as a per-band config. The S13 noise model dominates the SNR budget regardless. Full
-sourced values in **Annex A**.
+2 SWIR); model as a per-band config. Full sourced values in **Annex A**.
 
-**Reverse data-flow — L1A/L1B → L0 RAW, radiometric-only:**
+**Reverse-reconstruction data-flow — real L1B → L1A → L0plus → L0, radiometric-only:**
 ```mermaid
 flowchart TD
-    IN["L1B at-sensor radiance<br/>(per-detector geometry)"]
-    S1["S1 · radiance → DN (÷ physical_gain)"]
-    S3["S3 · undo framing / round-clamp"]
-    S4["S4 · undo radiometric offset"]
-    S5["S5 · undo 60 m binning"]
-    S6["S6 · convolve true optical PSF (re-blur)"]
-    S7["S7 · undo relative response (impress PRNU)"]
-    S8["S8 · re-insert SWIR arrangement"]
-    S9["S9 · re-apply crosstalk"]
-    S10["S10 · re-insert blind/defective pixels"]
-    S11["S11 · re-apply dark signal"]
-    S12["S12 · re-apply onboard equalization"]
-    S13["S13 · add noise σ=√(a+b·DN)"]
-    S14["S14 · quantize 12-bit"]
-    S15["S15 · CCSDS-122 lossless compress → ISP packetize → L0 RAW (156 frames + telemetry + STAC)"]
-    IN --> S1 --> S3 --> S4 --> S5 --> S6 --> S7 --> S8 --> S9 --> S10 --> S11 --> S12 --> S13 --> S14 --> S15
+    IN["real S2B L1B<br/>(downlink DN, per-detector geometry)"]
+    A["+ offset (R2PARA)"]
+    B["G⁻¹ invert relative response / PRNU (R2EQOG)"]
+    C["invert on-board equalization non-linearity (REOB2)"]
+    D["+ L0 dark pedestal (L0_DARK_LSB × COEFF_D shape)"]
+    E["×3 un-bin 60 m (B01/B09/B10)"]
+    F["SWIR re-stage (RSWIR)"]
+    G["re-stamp defective / re-insert blind (R2DEPI / BLINDP)"]
+    H["+ crosstalk (RCRCO)"]
+    QZ["quantize → uint16 (12-bit)"]
+    L1A["L1A (reconstructed)"]
+    ISP["CCSDS-122 lossless + ISP packetize"]
+    L0P["L0plus (CCSDS ISP; decode == L1A, bit-exact)"]
+    L0["L0 (156 frames + telemetry + STAC)"]
+    OFF["MTF-deconvolution OFF ⇒ PSF &amp; noise NOT re-applied"]
+    IN --> A --> B --> C --> D --> E --> F --> G --> H --> QZ --> L1A --> ISP --> L0P --> L0
+    OFF -.-> B
 ```
-No geometry inversion (L1A/L1B already sensor geometry).
+No geometry inversion (L1B already sensor geometry).
 
 ---
 
@@ -165,45 +164,52 @@ uint8; root STAC + sensor config (`tdi_configuration_list`, `spectral_band_info`
 
 # 4. REVERSE PROCESSING FLOW
 
-The processor's forward flow, reversed. Two sub-flows:
+The processor's operational L0→L1B forward chain, inverted. Two sub-flows:
 
-**Main reverse chain:** S1→S3→S4→S5→S6→S7→S8→S9→S10→S11→S12→S13→S14→S15 (§5) — radiometric-only.
+**Main reverse-reconstruction chain (`reverse_l1b_to_l0`, §5.R):** the real L1B is run backwards
+through the inverse of the full operational L0→L1B radiometric chain, in reverse order —
+`+offset → G⁻¹ relative-response → invert on-board-eq → +dark → un-bin(60 m) → SWIR re-stage →
+defective/blind → crosstalk → quantize → CCSDS-122 + ISP → L0` — reconstructing L1A → L0plus → L0.
+MTF-deconvolution is OFF, so **PSF re-blur and noise are NOT re-applied**. The step-level physics is
+detailed in §5; §5.R is the authoritative real-data flow.
 
 **Calibration sub-set (`s2_msi_raw_generator/calibration.py`):** the S2 **two-reference** radiometric
-calibration in the reflective domain. The high-signal reference is the on-board **CSM sun-diffuser**
-(uniform full-field), the zero reference is
-a **dark** (CSM closed / night). The sub-set synthesises both L0 acquisitions by impressing the *true*
-ADF, then **derives** the coefficients back (L1 ATBD §4.1.1.2.2):
+calibration in the reflective domain, which derives the **cal-DB**. The high-signal reference is the
+on-board **CSM sun-diffuser** (uniform full-field), the zero reference is a **dark** (CSM closed /
+night). The sub-set synthesises both L0 acquisitions from the *true* ADF, then **derives** the
+coefficients back (L1 ATBD §4.1.1.2.2):
 $D(j) = \langle X_\mathrm{dark} \rangle_i$, $g(j) = A \cdot \langle L_\mathrm{diff} \rangle / \langle X_\mathrm{diff} - D \rangle_i$ with $\langle g(j) \rangle_j = 1$ → fixes `A`. The processor then
-uses the **derived** coefficients (`estimated_adf`), not the truth impressed in S7/S11 — closing the
-loop **breaks inverse crime** (verified: derived dark recovers truth to <0.05 DN, relative response
-correlation >0.99, `A≈cal_gain`; the small residual is the calibration uncertainty). `ADF_REQOG`.
+uses the **derived** coefficients (`estimated_adf`), not the truth used to build the references —
+closing the loop **breaks inverse crime** (verified: derived dark recovers truth to <0.05 DN,
+relative response correlation >0.99, `A≈cal_gain`; the small residual is the calibration
+uncertainty). `ADF_REQOG`.
 
 ---
 
-# 5. PROCESSING-BLOCK DESCRIPTIONS (L1A/L1B → L0 RAW, 14 steps)
+# 5. PROCESSING-BLOCK DESCRIPTIONS (the operational corrections being inverted)
 
-Entry = at-sensor **radiance** (L1B), per-detector geometry. Each step: forward action · ADF ·
-`msi-processor` conjugate · notes. Real per-band values in **Annex A.6/A.11**.
+Each block below states one operational L0→L1B forward correction, its ADF, and the `msi-processor`
+conjugate. The reverse reconstructor applies the **analytic inverse** of each. The **authoritative
+real-data flow — how these inverses are actually composed on a real S2B L1B — is §5.R**; the entry is
+the downlink **DN** domain (a real L1B is already digital counts), not synthetic radiance. Real
+per-band values in **Annex A.6/A.11**.
 
-## 5.S1 Radiance → DN
+## 5.S1 Radiometric gain/offset (the DN-domain equation inverted)
 
 **Model.** The official L1 ATBD raw equation (S2-PDGS-MPC-ATBD-L1 §4.1.1) is
 
 $$X_k = A_k \cdot G_k(j,L) \cdot L_k + D_k$$
 
-whose terms the reverse chain impresses separately:
+whose terms the reverse chain **inverts** in the DN domain:
 
-- **S1** — the absolute-calibration term $\mathrm{DN} = A \cdot L$ (with $A$ = `Band.cal_gain`);
-- **S7** — the relative sensitivity $G$;
-- **S11** — the dark signal $D$.
+- the absolute-calibration term $A$ (`Band.cal_gain`);
+- the relative sensitivity $G$ (S7, inverted as $G^{-1}$);
+- the dark signal $D$ (S11).
 
-**Choice of $A$.** The product's `physical_gains` (Annex A.11) are kept for metadata and the
-round-trip bridge, but they are incoherent with the real noise model on this synthetic dataset
-(they mis-scale low-radiance bands by up to ~10×). So $A$ is derived from the **noise $\alpha,\beta$
-and SNR@Lref**: $\mathrm{cal\_gain} = \mathrm{dn\_ref}/L_\mathrm{ref}$, where $\mathrm{dn\_ref}$ is the
-12-bit DN at which $\sigma = \sqrt{\alpha^2 + \beta \cdot \mathrm{DN}}$ yields the spec SNR. This
-anchors the chain to **reproduce the real SNR@Lref exactly** (verified end-to-end).
+**Domain note.** A real L1B is already digital counts, so the ladder does **not** perform a synthetic
+radiance→DN entry; it enters in the downlink DN domain and inverts the operational gain/offset directly
+(see §5.R). The product's `physical_gains` (Annex A.11) are carried for metadata; the DN-domain
+inversion of offset and relative response is applied per §5.S4/§5.S7.
 
 **ADF:** `ADF_RABCA`. **Conjugate:** `toa.dn_to_radiance` ($L = \mathrm{DN}/A$).
 
@@ -225,22 +231,11 @@ anchors the chain to **reproduce the real SNR@Lref exactly** (verified end-to-en
 
 **ADF:** `ADF_RBINN`. **Conjugate:** `georeference.resample_to_grid`.
 
-## 5.S6 PSF re-blur
+## 5.S7 Invert relative response (G⁻¹)
 
-**Forward.** Re-blur with the true point-spread function,
-
-$$I = I_\mathrm{sharp} \ast \mathrm{PSF}_\mathrm{true}$$
-
-using the **official ESA per-band, per-unit PSF matrices** (SentiWiki `S2{A,B,C}_PSF`, Annex A.4),
-integrated from the published 33×33 oversampled matrix to the detector grid (B10 → identity).
-
-**ADF:** `ADF_RDEFI`. **Conjugate:** `enhancement.mtf_compensate` / `_correlate2d` — an *independent
-regularized* inverse (must **not** be the exact inverse). Far-field straylight has no S2 inverse (Risk 4).
-
-## 5.S7 Undo relative response (impress PRNU)
-
-**Forward.** Impress the **true per-pixel relative response** by inverting the on-ground equalization
-$Y = G(Z)$ — VNIR cubic $A\,Z^3 + B\,Z^2 + C\,Z$ / SWIR bilinear (knee at `Zs`).
+**Reverse.** Invert the on-ground equalization $Y = G(Z)$ — VNIR cubic $A\,Z^3 + B\,Z^2 + C\,Z$ /
+SWIR bilinear (knee at `Zs`) — applying the analytic inverse $G^{-1}$ per pixel to reconstruct the
+un-equalized DN.
 
 **Real values.** The per-pixel gains come straight from the **operational S2A GIPP `R2EQOG`**
 (`COEFF_A/B/C` cubic / `COEFF_A1/A2/Zs` bilinear; $C \approx 1.0$–$1.2$ dominant), parsed by
@@ -275,9 +270,10 @@ OPTICAL+ELECTRICAL row; ≈0 for S2A → identity).
 
 **ADF:** `ADF_BLIND` (blind), `ADF_RDEPI` (defective). **Conjugate:** `radiometric.replace_bad_pixels`.
 
-## 5.S11 Re-apply dark signal
+## 5.S11 Reconstruct the dark pedestal
 
-**Forward.** `DN += dark[pixel]`, applied *after* S13 so the noise model sees the dark-subtracted signal.
+**Reverse.** `DN += dark[pixel]` — reconstruct the L0 dark pedestal that the operational chain
+subtracted (see the §5.R downlink-dark domain note).
 
 **Real values.** The **per-pixel** dark signal $D(j)$ comes from the operational S2A GIPP
 **`R2EQOG` `COEFF_D`** (`s2_msi_raw_generator.gipp`, `BandADF.from_gipp`) — mean 440–522 LSB per band,
@@ -295,20 +291,6 @@ with the **per-detector gain stability 0.05 % 1σ** (paper Table 3, Ra factor; `
 **no offset** (the dark is the S11 pedestal).
 
 **ADF:** `ADF_REOB2`. **Conjugate:** `radiometric.estimate_nuc`.
-
-## 5.S13 Add sensor noise
-
-**Forward.** The **S2-RUT noise model**
-
-$$\sigma = \sqrt{\alpha^2 + \beta \cdot \mathrm{DN}}, \qquad \mathrm{DN} \mathrel{+}= \mathcal{N}(0,\sigma)$$
-
-with **$\alpha$, $\beta$ read verbatim from the L1A product**
-(`quality_indicators_info/.../noise_model`, `sensor.NOISE_ALPHA/NOISE_BETA`), seeded. Applied on the
-**signal DN** (before the S11 dark pedestal), so it reproduces the SNR@Lref (verified end-to-end, <1 %).
-
-**Acceptance.** $\sigma$ within ±5 % over ≥10 000 px (REQ-FUNC-021).
-
-**ADF:** `ADF_RNOMO`. **Conjugate:** the processor *denoises*.
 
 ## 5.S14 Quantize
 
@@ -335,9 +317,11 @@ with **$\alpha$, $\beta$ read verbatim from the L1A product**
 2. **Packetization** — the compressed stream is carried in CCSDS space packets; per-line
    timestamps from `line_period = 1.5658736 ms`; SAD packets per APID.
 
-Note the level split of the real chain: **L0 stores the compressed, annotated ISPs; the ground
+Note the level split of the real chain: **L0plus stores the compressed, annotated ISPs; the ground
 L1A step decompresses** (SentiWiki S2 Products). Choosing the *lossless* profile (real MRCPB is
-lossy) keeps the reverse E2ES chain bit-exact so the L0→L1A round-trip is provable.
+lossy) keeps the L0plus codec round-trip **bit-exact** — `decode(L0plus) == L1A` — a supporting check
+on the reconstruction (distinct from the end-to-end L0-vs-real-ESA-L0 validation, §5.R). The L0plus
+achieves a lossless compression ratio of **~3.66×** with bit-exact ground decode.
 
 **Output.** The 156-frame L0 (Annex A.9).
 
@@ -345,7 +329,7 @@ lossy) keeps the reverse E2ES chain bit-exact so the L0→L1A round-trip is prov
 
 **Calibration sub-set (inverse-crime cure — implemented `s2_msi_raw_generator/calibration.py`):** synthetic
 CSM sun-diffuser + dark acquisitions → derive `D`, `g`, `A` (L1 ATBD §4.1.1.2.2) → *estimated* ADF
-(`estimated_adf`) handed to the processor, not the truth impressed in S7/S11.
+(`estimated_adf`, the **cal-DB**) handed to the processor, not the truth used to build the references.
 
 **Cancelled L1C-entry module (Issue #17):** an L1C entry would have required prepending
 de-orthorectification (ground→detector via the S2 viewing model — **ASGARD**,
@@ -356,12 +340,13 @@ the very reason an L1C entry was rejected; PRNU paper.)
 
 ---
 
-# 5.R REAL-L1B → L0 FULL REVERSE (`reverse_l1b_to_l0`)
+# 5.R REAL L1B → L1A → L0plus → L0 FULL REVERSE — AUTHORITATIVE FLOW (`reverse_l1b_to_l0`)
 
-Steps 5.S1–S15 enter from **synthetic radiance**; a real S2B EOPF **L1B is already digital counts**, so
-the operational reverse enters in the **downlink DN domain** and inverts the *full* L0→L1B radiometric
-chain (EOPF `AllRadiometricCorrectionL1B` — every `feature_flag_* = True` **except**
-deconvolution/denoising) in reverse order:
+**This is the central reverse-reconstruction flow; §5.S1–S14 give the per-step physics it composes.**
+A real S2B EOPF **L1B is already digital counts**, so the reverse enters in the **downlink DN domain**
+and inverts the *full* operational L0→L1B radiometric chain (EOPF `AllRadiometricCorrectionL1B` — every
+`feature_flag_* = True` **except** deconvolution/denoising) in reverse order to reconstruct
+**L1A → L0plus → L0**:
 
 `+offset (R2PARA) → G⁻¹ relative response (R2EQOG) → on-board-eq non-linearity (REOB2) → +L0 dark
 (L0_DARK_LSB × R2EQOG COEFF_D shape) → ×3 un-bin (60 m) → SWIR re-arrangement (RSWIR) → re-stamp
@@ -384,8 +369,9 @@ cancels COEFF_D, so REOB2 contributes only its `a1/a2` non-linearity in the down
 / `read_reob2_eopf` / `read_rcrco_eopf`; ops: `forward_radiometric_atbd.restage_swir_lines` /
 `reapply_onboard_eq`.
 
-**Validation** (real 2024-04-08 S2B PPB, d05, CCSDS round-trip): synthetic L0 vs original ESA L0
-RMSE **≤ 3 DN on all 13 bands** (B11/B12 fixed by S8 from ~50 → ~3 DN), framing-aligned via ADF_PRDLO
+**Validation** (real 2024-04-08 S2B PPB, d05, CCSDS round-trip): the **reconstructed L0** vs the
+**real ESA L0 `img`** RMSE **≤ 3 DN on all 13 bands** (B11/B12 fixed by S8 from ~50 → ~3 DN;
+success criterion ≤~4 DN on the 10/20 m bands), framing-aligned via ADF_PRDLO
 with zero line-drift — see the [real-E2E run report](../vv/real_e2e_run_report.md) and the
 [DPM parameter/data list](../dpm/parameters-data-list.md).
 
@@ -428,35 +414,34 @@ Per-stage error-budget table, **reflective-domain terms**. Populate numerically 
 
 | Step | Dominant error term | Driver | Budget |
 |---|---|---|---|
-| S1 | gain / ESUN-SRF per-unit mismatch | radiometric | abs. <5 % (goal 3 %); per-unit SRF up to ~15 % if mismatched |
-| S6 | PSF-restoration residual (forward-true vs inverse-estimate) | optics/MTF | MTF@Nyquist 0.15–0.30 (Annex A.4) |
-| S7/S12 | PRNU/DSNU + equalization residual | radiometric | inter-band rel. 3 %; linearity 1 % |
+| S1/S4 | gain / offset inversion residual | radiometric | abs. <5 % (goal 3 %); per-unit SRF up to ~15 % if mismatched |
+| S7/S12 | relative-response G⁻¹ + on-board-eq inversion residual | radiometric | inter-band rel. 3 %; linearity 1 % |
+| S5 | un-bin (60 m) reconstruction residual | resample | sub-DN on uniform fields |
+| S8 | SWIR re-stage mis-alignment | detector | B11/B12 dominant (fixed ~50 → ~3 DN) |
 | S9 | crosstalk residual (no processor inverse) | detector | <0.5 % channel-to-channel |
-| S13 | SNR floor | noise model $\sqrt{a + b \cdot \mathrm{DN}}$ | SNR@Lref per band (Annex A.6); ±5 % over ≥10⁴ px |
 | S14 | quantization | 12-bit (0–4095) | ≈ Lref/SNR LSB |
-| end-to-end | round-trip RMSE `L1B′ − L1B` per band | composite | declared radiometric tolerance; multi-temporal rel. ≤1 % |
+| end-to-end | **reconstructed L0 vs real ESA L0 `img` RMSE** per band | composite | **≤~4 DN (10/20 m bands)**; multi-temporal rel. ≤1 % |
 
-**Method note:** re-derive the dominant terms for the reflective domain. The end-to-end claim is *round-trip regression*, not absolute verification.
+**Method note:** re-derive the dominant terms for the reflective domain. The end-to-end claim is
+*absolute verification against ground truth* — the reconstructed L0 DN measured directly against the
+real ESA L0 `img`, not a self-consistency round-trip.
 
 ---
 
 # 8. OPEN POINTS
 
-- Reverse entry level — **RESOLVED: L1A/L1B** (Issue #17); the L1C-entry + geometry-reverse module is **cancelled**.
-- **L1A vs L1B for MVP:** L1B (radiance) → clean S1 radiance→DN (recommended); L1A is rawer.
-- Straylight (S6 far-field): scope out of v0 or book as named residual.
-- L0 RAW ICD: adopt the EOPF L0 Zarr structure (Annex A.9) as ICD-IF-L0.
+- Reverse entry level — **RESOLVED: L1B** (Issue #17); the L1C-entry + geometry-reverse module is **cancelled**.
+- L0 ICD: adopt the EOPF L0 Zarr structure (Annex A.9) as ICD-IF-L0.
 - SRF: **DONE** — per-unit band centre/bandwidth/equivalent wavelength from the official SRF
   doc (COPE-GSEG-EOPG-TN-15-0007) are in `sensor.py`.
-- PSF: **DONE** — official ESA per-band, per-unit matrices (`data/psf/`).
-- Noise: **DONE** — per-band α, β from the L1A product (S2-RUT $\sigma=\sqrt{\alpha^2+\beta\cdot\mathrm{DN}}$).
 - PRNU/dark per-pixel GIPP — **RESOLVED** (supersedes the early "credentialed GIPP" blocker #36):
   the operational `S2A_OPER_GIP_R2EQOG` (per-pixel dark `COEFF_D` + relative response) is read
   directly by `gipp.py` / `BandADF.from_gipp` and is publicly fetchable (bucket `GIP_*` TGZs are
-  anonymous-GET; verified 2026-07-02). The real-L1A round-trip runs on it at RMSE ≈ 1e-14
-  (`docs/vv/real_e2e.md`). Still open in the narrow sense: a real **dark-calibration granule**
-  (night-over-ocean) is not in this dataset — per-pixel dark therefore comes from the GIPP, not
-  from a dark acquisition. L1B-derived PRNU remains available via the pipeline's `derive-adf` phase.
+  anonymous-GET; verified 2026-07-02). The reverse reconstruction runs on it and validates against the
+  **real ESA L0 `img`** at RMSE ≤~4 DN (10/20 m bands; see §5.R). Still open in the narrow sense: a
+  real **dark-calibration granule** (night-over-ocean) is not in this dataset — per-pixel dark
+  therefore comes from the GIPP, not from a dark acquisition. L1B-derived PRNU remains available via
+  the pipeline's `derive-adf` phase.
 
 ---
 
@@ -521,9 +506,10 @@ unverified/derived flags. Values to be migrated into the sensor-model ADF v0 (§
   `s2_msi_raw_generator/data/psf/`): per-band, per-unit **33×33** matrices, **oversampling 5**, centre at
   (17, 17), normalised ($\Sigma = 1$), for **L1B focal-plane geometry (after binning)**. Computed from
   measured Nyquist MTF (along-track + across-track), Gaussian-modelled — S2A/S2C from 2024, S2B from
-  2023 — for all bands **except B10** (water-vapour, does not see the ground). The E2ES S6 step
-  integrates each matrix by 5×5 to the detector grid and convolves with it (B10 → identity). This
-  replaces the earlier synthetic Gaussian-from-MTF kernel.
+  2023 — for all bands **except B10** (water-vapour, does not see the ground). Kept as **reference
+  data** (`s2_msi_raw_generator/data/psf/`) for sensor characterisation; because MTF-deconvolution is
+  OFF in the operational chain, the reverse reconstruction does **not** re-apply the PSF (no re-blur
+  step — see §5.R).
 
 ## A.5 Detector / focal plane
 - Two focal planes (dichroic split): **VNIR = monolithic Si CMOS (0.35 µm)** @ ~293 K, 10 bands;

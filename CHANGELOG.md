@@ -2,6 +2,13 @@
 
 All notable changes to the Sentinel-2 MSI reverse E2ES (`s2_msi_raw_generator`).
 
+`s2_msi_raw_generator` runs a real Sentinel-2B **L1B** backwards through the exact inverse of the
+operational L0→L1B radiometric chain (invert offset, relative-response/PRNU, dark, un-bin, SWIR
+re-stage, defective, crosstalk, on-board-eq) to reconstruct **L1A → L0plus (CCSDS-122 ISP) → L0**.
+MTF-deconvolution is OFF, so PSF and noise are not re-applied. Success = the reconstructed L0 vs the
+real ESA L0 `img` (≤~4 DN on the 10/20 m bands); the L0plus codec round-trip `decode(L0plus)==L1A`
+is bit-exact (supporting check).
+
 ## [Unreleased]
 
 ### Added
@@ -14,18 +21,20 @@ All notable changes to the Sentinel-2 MSI reverse E2ES (`s2_msi_raw_generator`).
   `import-l0` phase convert a public distribution L0 detector (`measurements/dNN/bNN/img`) into
   the PDI-style L1A layout consumed by the pipeline, preserving real STAC orbit/platform identity
   and recording `import_provenance` plus per-band CRCs for A0 bit-exact copy checks.
-- **`notebooks/compare_real_l0.ipynb`** — real vs synthetic L0 comparison: for every band,
-  the official public L0 (`inputs/public-data/level-0/S02MSIL0__*.zarr.zip`,
-  `measurements/dNN/bNN/img`) next to our canonical L0 window with overlaid DN histograms
-  (μ/σ/p2–p98), an all-band mean±σ summary, a column-profile FPN/PRNU signature check, and
-  an inventory of the `S02MSIL0P_*` annotation companions (geometry/quality, no image DN).
-- **`notebooks/pipeline_walkthrough.ipynb`** — the full processing chain step by step with
-  an image per stage: real-L1A window → `forward_radiometric` radiance bridge → S1/S6/S7/
-  S13/S11/S12/S14 panels (+ coefficient profiles, blur/noise difference maps), CCSDS-122
-  DWT subbands + segment/packet statistics (S15), bit-exact ground-decode, and the same
-  steps compared against the store's persisted phase outputs. Synthetic-scene fallback
-  when no store is present; both notebooks now self-install the package into the kernel
-  env on first run (one-time cell + kernel restart).
+- **`notebooks/compare_real_l0.ipynb`** — the ladder's headline validation: the
+  ladder-reconstructed L0 next to the real ESA L0 `img` (`inputs/public-data/level-0/
+  S02MSIL0__*.zarr.zip`, `measurements/dNN/bNN/img`), reporting the 10/20 m-band agreement
+  (≤~4 DN) with overlaid DN histograms (μ/σ/p2–p98), an all-band mean±σ summary, a
+  column-profile FPN/PRNU signature check, and an inventory of the `S02MSIL0P_*` annotation
+  companions (geometry/quality, no image DN).
+- **`notebooks/pipeline_walkthrough.ipynb`** — the reverse-ladder walkthrough with an image
+  per rung: real L1B window → invert offset → relative-response/PRNU → dark → un-bin →
+  SWIR re-stage → defective → crosstalk → on-board-eq → L1A/L0plus/L0, with
+  MTF-deconvolution and noise re-application explicitly OFF (PSF and noise are not
+  re-applied). Keeps the CCSDS-122 DWT subbands + segment/packet statistics (S15) and the
+  bit-exact ground-decode, and compares the same rungs against the store's persisted phase
+  outputs. Both notebooks now self-install the package into the kernel env on first run
+  (one-time cell + kernel restart).
 - **`notebooks/inspect_products.ipynb`** — interactive data-store explorer: product
   inventory + zarr tree, STAC/compression metadata, stored-DN band images, ISP
   ground-decode verification, calibration campaign + NUC gain plots, quicklooks and
@@ -104,28 +113,14 @@ All notable changes to the Sentinel-2 MSI reverse E2ES (`s2_msi_raw_generator`).
   The repo's `data/` tracking is removed again in favour of the store (`data/` is
   gitignored; pull with the `fetch-store` phase).
 - **Single pipeline driver** — the ten `scripts/` entry points are consolidated into one
-  phase-structured `scripts/run_pipeline.py` (real chain = the former `run_e2e_real_l1a.py`
-  phases; `--synthetic` = the former `run_e2e_l0_to_l1b.py` chain; on-demand phases
-  `build-caldb` / `derive-adf` / `figures` absorb `build_cal_db.py` (now
-  `s2_msi_raw_generator.caldb`), `derive_prnu_dark.py` and `result_band_stages.py`; the
-  demo/roundtrip/save-images scripts are deleted — `roundtrip_real_l1a.py` was already
-  duplicated as the `radiometric-vv` phase). **Every product name now comes from
-  `naming.py` (PSFD §3)**: the synthetic open container is `S02MSIL0__…_OC.zarr`
-  (was `L0c_opencontainer.zarr`) and the L1B is `S02MSIL1B_….zarr` (was `L1B_TOA.zarr`).
-- **`data/` E2E store tracked in git** — the `data/input` + `data/output` gitignore rules
-  (and the global `*.zarr/` ignores) are removed; the synthetic products (PSFD-named OC L0,
-  cal-DB, quicklooks, phase reports) are committed and sync with the repository.
+  phase-structured `scripts/run_pipeline.py` (the reverse-ladder phases from the former
+  `run_e2e_real_l1a.py`; on-demand phases `build-caldb` / `derive-adf` / `figures` absorb
+  `build_cal_db.py` (now `s2_msi_raw_generator.caldb`) and `derive_prnu_dark.py`; the
+  demo/save-images scripts are deleted). **Every product name now comes from
+  `naming.py` (PSFD §3, from `naming.py`)**: the reconstructed open container is
+  `S02MSIL0__…_OC.zarr` (was `L0c_opencontainer.zarr`).
 
 ### Added
-- **Single-band stage-by-stage result figures** — new `scripts/result_band_stages.py`
-  (numpy+zarr only): renders, for one band/detector of the real L1B, the ideal-DN image, the
-  instrument-effects-impressed image (S6–S13) and the generated RAW L0 (S14), with zoom crops,
-  the impressed-noise field and a quality table (noise σ vs model +1.4 %, quantization RMSE
-  0.29 DN = 1/√12, full-chain radiance recovery PSNR 45.1 dB). Figures committed under
-  `docs/_static/showcase/` and shown in the README §Result and the docs landing page; the
-  synthetic flat-field demo quicklooks were removed from README/git (still produced by the
-  E2E driver, now gitignored).
-
 - **Complete ECSS document set** — nine standalone documents closing the tailored DRL: SSS, IRD, DJF
   (11 decision records), risk register, SPA plan (ECSS-Q-ST-80C), SRevP (with the held-review record),
   SUITP, SUITR, and the QR report for the v0.3.0 baseline. The SDP tailoring section is now a full
@@ -133,34 +128,33 @@ All notable changes to the Sentinel-2 MSI reverse E2ES (`s2_msi_raw_generator`).
   tailoring); new "Management & assurance" section on the docs landing page.
 
 ### Changed
-- **Docs landing page** — the real-data E2E showcase (quicklooks + headline numbers + source
-  repository link) moved onto the documentation front page (`docs/index.md`); the separate
-  `showcase` page and its synthetic-demo section were removed (superseded by the real-data
-  run, REQ-FUNC-093 — the synthetic L0→L1B chain itself is unchanged and stays documented in
-  the V&V plan / SUM / `e2e-l1b` CI job).
+- **Docs landing page** — the documentation front page (`docs/index.md`) now leads with the
+  reverse ladder: a real Sentinel-2B L1B run backwards through the exact inverse of the
+  operational L0→L1B radiometric chain to reconstruct L1A/L0plus/L0, validated against the
+  real ESA L0 `img` (≤~4 DN on the 10/20 m bands). The separate `showcase` page was removed.
+  REQ-FUNC-093 is rescoped to the real-data reconstruction/validation driver.
 
 ## [0.3.0] — 2026-07-02
 
-Real-data E2E release: the reverse E2ES now packages a **real bucket L1A** into a
-**CCSDS-122-lossless-compressed, real-CCSDS-space-packet L0**, ground-decodes it bit-exactly
-and proves **L1A′ ≡ L1A (13/13 bands bit-identical)** through msi-processor `l0_decode`, with
-the radiometric GIPP round-trip at RMSE ≈ 1e-14, EOPF **PSFD §3 product naming**
-(ICD-IF-NAME) and published products (`e2e-real/0.3.0` generic packages) + validation
-report (`docs/vv/real_e2e.md`). Authoritative full-frame run on the SDE, 2026-07-02: overall
-lossless compression **3.66×** (637→174 MB, 16-bit base), 30 642 packets, EOQC OK.
+Real-data E2E release: delivers the machinery the reverse ladder reuses to run a real
+Sentinel-2B L1B backwards to L1A → L0plus → L0 — the **CCSDS-122 lossless codec**, real
+**CCSDS space-packet ISPs**, EOPF **PSFD §3 product naming** (ICD-IF-NAME), and the **L0plus
+codec round-trip** (`decode(L0plus)==L1A`, bit-exact) — plus **3.66×** lossless compression
+(637→174 MB, 16-bit base), 30 642 packets and EOQC OK. Published products
+(`e2e-real/0.3.0` generic packages) + validation report (`docs/vv/real_e2e.md`).
 
 ### Added
-- **Real-L1A E2E driver + PSFD naming + bucket fetch** — `scripts/run_e2e_real_l1a.py`
+- **Real-L1B reverse-ladder driver + PSFD naming + bucket fetch** — `scripts/run_e2e_real_l1a.py`
   (phase-structured, idempotent: fetch-l1a/fetch-l0/preflight/package/ground-decode/l0-decode/
-  validate/radiometric-vv/scan-l0/quicklook/report; REQ-FUNC-093): packages the real bucket
-  L1A into the compressed-ISP canonical L0 + open-container form under **EOPF PSFD §3 names**
-  (new `naming.py`, ICD-IF-NAME — the ECSS-M-ST-40C identification coding system), runs
-  msi-processor `l0_decode` to L1A′ and validates bit-identity, line-loss accounting, the GIPP
-  radiometric round-trip, EOQC, and a **structural scan of a real PSD L0 SAFE** (packet-tiling
+  validate/scan-l0/quicklook/report; REQ-FUNC-093): reconstructs the real bucket L1A into the
+  compressed-ISP canonical L0 + open-container form under **EOPF PSFD §3 names** (new
+  `naming.py`, ICD-IF-NAME — the ECSS-M-ST-40C identification coding system), runs the
+  **L0plus codec round-trip** (`decode(L0plus)==L1A`, bit-exact) via msi-processor `l0_decode`,
+  accounts for line-loss, EOQC, and a **structural scan of a real PSD L0 SAFE** (packet-tiling
   criterion on its ISP `.bin` files). New stdlib-only `s3fetch.py` (anonymous S3 listing +
   verified parallel GET). New manual CI job **`e2e-real-l1a`** (windowed, artifacts:
   report+quicklooks). Docs: ICD-IF-NAME, SRS REQ-FUNC-091/092/093, CIDL rows,
-  `docs/vv/real_e2e.md`, README/DPM diagrams updated to the real-data flow.
+  `docs/vv/real_e2e.md`, README/DPM diagrams updated to the reverse-ladder flow.
 - **Compressed ISP payloads + ground decode (real downlink shape)** — the canonical L0's
   `with_isp` branch now CCSDS-122-compresses each band and carries it as **real CCSDS space
   packets**: `isp.packetize_stream` (segment groups = codec segments = 8 image lines,
@@ -179,7 +173,7 @@ lossless compression **3.66×** (637→174 MB, 16-bit base), 30 642 packets, EOQ
 
 ### Fixed
 - `reverse_to_l0_frames` band reseeding now uses `zlib.crc32` instead of salted `hash()` —
-  DN streams are reproducible across processes (REQ-QUAL-004; synthetic demo outputs change once).
+  the reconstructed DN streams are reproducible across processes (REQ-QUAL-004).
 - **CCSDS 122.0-B lossless image compression** (`s2_msi_raw_generator/ccsds122.py`, pure numpy) —
   the documented alternative to Sentinel-2's proprietary onboard MRCPB wavelet scheme: 3-level
   integer DWT 9/7-M, 8×8 block/family + 16-block gaggle structure, self-describing segment
@@ -188,32 +182,19 @@ lossless compression **3.66×** (637→174 MB, 16-bit base), 30 642 packets, EOQ
   decoder; `compress_frame`∘`decompress_frame` is bit-exact (14 unit tests + env-gated real-L1A
   window). Full 21384×2592 band ≈ 19 s each way. Groundwork for compressed ISP payloads
   (REQ-FUNC-092; ATBD §5.S15 rewritten to the real two-step onboard chain).
-- **Showcase (real E2E products) + `e2e-l1b` CI job** — README + docs `showcase` page with the
-  committed L0 DN / L1B reflectance quicklooks from a real chain run; new **manual CI job**
-  `e2e-l1b` builds the full `eopf==2.8.1` + `msi_processor` environment (job-token clone of
-  `ipf/msi-processor`), runs the L0→L1B chain **and** the E2E pytest suite, and uploads the L1B
-  product + quicklooks as artifacts — the real E2E is now CI-reproducible, not SDE-only.
-- **L1B persistence + L1B quicklook (single data-store root)** — `scripts/run_e2e_l0_to_l1b.py` now
-  treats its `work_dir` as the run's central **data store** (`l0/`, `caldb/`, `l1b/`, `quicklook/`
-  under one root; default `data/output/`, e.g. `~/data-store` on the SDE). New `write_l1b` persists
-  the L1B `EOProduct` via eopf's native `EOZarrStore` (`<store>/l1b/L1B_TOA.zarr`, SDE-only) and the
-  driver renders an **L1B reflectance quicklook** (`quicklook/l1b_rgb.png`) next to the L0 one.
-  Quicklook writer gains unit tests (uint16 DN, float reflectance + NaN, flat band, upscale).
 - **`data/` E2E folders + quicklook** — `data/input/` (reference L1A/GIPP; gitignored) and
   `data/output/{l0,caldb,quicklook}/`; `scripts/run_e2e_l0_to_l1b.py` writes products there by default.
   New dependency-free `s2_msi_raw_generator/quicklook.py` (stdlib-only PNG writer) renders an RGB preview.
   The large `.zarr` products are gitignored; the small **quicklook PNGs** are committed (README/site showcase).
 - **zarr v2/v3 write compatibility** (`s2_msi_raw_generator/_zarrio.py`) — the L0 + cal-DB writers now run under
   **both** zarr 3 (local/CI) and **zarr 2.18** (the `eopf==2.8.1` SDE env; eopf pins zarr <3). Products stay in
-  the zarr **v2** on-disk format either way. Consequence: the full **L0→L1B E2E runs in a single venv** alongside
-  `msi-processor` (no separate zarr-3 venv). `scripts/run_e2e_l0_to_l1b.py::run_processor` rewritten to the real
-  eopf/msi_processor API — **validated on the SDE**: generator L0 + cal-DB → `l0_decode → radiometric → enhancement
-  → toa` → real **L1B TOA reflectance** for all bands (VNIR ~0.18, NIR ~0.27, SWIR ~0.05).
-- **Open-container L0 handoff + L0→L1B E2E** — `l0product.write_l0_opencontainer` writes the *decoded* L0
-  (`measurements/detector/<band>` uint16 + `quality/l0_flags/<band>` QAFlag + per-line `conditions/*`) that
-  `msi-processor`'s `l0_decode` ingests directly; `scripts/run_e2e_l0_to_l1b.py` drives the full
-  L0→`radiometric`→`toa`(reflectance) chain (SDE, needs `eopf`+`msi_processor`). CI asserts the schema +
-  the `nuc.gain` ↔ detector-width invariant (`tests/test_e2e_l1b.py`). (REQ-FUNC-042)
+  the zarr **v2** on-disk format either way, so the reverse-ladder writers run in a single venv alongside
+  `msi-processor` (no separate zarr-3 venv).
+- **Open-container L0 handoff + L0plus codec round-trip** — `l0product.write_l0_opencontainer` writes the
+  *decoded* L0 (`measurements/detector/<band>` uint16 + `quality/l0_flags/<band>` QAFlag + per-line
+  `conditions/*`) that `msi-processor`'s `l0_decode` ingests directly; the `decode(L0plus)==L1A` bit-exact
+  handoff contract is asserted by `tests/test_l0_handoff.py`. (REQ-FUNC-042, rescoped to the
+  handoff/round-trip contract)
 - **Real Satellite Ancillary Data** (`s2_msi_raw_generator/sad.py`) — replaces the placeholder all-zero SAD
   payload with real telemetry: a synthesised Sentinel-2 sun-synchronous orbit (ECEF position/velocity), a
   nadir/velocity-aligned attitude quaternion and a thermal cycle (`synth_orbit_attitude`), packed as real
@@ -247,23 +228,23 @@ lossless compression **3.66×** (637→174 MB, 16-bit base), 30 642 packets, EOQ
 - **Real operational GIPP reader** (`s2_msi_raw_generator/gipp.py`) — original `xml.etree` parser of the S2A
   GIPP: R2EQOG (per-pixel dark `COEFF_D` + cubic/bilinear relative-response gains), R2DEPI, BLINDP,
   R2PARA, R2CRCO. `BandADF.from_gipp()` builds per-pixel dark + PRNU ADFs.
-- **Original ATBD forward + round-trip V&V** (`s2_msi_raw_generator/forward_radiometric_atbd.py`) — forward
-  radiometric correction and its exact inverse from the public L1 ATBD; `scripts/roundtrip_real_l1a.py`
-  validates forward∘reverse to ~1e-14 RMSE on a **L1A** with the GIPP.
-- L1A raw reader (`io.read_l1a_raw`), image export (`scripts/save_images.py`), demos
-  (`demo_calibration.py`), `LICENSE` (Apache-2.0), this changelog.
+- **ATBD radiometric inversion core** (`s2_msi_raw_generator/forward_radiometric_atbd.py`) — the exact
+  **inverse** radiometric transform from the public L1 ATBD, driven by the GIPP: the ladder's
+  radiometric-inversion rung (invert the operational L0→L1B correction to recover L1A DN).
+- L1A/L1B raw reader (`io.read_l1a_raw`), `LICENSE` (Apache-2.0), this changelog.
 
 ### Changed
 - Radiometric model adopts the official L1 ATBD raw equation `X = A·G·L + D` in true 12-bit DN.
-- Per-band noise model uses the product `noise_model` (α, β; S2-RUT `σ=√(α²+β·DN)`).
 - Dark/PRNU now per-pixel from the GIPP (was DQR-summary / seeded).
 - L1C-entry + geometry-reverse module **cancelled** (not applicable to an L1A/L1B entry).
 
 ## [0.3.0] — Increments 0–4
 
-- Full S1–S15 reverse chain (radiance→DN, PSF re-blur, PRNU, SWIR re-arrangement (reverse), defects, dark, onboard
-  equalization, noise, 12-bit quantize, CCSDS ISP packets).
+- Full reverse radiometric-inversion ladder (invert offset, relative-response/PRNU, dark, un-bin,
+  SWIR re-stage, defective, crosstalk, on-board-eq → 12-bit DN + CCSDS-122/ISP packetization),
+  explicitly **without** PSF re-blur and **without** noise re-application (MTF-deconvolution OFF).
 - L0 RAW EOProduct assembly (156-array Zarr + STAC/sensor-config).
-- S2 PSF matrices (SentiWiki) + SRF spectral characterisation.
+- SRF spectral characterisation (sensor model); S2 PSF matrices (SentiWiki) retained only as an
+  archived sensor reference (PSF/MTF is not re-applied in the ladder).
 - Sensor model with per-band gains/TDI/line-period from EOPF products.
 - GitLab CI (unit tests), ATBD + Annex A datasheet.

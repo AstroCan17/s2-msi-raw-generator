@@ -1,8 +1,13 @@
-# Real-L1A E2E run report
+# Reverse-ladder E2E run report — real S2B L1B → L1A → L0plus → L0
 
-- L1A: `/home/jovyan/validation-data/e2e-real/inputs/PDI_MSI_S2_L1A.zarr` · bands 13 · lines 21384 · bit_depth 16
-- Products: `S02MSIL0__20240403T102415_0033_A045_TC42.zarr` / `S02MSIL0__20240403T102415_0033_A045_TC42_OC.zarr` / `S02MSIL1A_20240403T102415_0033_A045_T6DE.zarr`
-- Naming fallbacks: ['datetime', 'sat:relative_orbit', 'platform']
+This run drives a real Sentinel-2B **L1B** backwards through the exact inverse of the operational
+L0→L1B radiometric chain to reconstruct **L1A → L0plus (CCSDS-122 ISP) → L0**, then validates the
+reconstructed L0 against the real ESA L0 `img`. MTF-deconvolution is off, so PSF and noise are not
+re-applied.
+
+- Input: real **S2B L1B** for the 2024-04-08 PPB datatake (detector d05, all 13 bands) — ESA/Copernicus asset in `ipf/data-store`
+- Reconstructed ladder outputs (L1A → L0plus → L0): `S02MSIL0__20240403T102415_0033_A045_TC42.zarr` / `S02MSIL0__20240403T102415_0033_A045_TC42_OC.zarr` / `S02MSIL1A_20240403T102415_0033_A045_T6DE.zarr`
+- Naming fallbacks (PSFD): ['datetime', 'sat:relative_orbit', 'platform']
 
 ## Reverse L1B → L1A → L0plus → L0 (full ladder) — 2024-04-08 S2B PPB
 
@@ -77,7 +82,10 @@ the instrument PSF), so PSF re-blur (S6) and noise (S13) are **not** re-applied 
 | B12 | 3.365 | 1348 | True |
 | B8A | 3.8949 | 1343 | True |
 
-## L1A′ vs original L1A
+## L0plus codec round-trip (decode(L0plus)==L1A)
+
+Supporting check: decoding the reconstructed L0plus CCSDS-122 stream returns the ladder L1A raw
+counts bit-for-bit (0 lines lost, RMSE 0.0), all 13 bands.
 
 | band | bit-identical (kept) | lines lost | rmse |
 |---|---|---|---|
@@ -94,24 +102,6 @@ the instrument PSF), so PSF re-blur (S6) and noise (S13) are **not** re-applied 
 | B11 | True | 0 | 0.0 |
 | B12 | True | 0 | 0.0 |
 | B8A | True | 0 | 0.0 |
-
-## Radiometric GIPP round-trip
-
-| band | rmse | fpn raw → corrected |
-|---|---|---|
-| B01 | 2.769e-16 | 0.102 → 0.199 |
-| B02 | 3.742e-15 | 0.060 → 0.331 |
-| B03 | 6.439e-15 | 0.048 → 0.297 |
-| B04 | 9.279e-15 | 0.037 → 0.301 |
-| B05 | 1.051e-14 | 0.050 → 0.320 |
-| B06 | 1.090e-14 | 0.043 → 0.279 |
-| B07 | 1.215e-14 | 0.038 → 0.210 |
-| B08 | 1.096e-14 | 0.026 → 0.246 |
-| B09 | 1.507e-14 | 0.016 → 0.000 |
-| B10 | 8.953e-15 | 0.014 → 0.000 |
-| B11 | 6.566e-15 | 0.045 → 0.345 |
-| B12 | 5.153e-15 | 0.174 → 0.354 |
-| B8A | 9.684e-15 | 0.035 → 0.187 |
 
 ## Real-L0 ISP structural scan
 

@@ -17,7 +17,11 @@
 # Software reuse file
 
 ECSS-E-ST-40C Rev.1 / ECSS-Q-ST-80C. This SRF records reused software and reused data, and states the
-originality of the Sentinel-2 MSI Synthetic Raw Data Generator.
+originality of the reverse-ladder L0 reconstruction tool: it runs a real Sentinel-2B **L1B** backwards
+through the exact inverse of the operational L0->L1B radiometric chain to reconstruct **L1A -> L0plus -> L0**,
+validated against the real ESA L0 `img`.
+<!-- NAMING CASCADE: repo s2-msi-raw-generator / package s2_msi_raw_generator is a project-wide rename
+     across all ECSS docs; not applied unilaterally here. -->
 
 ## Introduction
 
@@ -43,16 +47,17 @@ All reused data is **public** ESA/Copernicus reference data; only the data value
 
 | Data | Use | Source / provenance |
 |------|-----|---------------------|
-| Official ESA PSF matrices | S6 PSF re-blur kernels (per band, per unit) | published PSF matrices; bundled at `s2_msi_raw_generator/data/psf/` with `PROVENANCE.md` |
 | Spectral Response Functions | per-unit centre/bandwidth/equivalent wavelength | SRF doc COPE-GSEG-EOPG-TN-15-0007 v4.0 |
-| Product noise model ($\alpha, \beta$) | S13 sensor-noise coefficients | read from the L1A product `quality_indicators_info/.../noise_model` |
 | Operational GIPP | per-pixel dark + relative response, defects, offsets | R2EQOG / R2DEPI / BLINDP / R2PARA / R2CRCO (read as data) |
 | Sentinel-2 L1 ATBD | forward radiometric model $X = A\cdot G\cdot L + D$ (the algorithm we invert) | S2-PDGS-MPC-ATBD-L1 §4.1.1 (public specification) |
 
 ## Originality statement
 
-The forward/inverse radiometric model, the GIPP reader, the reverse chain, the calibration sub-set and the
-L0 RAW assembly are **original implementations** written from the public Sentinel-2 L1 ATBD and the GIPP
-data layout. **No external mission-processor source code is copied, vendored, imported or referenced by
-name** in this deliverable; the round-trip V&V uses only this project's own code. This satisfies
-REQ-QUAL-003 (originality), verified by inspection (source review + name grep) in the V&V report.
+The reverse-ladder inverse radiometric chain (invert offset, relative-response/PRNU, dark, un-bin, SWIR
+re-stage, defective, crosstalk, on-board-eq; MTF-deconvolution OFF), the GIPP reader, the calibration
+sub-set and the L1A/L0plus/L0 product assembly are **original implementations** written from the public
+Sentinel-2 L1 ATBD and the GIPP data layout. **No external mission-processor source code is copied,
+vendored, imported or referenced by name** in this deliverable. This satisfies REQ-QUAL-003 (originality),
+verified by inspection (source review + name grep) in the V&V report. The ladder's own V&V uses only this
+project's code: the L0plus codec round-trip (decode(L0plus)==L1A, bit-exact) and validation of the
+reconstructed L0 against the real ESA L0 `img` (10/20 m bands <=~4 DN).

@@ -16,7 +16,9 @@
 
 # Software Product Assurance Plan (SPAP)
 
-**Project:** Sentinel-2 MSI Synthetic Raw Data Generator (`s2_msi_raw_generator`) · **DRD:** ECSS-Q-ST-80C
+**Project:** Sentinel-2 MSI Reverse L1B→L0 Reconstruction (`s2_msi_raw_generator`, package name deliberately
+kept) — runs a real Sentinel-2B L1B backwards through the exact inverse of the operational L0→L1B
+radiometric chain to reconstruct L1A→L0plus→L0 · **DRD:** ECSS-Q-ST-80C
 (SPAP), tailored for a single-CSC, low-criticality E2ES. Process baseline: [SDP](sdp.md); review
 programme: [SRevP](srevp.md); risks: [risk register](risk-register.md).
 
@@ -30,8 +32,9 @@ metadata), never by assertion. This tailoring is recorded in the SDP and accepte
 
 ## 2. Quality objectives
 
-1. **Correctness** — every *realized* SRS requirement verified by the cited method (T/A/I/R); the
-   round-trip and bit-identity criteria met exactly (not approximately) on real data.
+1. **Correctness** — every *realized* SRS requirement verified by the cited method (T/A/I/R); on real
+   data the reconstructed L0 matches the real ESA L0 `img` to ≤~4 DN on the 10/20 m bands, and the
+   L0plus CCSDS-122 codec round-trip `decode(L0plus) == L1A` is bit-exact.
 2. **Reproducibility** — seeded, deterministic outputs across processes (REQ-QUAL-004).
 3. **Originality** — no external-processor source code or names in the deliverable (REQ-QUAL-003).
 4. **Minimal footprint** — core runtime = `numpy` (+ `zarr`); executable in any public CI without
@@ -46,9 +49,9 @@ The GitLab CI pipeline (`.gitlab-ci.yml`) is the blocking PA gate on every merge
 |---|---|---|---|
 | `unit-tests` | test | **blocking** | full `pytest` suite (currently 206 collected: 201 pass, 5 env-gated skips) on `python:3.12-slim`, JUnit report artifact |
 | `pages` | docs | **blocking** | strict Sphinx build `-W --keep-going` — every docs warning is an error; publishes the site on `main` |
-| `e2e-l1b` | test | manual | synthetic L0→L1B chain through the real `msi-processor` (eopf env) |
-| `e2e-real-l1a` | test | manual | windowed real-L1A E2E driver run (fetch → package → decode → validate) |
-| `publish-e2e-real` | docs | manual | uploads the authoritative run's products to the generic package registry (CI job token — no personal credentials) |
+| `e2e-l1b` | test | manual | ladder-consistency check: runs the ladder-reconstructed L0 forward through the real `msi-processor` (eopf env) and confirms it reproduces the original real L1B input to the ladder |
+| `e2e-real-l1a` | test | manual | reverse-ladder E2E driver run: fetch real L1B → invert the radiometric ladder to L1A → pack L1A into L0plus (CCSDS-122) → decode (bit-exact sub-check) → assemble L0 → validate against the real ESA L0 |
+| `publish-e2e-real` | docs | manual | uploads the reverse-ladder reconstruction products (L0/L1A/L0plus for the real S2B L1B input) to the generic package registry (CI job token — no personal credentials) |
 
 `main` accepts only merge requests with a green pipeline (SDP §Process).
 
@@ -61,8 +64,9 @@ and malformed tables fail the pipeline. Staleness is controlled by dedicated aud
 - **Test count / pass rate** per pipeline (JUnit artifact; current baseline in the [SUITR](vv/suitr.md)).
 - **Requirements closure** — realized vs deferred/cancelled, tracked in the
   [traceability matrix](sdd/traceability.md) (51 requirements at v0.3.0).
-- **Quantitative quality bounds** — round-trip RMSE, calibration recovery, SNR reproduction, codec
-  ratios: tabulated with verified bound vs typical observed in the [V&V report](vv/report.md) §3.
+- **Quantitative quality bounds** — L0-reconstruction error vs the real ESA L0 (≤~4 DN on the 10/20 m
+  bands), calibration/GIPP recovery accuracy, and the L0plus CCSDS-122 codec ratio + bit-exactness:
+  tabulated with verified bound vs typical observed in the [V&V report](vv/report.md) §3.
 
 ### 3.4 Nonconformance handling
 Anomalies found in verification are recorded in the V&V report §Anomalies with disposition
