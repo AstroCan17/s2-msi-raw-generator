@@ -34,6 +34,21 @@ inverse-crime cure). Implemented from the public L1 ATBD and the GIPP data only.
 Source repository:
 [gitlab.eopf.copernicus.eu/ipf/s2-msi-raw-generator](https://gitlab.eopf.copernicus.eu/ipf/s2-msi-raw-generator)
 
+## Reverse L1B → L1A → L0plus → L0 ladder (real S2B, 2024-04-08)
+
+The generator's headline path: a real **S2B L1B** run *backwards* through the full operational
+radiometric chain into the EOPF product ladder — synthetic **L1A** (decompressed raw counts) →
+**L0plus** (CCSDS-122 ISP + ancillary) → **L0** (decoded `img`, **format-identical to the real ESA
+`S02MSIL0__` product**). Validated against the real ESA L0 `img` for all 13 bands (detector d05): the
+**ten 10 m + 20 m bands agree to ≤ ~4 DN**; the three native-60 m bands (B01/B09/B10) are limited by the
+×3 un-bin. Full per-band table, S8-SWIR / framing figures and the run command:
+[Reverse ladder V&V report](vv/real_e2e_run_report.md).
+
+![Synthetic L1A vs original ESA L0, all 13 bands (synthetic | real | difference)](_static/showcase/reverse_l1b_allbands.png)
+
+The "real ESA L0" panels contain **modified Copernicus Sentinel data 2024** (Sentinel-2B, 2024-04-08),
+shown as low-resolution demo previews only — no raw product data is redistributed.
+
 ## Real-data E2E (authoritative run, SDE 2026-07-02)
 
 The full **real-L1A** end-to-end (REQ-FUNC-093; details & numbers: [Real-L1A E2E
