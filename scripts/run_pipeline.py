@@ -135,6 +135,8 @@ PHASES = [
     "build-caldb",
     "package",
     "reverse-l1b",
+    "package-l0",
+    "validate-reverse",
     "ground-decode",
     "l0-decode",
     "validate",
@@ -259,6 +261,7 @@ def _store_paths(store: Path) -> dict[str, Path]:
     p = {
         "inputs": store / "inputs",
         "caldb": store / "caldb",
+        "l1a": store / "l1a",
         "l0": store / "l0",
         "l1a_prime": store / "l1a_prime",
         "l1b": store / "l1b",
@@ -580,18 +583,22 @@ def phase_reverse_l1b(store: dict[str, Path], args) -> None:
                 f"L0 {tuple(raw.shape)} offset{off:+.0f} unbin×{factor} {' '.join(tags)}"
             )
     stamp = str(start or "unknown").replace("-", "").replace(":", "")[:15]
-    l0_dir = Path(os.environ["S2_E2ES_L0_DIR"]).expanduser() if os.environ.get("S2_E2ES_L0_DIR") else store["l0"]
-    l0_dir.mkdir(parents=True, exist_ok=True)
-    out = str(l0_dir / f"S02MSIL0__{stamp}_reverse.zarr")
-    l0product.write_l0_product(
+    out = str(store["l1a"] / f"S02MSIL1A__{stamp}_reverse.zarr")
+    from s2_msi_raw_generator import import_l0
+
+    info = import_l0.write_l1a_product(
         out,
         frames,
         datation=d,
-        with_isp=True,
-        isp_max_payload=args.max_payload,
-        store_decoded=args.store_decoded,
         platform=platform,
-        jobs=args.jobs,
+        orbit={"relative_orbit": props.get("sat:relative_orbit") or naming.DEFAULT_RELATIVE_ORBIT},
+        source_l1b=src,
+        provenance={
+            "full_reverse_steps_applied": sorted(applied),
+            "adf_sources": {"rswir": rswir_adf, "reob2": reob2_adf, "rcrco": rcrco_adf},
+            "l0_dark_lsb": l0_dark,
+            "restoration_deconvolution": "skipped — off in forward chain (feature_flag_with_deconvolution=False)",
+        },
     )
     _jdump(
         {
@@ -605,11 +612,127 @@ def phase_reverse_l1b(store: dict[str, Path], args) -> None:
             "full_reverse_steps_applied": sorted(applied),
             "adf_sources": {"rswir": rswir_adf, "reob2": reob2_adf, "rcrco": rcrco_adf},
             "restoration_deconvolution": "skipped — off in forward chain (feature_flag_with_deconvolution=False); L1B keeps instrument PSF, no re-blur/re-noise (see DPM)",
-            "output": out,
+            "output_l1a": out,
         },
         store["report"] / "reverse_l1b.json",
     )
-    print(f"[reverse-l1b] {len(frames)} frames → {out}")
+    print(f"[reverse-l1b] {len(frames)} frames → L1A {out}")
+
+
+def phase_package_l0(store: dict[str, Path], args) -> None:
+    """``package-l0`` — sentetik L1A → **L0plus** (CCSDS ISP + ancillary) → **L0** (decoded img).
+
+    Reverse merdiveninin L0 ucu (kanonik forward L0→L0plus→L1A'nın tersi). ``reverse-l1b``'in yazdığı L1A
+    ham sayımlarını okur; **L0plus** = compressed/işleme-hazır (as-downlinked), **L0** = decompressed img
+    (gerçek ESA L0-zarr layout'u, doğrudan karşılaştırılabilir). L0plus ISP'si kendi codec'imizle çözülüp
+    L1A ile bit-exact eşleşme (codec round-trip) doğrulanır."""
+    import zarr as _zarr
+
+    from s2_msi_raw_generator import naming
+
+    rev = _jload(store["report"] / "reverse_l1b.json")
+    l1a = rev.get("output_l1a")
+    if not l1a or not Path(l1a).exists():
+        print("[package-l0] skipped (no reverse-l1b L1A output)")
+        return
+    platform = rev.get("platform", "Sentinel-2B")
+    detectors = [int(x) for x in rev["detectors"]]
+    bands = list(rev["bands"])
+    frames = {
+        (det, bn): gio.read_l1a_raw(l1a, det, bn, dtype=np.uint16) for det in detectors for bn in bands
+    }
+    props = _l1b_props(dict(_zarr.open_group(l1a, mode="r").attrs))
+    if not props:
+        props = _zarr.open_group(l1a, mode="r").attrs.get("stac_discovery", {}).get("properties", {})
+    start = props.get("start_datetime") or props.get("datetime")
+    d = datation.Datation(epoch_utc=start) if start and start != "null" else datation.Datation()
+    orbit = {"relative_orbit": props.get("sat:relative_orbit") or naming.DEFAULT_RELATIVE_ORBIT}
+    stamp = str(start or "unknown").replace("-", "").replace(":", "")[:15]
+
+    l0plus = str(store["l0"] / f"S02MSIL0plus_{stamp}_reverse.zarr")
+    l0product.write_l0_product(
+        l0plus, frames, datation=d, with_isp=True, isp_max_payload=args.max_payload,
+        store_decoded=args.store_decoded, platform=platform, orbit=orbit,
+        eopf_type="S2MSIL0plus", jobs=args.jobs)
+
+    rt_ok = True
+    for (det, bn), dn in frames.items():
+        if not np.array_equal(l0product.read_l0_isp_dn(l0plus, det, bn), dn):
+            rt_ok = False
+            print(f"[package-l0] WARN codec round-trip mismatch d{det:02d} {bn}")
+
+    l0 = str(store["l0"] / f"S02MSIL0__{stamp}_reverse.zarr")
+    l0product.write_l0_decoded_product(l0, frames, datation=d, platform=platform, orbit=orbit)
+    _jdump(
+        {"l1a": l1a, "l0plus": l0plus, "l0": l0, "n_frames": len(frames),
+         "codec_round_trip_bit_exact": rt_ok},
+        store["report"] / "package_l0.json",
+    )
+    print(f"[package-l0] L1A → L0plus {Path(l0plus).name} → L0 {Path(l0).name} "
+          f"(codec round-trip {'OK' if rt_ok else 'FAIL'})")
+
+
+def _framing_offsets(bands) -> dict:
+    """Per-(band) L0→L1B begin-line crop (ADF_PRDLO). Auto-found in esa-source/aux/framing or env."""
+    cand = os.environ.get("S2_E2ES_FRAMING")
+    if not cand:
+        for base in (os.environ.get("S2_DATA_STORE"), os.path.expanduser("~/data-store")):
+            if not base:
+                continue
+            hits = list(Path(base).glob("**/aux/framing/framing_lines_*.json"))
+            if hits:
+                cand = str(hits[0])
+                break
+    if not cand or not Path(cand).exists():
+        return {}
+    try:
+        return json.loads(Path(cand).read_text())
+    except Exception:  # noqa: BLE001
+        return {}
+
+
+def phase_validate_reverse(store: dict[str, Path], args) -> None:
+    """``validate-reverse`` — sentetik L1A/L0 ↔ **gerçek L0 `img`** (framing-hizalı, decode YOK).
+
+    Gerçek ESA L0 ölçümleri decode edilmiş ``measurements/d{DD}/{bBB}/img`` saklar (Faz 0). Sentetik L1A
+    ham sayımlarını, framing (ADF_PRDLO begin-crop) hizasıyla gerçek L0 ``img`` ile bant bant karşılaştırır
+    (median/rmse DN). ``$S2_E2ES_REAL_L0`` = gerçek L0 TC7D yolu."""
+    import zarr as _zarr
+
+    real_l0 = os.environ.get("S2_E2ES_REAL_L0")
+    rev = _jload(store["report"] / "reverse_l1b.json")
+    l1a = rev.get("output_l1a")
+    if not real_l0 or not l1a:
+        print("[validate-reverse] skipped (needs $S2_E2ES_REAL_L0 and a reverse-l1b L1A)")
+        return
+    detectors = [int(x) for x in rev["detectors"]]
+    bands = list(rev["bands"])
+    fr = _framing_offsets(bands)
+    rg = _zarr.open_group(real_l0, mode="r")
+    win = _env_int("S2_E2ES_VALIDATE_LINES", 8000)
+    res = {}
+    for det in detectors:
+        for bn in bands:
+            syn = gio.read_l1a_raw(l1a, det, bn, dtype=np.uint16).astype(np.float64)
+            try:
+                real = np.asarray(rg[f"measurements/d{det:02d}/{sensor.zarr_band_key(bn)}/img"])
+            except Exception:  # noqa: BLE001
+                continue
+            begin = int(fr.get(bn, {}).get(str(det), {}).get("begin", 0)) if fr else 0
+            real = real[begin : begin + syn.shape[0]].astype(np.float64)
+            n = min(win, syn.shape[0], real.shape[0])
+            w = min(syn.shape[1], real.shape[1])
+            a, b = syn[:n, :w], real[:n, :w]
+            diff = a - b
+            res[f"d{det:02d}_{bn}"] = {
+                "median_abs_dn": round(float(np.median(np.abs(diff))), 3),
+                "rmse_dn": round(float(np.sqrt(np.mean(diff**2))), 3),
+                "begin_crop": begin,
+                "shape": [n, w],
+            }
+            print(f"[validate-reverse] d{det:02d} {bn}: median|Δ|={res[f'd{det:02d}_{bn}']['median_abs_dn']} "
+                  f"rmse={res[f'd{det:02d}_{bn}']['rmse_dn']} DN (crop {begin})")
+    _jdump({"real_l0": real_l0, "l1a": l1a, "per_band": res}, store["report"] / "validate_reverse.json")
 
 
 def phase_ground_decode(store: dict[str, Path], args) -> None:
@@ -1669,6 +1792,8 @@ def main(argv=None, *, use_local_defaults: bool = False) -> int:
         "build-caldb": phase_build_caldb,
         "package": phase_package,
         "reverse-l1b": phase_reverse_l1b,
+        "package-l0": phase_package_l0,
+        "validate-reverse": phase_validate_reverse,
         "ground-decode": phase_ground_decode,
         "l0-decode": phase_l0_decode,
         "validate": phase_validate,
