@@ -70,7 +70,7 @@ napoleon_numpy_docstring = True
 html_theme = "sphinx_book_theme"
 html_title = "Sentinel-2 MSI Synthetic Raw Data Generator"
 html_theme_options = {
-    "repository_url": "https://gitlab.eopf.copernicus.eu/ipf/s2-msi-raw-generator",
+    "repository_url": "https://github.com/AstroCan17/s2-msi-raw-generator",
     "repository_branch": "main",
     "path_to_docs": "docs",
     "use_repository_button": True,
