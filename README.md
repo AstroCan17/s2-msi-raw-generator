@@ -1,6 +1,6 @@
 # Sentinel-2 MSI L1B → L0 Reverse Ladder (`s2_msi_raw_generator`)
 
-📖 **Documentation site:** <https://s2-msi-raw-generator-901362.pages.eopf.copernicus.eu>
+📖 **Documentation site:** <https://astrocan17.github.io/s2-msi-raw-generator/>
 
 Runs a **real Sentinel-2B L1B** backwards through the **exact inverse of the operational
 L0→L1B radiometric chain** to reconstruct the full EOPF product ladder — **L1A → L0plus
@@ -223,7 +223,7 @@ python scripts/reverse_compare_figure.py                                        
 
 The GIPP folder holds the `S2A_OPER_GIP_*.xml` files (R2EQOG ×13, R2DEPI, BLINDP, R2PARA,
 R2CRCO); the L1A is an EOPF L1A Zarr (`measurements/DDnn/Bxx/l1a_raw_image`). Products and inputs
-live in the shared [ipf/data-store](https://gitlab.eopf.copernicus.eu/ipf/data-store) registry —
+live in the shared `ipf/data-store` registry —
 pull a working copy with `S2_E2ES_PHASES=fetch-store`. Real-data tests run
 when `S2_E2ES_GIPP_DIR` / `S2_E2ES_L1A` are set. The full variable reference is in
 `docs/sum.md` §4. For interactive inspection of the generated products (band images, ISP
