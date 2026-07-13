@@ -57,7 +57,7 @@ flowchart LR
     ADFsrc --> REV
     ADFsrc --> CAL
     PKT -->|"stores"| L0plus
-    L0plus --> GD --> Synthetic L0
+    L0plus --> GD --> L0
     CAL --> ADFW -->|"stores: EOPF zarr ADFs"| CALDB
     L0 -->|"consumes"| L0D
     L0D --> RAD
