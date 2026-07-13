@@ -33,7 +33,7 @@ the public L1 ATBD and the GIPP data only.
 Source repository:
 [gitlab.eopf.copernicus.eu/ipf/s2-msi-raw-generator](https://gitlab.eopf.copernicus.eu/ipf/s2-msi-raw-generator)
 
-## Reverse L1B → L1A → L0plus → Synthetic L0 reverse chain (S2B, 2024-04-08)
+## Reverse L1B → L1A → L0plus → Synthetic L0 reverse chain
 
 The generator's headline path: an **S2B L1B** run *backwards* through the full operational
 radiometric chain into the EOPF EOPF product chain — Synthetic **L1A** (decompressed raw counts) →
