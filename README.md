@@ -235,7 +235,14 @@ for a tabular store inventory use `notebooks/data_inventory.ipynb`.
 Use a **public code repo + private data repo** model:
 
 - `AstroCan17/s2-msi-raw-generator` (public): code
-- `AstroCan17/s2-msi-raw-generator-data` (private): release assets (`input-data.tar.gz`, optional `input-data.tar.gz.sha256`)
+- `AstroCan17/s2-msi-raw-generator-data` (private): release assets
+
+  | Asset | Contents |
+  |---|---|
+  | `input-data-core.tar.gz` | GIPP, L1A zarr, `real_l0` |
+  | `input-data-public.tar.gz` | public L0 validation products |
+
+  Each asset has a matching `.sha256` file. Split keeps every archive under GitHub's 2 GiB limit.
 
 The devcontainer runs `.devcontainer/scripts/fetch-input-data.sh` on create. It downloads the
 dataset release asset via GitHub API, optionally verifies checksum, and extracts into `data/`
@@ -250,7 +257,7 @@ Optional environment overrides:
 - `DATA_REPO_OWNER` (default: `AstroCan17`)
 - `DATA_REPO_NAME` (default: `s2-msi-raw-generator-data`)
 - `DATASET_TAG` (default: `datasets-v1`)
-- `DATASET_ASSET_NAME` (default: `input-data.tar.gz`)
+- `DATASET_ASSETS` (default: `input-data-core.tar.gz input-data-public.tar.gz`)
 - `DATA_DIR` (default: `data`)
 - `FORCE_DATA_SYNC=1` to force redownload even if the same tag is already present
 
@@ -280,8 +287,9 @@ Package a local store root that matches the pipeline layout (`inputs/`, `l0/`, �
 immutable release assets:
 
 ```bash
+make publish-s2-dataset
+# single-archive repos still use:
 make publish-dataset STORE_ROOT=/path/to/store-root
-# or: DATASET_TAG=datasets-v2 bash .devcontainer/scripts/publish-dataset.sh /path/to/store-root
 ```
 
 Release contract:
@@ -289,9 +297,8 @@ Release contract:
 | Field | Value |
 |---|---|
 | Tag | `datasets-vN` (immutable) |
-| Asset | `input-data.tar.gz` |
-| Checksum | `input-data.tar.gz.sha256` (recommended) |
-| Size limit | ≤ 2 GiB per GitHub release asset |
+| Assets | `input-data-core.tar.gz`, `input-data-public.tar.gz` (+ `.sha256`) |
+| Size limit | ≤ 2 GiB per asset |
 
 CI validates consumption via `.github/workflows/data-fetch-smoke.yml` (requires
 `DATA_REPO_PAT` repository secret).

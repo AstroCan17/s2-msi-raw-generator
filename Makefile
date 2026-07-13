@@ -14,3 +14,6 @@ devcontainer-setup: install data-sync
 publish-dataset:
 	@test -n "$(STORE_ROOT)" || (echo "Set STORE_ROOT=/path/to/store-root" && exit 1)
 	bash .devcontainer/scripts/publish-dataset.sh "$(STORE_ROOT)"
+
+publish-s2-dataset:
+	bash .devcontainer/scripts/publish-s2-dataset.sh
