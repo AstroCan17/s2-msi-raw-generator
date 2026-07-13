@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
-"""Generate the reverse-ladder validation figure + per-band table (all 13 bands).
+"""Generate the reverse-chain validation figure + per-band table (all 13 bands).
 
-Compares the synthetic **L1A** raw counts (``reverse-l1b`` output) against the **original S2B L0 `img`**
+Compares the Synthetic **L1A** raw counts (``reverse-l1b`` output) against the **reference S2B L0 `img`**
 for the 2024-04-08 S2B PPB datatake, framing-aligned (ADF_PRDLO ``begin_nb_lines_to_cut`` from the L1B
 metadata) with a small cross-correlation refinement for the ~28-line legacy datation drift — the exact
 method of ``notebooks/reverse_l1b_compare.ipynb``, extended to every band.
 
-Env: ``S2_E2ES_L1B`` (real L1B), ``S2_E2ES_GIPP_DIR`` + ``S2_E2ES_EQOG_ADF`` (blind columns), the
-synthetic L1A dir (``S2_DATA_STORE/l1a`` or ``$S2_E2ES_L1A_DIR``), ``S2_E2ES_REAL_L0`` (real L0 TC7D).
-Writes ``reverse_l1b_allbands.png`` + ``reverse_l1b_allbands.json`` to the CWD (or ``$OUT_DIR``).
+Requires ``.env`` with ``S2_L1B_INPUT``, ``S2_L0_INPUT``, ``S2_GIPP_DIR``, ``S2_AUX_DIR``, ``OUTPUT_DIR``.
+Synthetic L1A is read from ``$OUTPUT_DIR/l1a`` (or ``$S2_L1A_DIR``). Writes ``reverse_l1b_allbands.png``
++ ``reverse_l1b_allbands.json`` to the CWD (or ``$OUT_DIR``).
 """
 from __future__ import annotations
 
@@ -24,28 +24,31 @@ import matplotlib.pyplot as plt  # noqa: E402
 import numpy as np  # noqa: E402
 import zarr  # noqa: E402
 
-from s2_msi_raw_generator import forward_radiometric_atbd as fwd, gipp, io as gio  # noqa: E402
+from s2_msi_raw_generator import env as s2env, forward_radiometric_atbd as fwd, gipp, io as gio  # noqa: E402
 
-DET = int(os.environ.get("S2_E2ES_L1B_DETECTORS", "5").split(",")[0])
+s2env.ensure_repo_on_path()
+s2env.init_env(require=True)
+
+DET = int(os.environ.get("S2_DETECTORS", "5").split(",")[0])
 BANDS = ["B01", "B02", "B03", "B04", "B05", "B06", "B07", "B08", "B8A", "B09", "B10", "B11", "B12"]
 OUT = Path(os.environ.get("OUT_DIR", "."))
 
 
 def _syn_l1a() -> str:
-    d = os.environ.get("S2_E2ES_L1A_DIR")
+    d = os.environ.get("S2_L1A_DIR")
     if not d:
-        base = os.environ.get("S2_DATA_STORE") or os.path.expanduser("~/scratch/ladder2")
-        d = os.path.join(base, "l1a")
+        d = str(s2env.output_dir() / "l1a")
     hits = sorted(glob.glob(os.path.join(d, "S02MSIL1A__*_reverse.zarr")))
     if not hits:
-        raise SystemExit(f"no synthetic L1A under {d}")
+        raise SystemExit(f"no Synthetic L1A under {d}")
     return hits[-1]
 
 
 def _framing(l1b_path: str) -> dict:
-    fr = os.path.expanduser("~/data-store/esa-source/aux/framing/framing_lines_S2B_20240408.json")
-    if os.path.exists(fr):
-        return json.load(open(fr))["framing"]
+    hit = s2env.find_framing_table()
+    if hit and hit.is_file():
+        data = json.loads(hit.read_text())
+        return data.get("framing", data)
     fi = dict(zarr.open_group(l1b_path, mode="r").attrs)["other_metadata"]["Radiometric_Info"][
         "Framing_Information"
     ]
@@ -55,13 +58,11 @@ def _framing(l1b_path: str) -> dict:
 
 
 def main() -> int:
-    l1b = os.environ["S2_E2ES_L1B"]
-    real = os.environ.get("S2_E2ES_REAL_L0") or (
-        os.path.dirname(l1b) + "/S02MSIL0__20240408T053621_0566_B105_TC7D.zarr"
-    )
+    l1b = os.environ["S2_L1B_INPUT"]
+    esa_l0_path = os.environ["S2_L0_INPUT"]
     syn_l1a = _syn_l1a()
-    gs = gipp.load_gipp_set(os.environ["S2_E2ES_GIPP_DIR"], eqog_adf=os.environ.get("S2_E2ES_EQOG_ADF"))
-    g_real = zarr.open_group(real, mode="r")
+    gs = gipp.load_gipp_set(os.environ["S2_GIPP_DIR"])
+    esa_l0_ref = zarr.open_group(esa_l0_path, mode="r")
     fr = _framing(l1b)
 
     def framing_begin(band):
@@ -74,7 +75,7 @@ def main() -> int:
         lo = max(0, off - margin)
         base = off - lo
         real_big = np.asarray(
-            g_real[f"measurements/d{DET:02d}/{band.lower()}/img"][lo : off + h + margin, :w], np.float64
+            esa_l0_ref[f"measurements/d{DET:02d}/{band.lower()}/img"][lo : off + h + margin, :w], np.float64
         )
         blind = gs.blind.get(band, {}).get(DET)
         if blind is not None and len(blind) and max(blind) < w and (w - len(blind)) > 0:
@@ -128,7 +129,7 @@ def main() -> int:
         ax[i, 0].imshow(stretch(syn, realb), cmap="gray", aspect="auto")
         ax[i, 0].set_title(f"{bn} synthetic (reverse)", fontsize=8)
         ax[i, 1].imshow(stretch(realb, realb), cmap="gray", aspect="auto")
-        ax[i, 1].set_title(f"{bn} original S2B L0", fontsize=8)
+        ax[i, 1].set_title(f"{bn} reference S2B L0", fontsize=8)
         lim = np.percentile(np.abs(d), 98) + 1e-6
         ax[i, 2].imshow(d, cmap="RdBu_r", aspect="auto", vmin=-lim, vmax=lim)
         ax[i, 2].set_title(f"{bn} diff  rmse={rmse:.1f} DN  off={off} drift={drift:+d}", fontsize=8)

@@ -1,7 +1,7 @@
 """Lightweight reader for Sentinel-2 EOPF L1A/L1B Zarr products (no full eopf dependency).
 
 Reads the per-detector / per-band radiance arrays straight from the Zarr store with ``zarr``.
-The full EOPF CPM (``eopf==2.8.1``, optional extra) is only needed to write spec-compliant L0
+The full EOPF CPM (``eopf==2.8.1``, optional extra) is only needed to write spec-compliant Synthetic L0
 EOProducts (Increment 2) and for the round-trip against the pinned ``msi-processor``.
 """
 
@@ -58,7 +58,7 @@ def read_l1a_raw(
     lines: slice | None = None,
     dtype: np.dtype | type | None = np.float64,
 ) -> np.ndarray:
-    """Read one detector/band raw-DN array from an EOPF **L1A** product.
+    """Read one detector/band raw-DN array from EOPF **L1A** product.
 
     L1A uses ``measurements/DD{dd}/B{band}/l1a_raw_image`` (uppercase ``DDnn``/``Bxx``, image name
     ``l1a_raw_image``) — the raw instrument counts (with dark + PRNU still present), unlike the

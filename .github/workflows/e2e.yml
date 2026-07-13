@@ -10,7 +10,7 @@ on:
         type: choice
         options:
           - pipeline-calibration
-          - e2e-real-l1a
+          - e2e-s2-l1b
 
 jobs:
   pipeline-calibration:
@@ -20,9 +20,13 @@ jobs:
     timeout-minutes: 15
     continue-on-error: true
     env:
-      S2_DATA_STORE: cal-store
-      S2_E2ES_NDET: "64"
-      S2_E2ES_CAL_LINES: "64"
+      OUTPUT_DIR: cal-store
+      S2_L1B_INPUT: cal-store/inputs/placeholder
+      S2_L0_INPUT: cal-store/inputs/placeholder
+      S2_GIPP_DIR: cal-store/inputs/placeholder
+      S2_AUX_DIR: cal-store/inputs/placeholder
+      S2_NDET: "64"
+      S2_CAL_LINES: "64"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -45,16 +49,20 @@ jobs:
             cal-store/report/
             cal-store/quicklook/
 
-  e2e-real-l1a:
+  e2e-s2-l1b:
     name: Windowed nominal-chain E2E
-    if: inputs.job == 'e2e-real-l1a'
+    if: inputs.job == 'e2e-s2-l1b'
     runs-on: ubuntu-latest
     timeout-minutes: 45
     continue-on-error: true
     env:
-      S2_DATA_STORE: e2e-real-store
-      S2_E2ES_PHASES: fetch-l1a,preflight,package,ground-decode,l0-decode,validate,quicklook,report
-      S2_E2ES_LINES: "4096"
+      OUTPUT_DIR: e2e-s2-l1b-store
+      S2_L1B_INPUT: e2e-s2-l1b-store/inputs/placeholder
+      S2_L0_INPUT: e2e-s2-l1b-store/inputs/placeholder
+      S2_GIPP_DIR: e2e-s2-l1b-store/inputs/placeholder
+      S2_AUX_DIR: e2e-s2-l1b-store/inputs/placeholder
+      S2_PHASES: fetch-l1a,preflight,package,ground-decode,l0-decode,validate,quicklook,report
+      S2_LINES: "4096"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -73,7 +81,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: e2e-real-l1a-report
+          name: e2e-s2-l1b-report
           path: |
-            e2e-real-store/report/
-            e2e-real-store/quicklook/
+            e2e-s2-l1b-store/report/
+            e2e-s2-l1b-store/quicklook/

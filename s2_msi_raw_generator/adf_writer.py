@@ -134,7 +134,7 @@ def write_calibration_db(
     """Write the EOPF zarr ADF set (``nuc`` / ``dark`` / ``radiometric`` [+ ``spectral`` + ``noise``]).
 
     The raw calibration *acquisitions* behind these coefficients are not ADF side-files:
-    the pipeline's calibration mode packages them as real downlink L0 products
+    the pipeline's calibration mode packages them as downlink Synthetic L0 products
     (``S02MSIDCA`` dark, ``S02MSISCA`` sun-diffuser) — see the ICD.
 
     Returns the list of written ``.zarr`` paths. A ``PROVENANCE.md`` is written beside them.

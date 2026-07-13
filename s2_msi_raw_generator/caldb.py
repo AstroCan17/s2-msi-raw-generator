@@ -66,7 +66,7 @@ def derive_from_acquisitions(
     """Derive one band's cal-DB coefficients from given dark + flat-field acquisitions.
 
     The two acquisitions may come from :func:`derive_band_cal`'s internal synthesis or,
-    in the pipeline's calibration mode, from the packaged calibration-campaign L0
+    in the pipeline's calibration mode, from the packaged calibration-campaign Synthetic L0
     products (dark ``S02MSIDCA``, sun-diffuser ``S02MSISCA``) — same numbers either way.
     """
     b = sensor.band(band_name, unit)

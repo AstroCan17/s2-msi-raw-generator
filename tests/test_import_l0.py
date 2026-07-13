@@ -10,6 +10,7 @@ import pytest
 zarr = pytest.importorskip("zarr")
 
 from s2_msi_raw_generator import _fsutil, _zarrio, import_l0, l0product, naming, sensor
+from tests.conftest import patch_pipeline_env
 
 _SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "run_pipeline.py"
 _spec = importlib.util.spec_from_file_location("run_pipeline", _SCRIPT)
@@ -68,13 +69,13 @@ def test_convert_public_l0_to_pdi_l1a(tmp_path, public_l0_zip):
 
 def test_driver_import_l0_pipeline_same_scene(tmp_path, public_l0_zip, monkeypatch):
     store = tmp_path / "store"
-    monkeypatch.setenv("S2_DATA_STORE", str(store))
-    monkeypatch.setenv("S2_E2ES_PUBLIC_L0", str(public_l0_zip))
-    monkeypatch.setenv("S2_E2ES_IMPORT_DETECTOR", "1")
-    monkeypatch.setenv("S2_E2ES_BANDS", ",".join(BANDS))
-    monkeypatch.setenv("S2_E2ES_PHASES", "import-l0,preflight,package,ground-decode")
-    monkeypatch.setenv("S2_E2ES_JOBS", "1")
-    assert drv.main([]) == 0
+    patch_pipeline_env(monkeypatch, store)
+    monkeypatch.setenv("S2_L0_INPUT", str(public_l0_zip))
+    monkeypatch.setenv("S2_IMPORT_DETECTOR", "1")
+    monkeypatch.setenv("S2_BANDS", ",".join(BANDS))
+    monkeypatch.setenv("S2_PHASES", "import-l0,preflight,package,ground-decode")
+    monkeypatch.setenv("S2_JOBS", "1")
+    assert drv.main([], load_env=False) == 0
 
     pre = json.loads((store / "report/preflight.json").read_text())
     assert pre["naming_fallbacks"] == []
@@ -94,27 +95,19 @@ def test_driver_import_l0_pipeline_same_scene(tmp_path, public_l0_zip, monkeypat
 
 def test_import_detector_env_selects_source_detector(tmp_path, public_l0_zip, monkeypatch):
     store = tmp_path / "store"
-    monkeypatch.setenv("S2_DATA_STORE", str(store))
-    monkeypatch.setenv("S2_E2ES_PUBLIC_L0", str(public_l0_zip))
-    monkeypatch.setenv("S2_E2ES_IMPORT_DETECTOR", "2")
-    monkeypatch.setenv("S2_E2ES_BANDS", "B02")
-    monkeypatch.setenv("S2_E2ES_PHASES", "import-l0")
-    assert drv.main([]) == 0
+    patch_pipeline_env(monkeypatch, store)
+    monkeypatch.setenv("S2_L0_INPUT", str(public_l0_zip))
+    monkeypatch.setenv("S2_IMPORT_DETECTOR", "2")
+    monkeypatch.setenv("S2_BANDS", "B02")
+    monkeypatch.setenv("S2_PHASES", "import-l0")
+    assert drv.main([], load_env=False) == 0
     report = json.loads((store / "report/import_l0.json").read_text())
     assert report["detector"] == 2
     g = zarr.open_group(report["output"], mode="r")
     assert dict(g.attrs)["other_metadata"]["import_provenance"]["source_detector"] == 2
 
 
-def test_l0_dir_env_rehomes_produced_l0(tmp_path, monkeypatch):
-    out = tmp_path / "curated" / "outputs" / "L0"
-    monkeypatch.setenv("S2_E2ES_L0_DIR", str(out))
-    store = drv._store_paths(tmp_path / "store")
-    assert store["l0"] == out and out.is_dir()
-    assert store["report"] == tmp_path / "store" / "report"   # only l0 is re-homed
-
-
-def test_l0_dir_default_stays_in_store(tmp_path, monkeypatch):
-    monkeypatch.delenv("S2_E2ES_L0_DIR", raising=False)
+def test_store_paths_use_output_dir_subdirs(tmp_path):
     store = drv._store_paths(tmp_path / "store")
     assert store["l0"] == tmp_path / "store" / "l0"
+    assert store["report"] == tmp_path / "store" / "report"

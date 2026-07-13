@@ -16,12 +16,12 @@
 
 # Software Unit & Integration Test Report (SUITR)
 
-**Project:** Sentinel-2 MSI L0-reconstruction pipeline (`s2_msi_raw_generator`) · **DRD:** ECSS-E-ST-40C Rev.1
+**Project:** Sentinel-2 MSI Synthetic L0 reconstruction pipeline (`s2_msi_raw_generator`) · **DRD:** ECSS-E-ST-40C Rev.1
 (SUITR). Plan: [SUITP](suitp.md). This report records the executed unit/integration campaign for the
-reverse-ladder pipeline — a real Sentinel-2B **L1B** run backwards through the exact inverse of the
-operational L0→L1B radiometric chain to reconstruct **L1A → L0plus → L0** — at the current baseline;
-validation-level results (real-data E2E) are in the
-[V&V report](report.md) and the [Real-L1A E2E validation](real_e2e.md).
+reverse-chain pipeline — a Sentinel-2B **L1B** run backwards through the exact inverse of the
+operational L0→L1B radiometric chain to reconstruct **L1A → L0plus → Synthetic L0** — at the current baseline;
+validation-level results (S2 L1B E2E) are in the
+[V&V report](report.md) and the [S2 L1B E2E validation](s2_l1b_e2e.md).
 
 ## 1. Configuration baseline under test
 
@@ -46,12 +46,12 @@ validation-level results (real-data E2E) are in the
 | Collected cases (with parametrisation) | **206** |
 | Passed | **201** |
 | Failed / errors | **0** |
-| Skipped (environment-gated real-data tests) | 5 |
+| Skipped (environment-gated S2 L1B tests) | 5 |
 
-The 5 skips are the `S2_E2ES_GIPP_DIR` / `S2_E2ES_L1A`-gated tests (SUITP §2); they **pass when the data
-is supplied** — verified on the SDE with the operational GIPP and the real Sentinel-2B L1B/L1A (evidence:
-the real L1B → reconstructed L0 run validated against the real ESA L0 `img`, agreeing within ≤ ~4 DN on
-the 10/20 m bands; see the [Real-L1A E2E validation](real_e2e.md) and the [V&V report](report.md)).
+The 5 skips are the `S2_GIPP_DIR` / `S2_L1A_INPUT`-gated tests (SUITP §2); they **pass when the data
+is supplied** — verified on the SDE with the operational GIPP and the S2B L1B/L1A (evidence:
+the S2 L1B → Synthetic L0 run validated against the reference ESA L0 `img`, agreeing within ≤ ~4 DN on
+the 10/20 m bands; see the [S2 L1B E2E validation](s2_l1b_e2e.md) and the [V&V report](report.md)).
 
 ## 4. Results by area
 
@@ -59,7 +59,7 @@ All areas pass with 0 failures; the per-file inventory and item-under-test mappi
 Highlights of the exact (non-tolerance) assertions that passed:
 
 - **Codec:** `compress_frame ∘ decompress_frame` bit-exact on every fixture matrix and the env-gated
-  real-L1A window (`test_ccsds122`).
+  S2 L1B window (`test_ccsds122`).
 - **Packet grammar:** `reassemble_segments ∘ packetize_stream = identity`; 14-bit counter continuity;
   offsets exactly tile the stream (`test_isp_packetize`).
 - **Naming:** `parse_psfd_name` round-trips every generated name, including flagged-default fields
@@ -80,5 +80,5 @@ the [V&V report](report.md) §5; the salted-`hash()` reseeding defect was fixed 
 ## 6. Verdict
 
 **PASS.** All non-gated unit and integration tests pass at the current baseline; the environment-gated
-tests pass on the SDE with real data. Exit criteria of the SUITP (§5) are met; open validation-level
+tests pass on the SDE with data. Exit criteria of the SUITP (§5) are met; open validation-level
 items are carried in the [QR report](../qr.md).

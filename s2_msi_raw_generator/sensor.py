@@ -380,7 +380,7 @@ EQ_GAIN_STD: float = 0.0005  # 0.05 % per-detector equalization-gain 1σ (Table 
 
 # Radiometric / quantization constants.
 RADIO_ADD_OFFSET_L1B: int = -100  # L1B; L1C would be -1000 (PB04.00)
-# L0-domain (downlinked) dark pedestal, ≈ blind-column floor of the real S2B L0 (measured on the
+# L0-domain (downlinked) dark pedestal, ≈ blind-column floor of the S2B L0 (measured on the
 # 2024-04-08 PPB pair: 50–52 DN across the 10/20 m bands). This is the *downlink*-domain dark added
 # by ``reverse_l1b_to_l0`` — distinct from DARK_PEDESTAL_LSB (≈480, the raw-detector COEFF_D domain).
 L0_DARK_LSB: float = 51.0
@@ -388,7 +388,7 @@ BIT_DEPTH: int = 12
 DN_MAX: int = (1 << BIT_DEPTH) - 1  # 4095
 DN_NODATA: int = 0
 DN_SATURATED: int = 65535  # special value in the uint16 container
-LINE_PERIOD_MS: float = 1.5658736  # real, from product metadata
+LINE_PERIOD_MS: float = 1.5658736  # from product metadata
 NUC_TABLE_ID: int = 3
 
 
@@ -424,7 +424,7 @@ class Band:
 
     @property
     def cal_gain(self) -> float:
-        """Absolute calibration gain A used in S1 (``DN = A·L``): ``dn_ref / Lref`` — real-derived
+        """Absolute calibration gain A used in S1 (``DN = A·L``): ``dn_ref / Lref`` — datasheet-derived
         (noise α,β + SNR@Lref), so the chain reproduces the SNR@Lref."""
         return self.dn_ref / self.lref
 
@@ -462,12 +462,12 @@ def all_bands(unit: str = DEFAULT_UNIT) -> list[Band]:
 
 
 def band_number(name: str) -> str:
-    """Band number used in the L0 `spectral_band_info` keys: ``B01`` → ``"01"``, ``B8A`` → ``"8A"``."""
+    """Band number used in the Synthetic L0 `spectral_band_info` keys: ``B01`` → ``"01"``, ``B8A`` → ``"8A"``."""
     return name[1:]
 
 
 def zarr_band_key(name: str) -> str:
-    """Zarr group key for a band in the L0 product: ``B03`` → ``"b03"``, ``B8A`` → ``"b8a"``."""
+    """Zarr group key for a band in the Synthetic L0 product: ``B03`` → ``"b03"``, ``B8A`` → ``"b8a"``."""
     return "b" + name[1:].lower()
 
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate the ESA-only NUC (EOPF ``ADF_REQOG``) on a **real** SAFE L1B granule.
+"""Validate the ESA-only NUC (EOPF ``ADF_REQOG``) on an **ESA SAFE** L1B granule.
 
 This closes the objective-measurement loop for the ESA-only correction goal (issue #1): it takes a
 genuine ESA L1B band image (JPEG-2000) straight out of a SAFE ``.tar`` (nested granule tars are
@@ -7,7 +7,7 @@ handled), re-impresses the non-uniformity with the ESA ``R2EQOG`` per-pixel dark
 (:func:`forward_radiometric_atbd.reverse_impress`) to synthesise the raw L1A, then forward-corrects it
 back (:func:`forward_radiometric_atbd.forward_correct`) and reports:
 
-* **round-trip RMSE** — how well the ESA equalization model inverts on real pixels (self-consistency);
+* **round-trip RMSE** — how well the ESA equalization model inverts on L1B pixels (self-consistency);
 * **column-FPN before/after** — the synthetic raw must show more across-track fixed-pattern (PRNU
   stripes) than the corrected L1B, proving the ESA per-pixel structure was actually impressed;
 * **temporal validity** — the ADF applicability epoch vs the acquisition sensing date.
@@ -35,10 +35,18 @@ import numpy as np
 
 from s2_msi_raw_generator import forward_radiometric_atbd as fwd, gipp
 
-_VM_L1B = ("/home/jovyan/validation-data/data-store/dpr-common-validation/turkey/"
-           "S20180820T085005_L1B.tar")
-_VM_ADF = ("/home/jovyan/data-store/esa-adf/"
-           "S2A_ADF_REQOG_20240417T000000_21000101T000000_20240417T000000.json")
+_VM_L1B = ""
+_VM_ADF = ""
+
+
+def _default_eqog_adf() -> str | None:
+    from s2_msi_raw_generator import env as s2env
+
+    s2env.load_dotenv()
+    p = os.environ.get("S2_EQOG_ADF")
+    if p and os.path.exists(p):
+        return p
+    return s2env.find_adf_eopf("REQOG")
 
 
 def _jp2_suffix(band: str) -> str:
@@ -85,8 +93,8 @@ def _sensing_from_granule(name: str) -> str | None:
 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--l1b-tar", default=os.environ.get("S2_VAL_L1B", _VM_L1B))
-    ap.add_argument("--adf", default=os.environ.get("S2_E2ES_EQOG_ADF", _VM_ADF))
+    ap.add_argument("--l1b-tar", default=os.environ.get("S2_VAL_L1B") or None)
+    ap.add_argument("--adf", default=os.environ.get("S2_EQOG_ADF") or _default_eqog_adf())
     ap.add_argument("--band", default="B03")
     ap.add_argument("--detector", type=int, default=1)
     ap.add_argument("--lines", type=int, default=2048, help="along-track window (0 = full)")
@@ -95,8 +103,8 @@ def main() -> None:
     args = ap.parse_args()
 
     for label, path in (("L1B tar", args.l1b_tar), ("ADF", args.adf)):
-        if not os.path.exists(path):
-            sys.exit(f"{label} not found: {path}")
+        if not path or not os.path.exists(path):
+            sys.exit(f"{label} not found: {path!r} — set --l1b-tar / --adf or S2_VAL_L1B / S2_EQOG_ADF")
 
     print(f"L1B : {args.l1b_tar}")
     print(f"ADF : {args.adf}")
@@ -123,7 +131,7 @@ def main() -> None:
     fpn_corr = float(fwd.column_fpn(y))
     fpn_raw = float(fwd.column_fpn(x_syn))
 
-    print("=== ESA-NUC round-trip (real L1B pixels) ===")
+    print("=== ESA-NUC round-trip (S2 L1B pixels) ===")
     print(f"round-trip RMSE     : {rmse:.4f} DN  ({100 * rel:.4f} % of mean)")
     print(f"column FPN  L1B/raw : {fpn_corr:.4f} -> {fpn_raw:.4f}  "
           f"({'PRNU impressed OK' if fpn_raw > fpn_corr else 'no FPN increase (check ADF/band)'})")

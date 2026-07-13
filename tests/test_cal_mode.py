@@ -1,4 +1,4 @@
-"""Calibration mode (REQ-FUNC-048): campaign acquisitions as REAL downlink L0 products.
+"""Calibration mode (REQ-FUNC-048): campaign acquisitions as downlink Synthetic L0 products.
 
 Runs the driver's calibration phases into a tmp store and asserts the products carry the
 PSFD §3 calibration type codes (S02MSIDCA dark / S02MSISCA sun-diffuser), the operation-
@@ -18,6 +18,7 @@ import pytest
 zarr = pytest.importorskip("zarr")
 
 from s2_msi_raw_generator import l0product, naming
+from tests.conftest import patch_pipeline_env
 
 _SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "run_pipeline.py"
 _spec = importlib.util.spec_from_file_location("run_pipeline", _SCRIPT)
@@ -31,14 +32,14 @@ BANDS = ["B03", "B04"]
 def cal_store(tmp_path_factory):
     store = tmp_path_factory.mktemp("calstore")
     with pytest.MonkeyPatch.context() as mp:
-        mp.setenv("S2_DATA_STORE", str(store))
-        mp.setenv("S2_E2ES_NDET", "32")
-        mp.setenv("S2_E2ES_CAL_LINES", "16")
-        mp.setenv("S2_E2ES_BANDS", ",".join(BANDS))
-        mp.setenv("S2_E2ES_SEED", "3")
-        mp.delenv("S2_E2ES_PHASES", raising=False)
-        mp.delenv("S2_E2ES_LINES", raising=False)
-        assert drv.main(["calibration"]) == 0
+        patch_pipeline_env(mp, store)
+        mp.setenv("S2_NDET", "32")
+        mp.setenv("S2_CAL_LINES", "16")
+        mp.setenv("S2_BANDS", ",".join(BANDS))
+        mp.setenv("S2_SEED", "3")
+        mp.delenv("S2_PHASES", raising=False)
+        mp.delenv("S2_LINES", raising=False)
+        assert drv.main(["calibration"], load_env=False) == 0
     return store
 
 

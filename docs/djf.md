@@ -18,15 +18,15 @@
 
 **Project:** Sentinel-2 MSI Synthetic Raw Data Generator (`s2_msi_raw_generator`) · **DRD:** ECSS-E-ST-40C Rev.1
 (DJF — design justification). Design baseline: [SDD](sdd/index.rst); requirements: [SRS](srs.md);
-verification evidence: [V&V report](vv/report.md) and [reverse-ladder L0-reconstruction validation](vv/real_e2e.md).
+verification evidence: [V&V report](vv/report.md) and [reverse-chain Synthetic L0 reconstruction validation](vv/s2_l1b_e2e.md).
 
-The design realises a **reverse ladder**: a real Sentinel-2B L1B is run backwards through the exact
+The design realises a **reverse chain**: a S2B L1B is run backwards through the exact
 inverse of the operational L0→L1B radiometric chain (invert offset, relative-response/PRNU, dark, un-bin,
 SWIR re-stage, defective, crosstalk, on-board-equalisation) to reconstruct **L1A → L0plus (CCSDS-122 ISP)
-→ L0**. MTF-deconvolution is off, so PSF and noise are not re-applied. Success is the reconstructed L0
-agreeing with the real ESA L0 `img` (10/20 m bands ≤ ~4 DN); the L0plus codec round-trip
+→ Synthetic L0**. MTF-deconvolution is off, so PSF and noise are not re-applied. Success is the Synthetic L0
+agreeing with the reference ESA L0 `img` (10/20 m bands ≤ ~4 DN); the L0plus codec round-trip
 `decode(L0plus) == L1A` is bit-exact as a supporting check. The decisions below are justified against
-this ladder.
+this reverse chain.
 
 ## 1. Approach
 
@@ -38,23 +38,23 @@ verification evidence that the decision holds. Decisions were taken at increment
 
 ### DEC-01 — Entry at L1A/L1B; geometry reverse cancelled
 **Alternatives:** L1C entry with de-orthorectification vs L1A/L1B entry in per-detector sensor geometry.
-**Decision:** the ladder enters at real S2B L1B in per-detector sensor geometry; geometry inversion
+**Decision:** the reverse chain enters at S2B L1B in per-detector sensor geometry; geometry inversion
 cancelled (REQ-FUNC-090, MR !1).
 **Rationale:** L1A/L1B is already in per-detector sensor geometry — there is no orthorectification to
 undo; a geometry reverse would add a large, unverifiable model for no fidelity gain on the radiometric
 chain, which is the V&V target.
-**Evidence:** with no geometric resampling in the ladder, the reconstructed L0 agrees with the real ESA
-L0 `img` on the 10/20 m bands within ≤ ~4 DN ([V&V report](vv/report.md) §3).
+**Evidence:** with no geometric resampling in the reverse chain, the Synthetic L0 agrees with the ESA
+reference ESA L0 `img` on the 10/20 m bands within ≤ ~4 DN ([V&V report](vv/report.md) §3).
 
-### DEC-02 — real S2B-sourced ADFs vs fitted/synthetic instrument models
+### DEC-02 — S2B-sourced ADFs vs fitted/synthetic instrument models
 **Alternatives:** parametric synthetic PRNU/dark/offset vs official ESA data.
-**Decision:** the ladder inverts the L0→L1B radiometric chain using real ESA ADFs only — operational
+**Decision:** the reverse chain inverts the L0→L1B radiometric chain using ESA ADFs only — operational
 GIPP dark, relative-response/PRNU, offset, defective, crosstalk and on-board-equalisation coefficients
-(MR !2, !3). MTF-deconvolution and noise are off in the ladder, so no PSF matrices or noise model are
+(MR !2, !3). MTF-deconvolution and noise are off in the reverse chain, so no PSF matrices or noise model are
 applied.
 **Rationale:** the E2ES's value is representativeness; fitted effects would make the reconstruction V&V an
 inverse crime.
-**Evidence:** the reconstructed L0 agrees with the real ESA L0 `img` within ≤ ~4 DN on the 10/20 m bands;
+**Evidence:** the Synthetic L0 agrees with the reference ESA L0 `img` within ≤ ~4 DN on the 10/20 m bands;
 GIPP dark within DQR range.
 
 ### DEC-03 — Calibration sub-set as the inverse-crime cure
@@ -63,7 +63,7 @@ acquisitions.
 **Decision:** derive dark/relative-response/absolute coefficients from synthetic CSM sun-diffuser + dark
 acquisitions and supply the *derived* (not truth) values (REQ-FUNC-047, MR !4).
 **Rationale:** using truth coefficients on both sides of the loop would trivially close the round-trip;
-deriving them reproduces the real calibration flow and bounds its recovery error.
+deriving them reproduces the calibration flow and bounds its recovery error.
 **Evidence:** dark recovered ~0.05 DN (bound ≤ 0.5), relative-response correlation > 0.99 (bound > 0.9)
 ([V&V report](vv/report.md) §3).
 
@@ -73,12 +73,12 @@ deriving them reproduces the real calibration flow and bounds its recovery error
 **Decision:** CCSDS 122.0-B, lossless profile (MR !27).
 **Rationale:** MRCPB is proprietary and unpublishable — it cannot be implemented faithfully from public
 sources; CCSDS 122 is the documented alternative compression ASIC for the mission and is fully public.
-The *lossless* profile (the real MRCPB runs lossy at 2.4–2.97×) is required so the L0plus codec stays
+The *lossless* profile (the MRCPB runs lossy at 2.4–2.97×) is required so the L0plus codec stays
 exactly transparent and the round-trip `decode(L0plus) == L1A` stays provable — a lossy chain could never
 demonstrate bit-identity.
 **Evidence:** the L0plus codec round-trip is bit-exact on 13/13 reconstructed bands (`decode(L0plus)`
-reproduces the ladder's L1A); the ladder-L0plus lossless compression ratio is 3.66×
-([reverse-ladder L0-reconstruction validation](vv/real_e2e.md)).
+reproduces the reverse chain's L1A); the reverse chain-L0plus lossless compression ratio is 3.66×
+([reverse-chain Synthetic L0 reconstruction validation](vv/s2_l1b_e2e.md)).
 
 ### DEC-05 — §4.5.3 word-mapping simplification in the codec
 **Alternatives:** full Blue-Book BPE (VLC word mapping) vs raw-packed AC bit-planes.
@@ -89,7 +89,7 @@ bounds implementation effort while keeping the chain bit-exact; the cost is ~10�
 interoperability with reference decoders (our decoder ships in the package).
 **Evidence:** the predicted signature is visible in the data — near-empty bands code above first-order
 entropy (B10: 2.48 → 3.43 bpp) while textured bands code below it (B04: 4.92 → 4.30 bpp)
-([reverse-ladder L0-reconstruction validation](vv/real_e2e.md), Per-band statistics).
+([reverse-chain Synthetic L0 reconstruction validation](vv/s2_l1b_e2e.md), Per-band statistics).
 
 ### DEC-06 — EOPF PSFD §3 product naming vs legacy PSD naming
 **Alternatives:** legacy S2 PSD names (`S2A_OPER_PRD_MSIL0P_…`) vs EOPF PSFD §3 names
@@ -100,14 +100,14 @@ entropy (B10: 2.48 → 3.43 bpp) while textured bands code below it (B04: 4.92 �
 format — the format belongs to the mission specification, which for EOPF products is PSFD §3. Parsing is
 total: `parse_psfd_name` round-trips every emitted name; underivable fields fall back to documented,
 flagged defaults.
-**Evidence:** naming round-trip criterion ✅ on the reverse-ladder run.
+**Evidence:** naming round-trip criterion ✅ on the reverse-chain run.
 
 ### DEC-07 — Open-container L0 written from reconstructed (ground-decoded) DN
 **Alternatives:** write the open container directly from the pre-compression DN vs from the
 ground-decoded DN.
 **Decision:** from the ground-decoded DN (MR !28/!29 driver order: package → ground-decode → open
 container).
-**Rationale:** mirrors the real chain — in Sentinel-2, decompression happens on the L1A side, so
+**Rationale:** mirrors the S2 L1B chain — in Sentinel-2, decompression happens on the L1A side, so
 anything the processor sees must have passed through the codec; writing from pre-compression DN would
 silently bypass the layer under test.
 **Evidence:** bit-identity still holds through the full chain (L1A′ ≡ L1A 13/13), proving the codec layer
@@ -135,7 +135,7 @@ pinning would force dual venvs on every consumer.
 **Decision:** `zlib.crc32(bname)` seeds (fixed in MR !32 cycle; CHANGELOG v0.3.0 Fixed).
 **Rationale:** REQ-QUAL-004 (reproducibility) requires identical DN streams across processes; salted
 `hash()` broke that silently.
-**Evidence:** crc32-determinism test; the ladder / calibration-acquisition outputs are bit-reproducible
+**Evidence:** crc32-determinism test; the reverse chain / calibration-acquisition outputs are bit-reproducible
 across processes (the one determinism regression is recorded in the CHANGELOG).
 
 ### DEC-11 — Per-line `isp_header` array removed in favour of the packet stream
@@ -160,14 +160,14 @@ keeps the generator self-testable (codec unit tests) and adds an independent-dec
 **Evidence:** consumer fixture tests decode the producer stream bit-exactly; the pipeline
 cross-check reports per band in `ground_decode.json`.
 
-### DEC-13 — Calibration acquisitions as downlink L0 products (not ADF side-files)
+### DEC-13 — Calibration acquisitions as downlink Synthetic L0 products (not ADF side-files)
 **Alternatives:** ship the raw dark/flat-field acquisitions as bare zarr ADFs next to the
-cal-DB (the interim approach) vs package them as real downlink L0 products.
-**Decision:** L0 products — dark `S02MSIDCA` (DASC) and sun-diffuser `S02MSISCA` (ABSR),
+cal-DB (the interim approach) vs package them as downlink Synthetic L0 products.
+**Decision:** Synthetic L0 products — dark `S02MSIDCA` (DASC) and sun-diffuser `S02MSISCA` (ABSR),
 carried exactly like any nominal datatake (CCSDS-122 compressed ISPs, PSFD §3 type codes,
 operation-mode metadata); the interim `flatfield.zarr`/`dark:/frame` ADF path is removed.
 **Rationale:** mission-faithful — a calibration campaign (Lambertian diffuser view, dark /
-deep-space view, and in the real mission vicarious ocean-site or lunar views) is itself a
+deep-space view, and in the operational mission vicarious ocean-site or lunar views) is itself a
 datatake that is downlinked to the ground segment as source packets and archived like any
 acquisition; the consumer then ground-decodes it and derives its own coefficients. One
 carrier, one naming system, one metadata vocabulary for every datatake kind.

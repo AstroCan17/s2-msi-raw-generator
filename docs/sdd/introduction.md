@@ -23,13 +23,13 @@ This Software Design Document (SDD) describes the architecture and detailed desi
 
 ## Objective
 Define how the software **inverts** the operational Sentinel-2 L0→L1B radiometric correction chain,
-running a real Sentinel-2B **L1B** product backwards through the exact inverse of each operational step
+running a Sentinel-2B **L1B** product backwards through the exact inverse of each operational step
 — undoing offset, relative-response/PRNU, dark, un-binning, SWIR re-staging, defective-pixel, crosstalk
-and on-board equalisation — to reconstruct **L1A → L0plus → L0**. MTF-deconvolution is OFF, so PSF and
-noise are **not** re-applied. Success is validated against the real ESA **L0 'img'** (reconstructed L0
+and on-board equalisation — to reconstruct **L1A → L0plus → Synthetic L0**. MTF-deconvolution is OFF, so PSF and
+noise are **not** re-applied. Success is validated against the ESA **L0 'img'** (Synthetic L0
 DN agrees within ≤ ~4 DN on the 10/20 m bands), so that the requirements in the SRS are met and
 verifiable. The design also supports the in-flight **calibration sub-set** (inverse-crime cure). The
-inversion stages correspond to the ladder steps of ATBD §5 (exact numbering per the ATBD §5 stage
+inversion stages correspond to the reverse chain steps of ATBD §5 (exact numbering per the ATBD §5 stage
 listing).
 
 ## Scope

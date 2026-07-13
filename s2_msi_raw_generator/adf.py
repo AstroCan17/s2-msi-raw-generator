@@ -5,7 +5,7 @@ Provenance of each component:
 All values are used verbatim fromS2 sources — nothing is fitted. The raw model is the
 official L1 ATBD equation ``X = A·G·L + D`` (S2-PDGS-MPC-ATBD-L1 §4.1.1). Provenance per component:
 
-* gain (A)  — ``Band.cal_gain``, the absolute calibration A in S1 (``DN=A·L``), derived from the real
+* gain (A)  — ``Band.cal_gain``, the absolute calibration A in S1 (``DN=A·L``), derived from the reference
               noise α,β + SNR@Lref so the chain reproduces SNR@Lref. The product's
               ``physical_gain`` is incoherent with α,β on this synthetic dataset (it mis-scales low-
               radiance bands by up to ~10×), so it is kept only for L0 metadata / the round-trip bridge.
@@ -211,7 +211,7 @@ class BandADF:
         eq_offset: np.ndarray | None = None,
     ) -> "BandADF":
         """Build a :class:`BandADF` from REAL per-detector PRNU/dark arrays (e.g. derived from the
-        matched L0↔L1A products by ``scripts/derive_prnu_dark.py``). PSF and noise stay real."""
+        matched L0↔L1A products by ``scripts/derive_prnu_dark.py``). PSF and noise stay ESA-sourced."""
         n_det = prnu_gain.shape[0]
         a, bb = noise_coeffs(b)
         return cls(
@@ -237,9 +237,9 @@ def synthesize(
 ) -> BandADF:
     """Build a :class:`BandADF` for band ``b`` over ``n_det`` detector columns.
 
-    PSF (real, per-unit), spectral, gain and the noise model (α, β from the product) are all
-    real. The per-detector PRNU/dark/equalization arrays are seeded representative values — use
-    :meth:`BandADF.from_gipp` with the (publicly fetchable) operational GIPP for the real
+    PSF (ESA, per-unit), spectral, gain and the noise model (α, β from the product) are all
+    ESA-sourced. The per-detector PRNU/dark/equalization arrays are seeded representative values — use
+    :meth:`BandADF.from_gipp` with the (publicly fetchable) operational GIPP for the reference
     per-pixel coefficients, or :meth:`BandADF.from_product` for product-derived arrays; this
     synthetic fallback exists for GIPP-less environments only. (The early "credentialed GIPP"
     blocker #36 is resolved — see ATBD §8.)
