@@ -16,7 +16,7 @@ from s2_msi_raw_generator import adf, reverse, sensor
 
 @pytest.mark.parametrize("unit", sensor.UNITS)
 @pytest.mark.parametrize("bn", [b for b in sensor.BANDS if b != "B10"])
-def test_real_psf_loads_and_is_normalised(unit, bn):
+def test_esa_psf_loads_and_is_normalised(unit, bn):
     osamp = adf.load_oversampled_psf(bn, unit)
     assert osamp is not None
     assert osamp.shape == (33, 33)                    # ESA: 33×33, oversampling 5
@@ -43,7 +43,7 @@ def test_psf_differs_between_units():
     assert not np.allclose(ka, kb)
 
 
-def test_synthesize_uses_real_psf():
+def test_synthesize_uses_esa_psf():
     a = adf.synthesize(sensor.band("B04", "S2A"), n_det=32, seed=1)
     assert np.array_equal(a.psf, adf.real_psf_kernel("B04", "S2A"))
 
@@ -108,7 +108,7 @@ def test_spectral_band_info_carries_real_wavelengths():
 
 # --- from_product (per-detector PRNU/dark) ------------------------------
 
-def test_from_product_marks_real_and_keeps_real_psf():
+def test_from_product_marks_esa_sourced_and_keeps_esa_psf():
     b = sensor.band("B03", "S2A")
     n = 16
     a = adf.BandADF.from_product(

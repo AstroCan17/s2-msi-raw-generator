@@ -18,49 +18,49 @@
 
 ```mermaid
 flowchart LR
-    BKT[("public S3 bucket dpr-common:<br/>real L1A · real PSD L0 SAFE · GIPP")]
-    L1["real Sentinel-2B L1B<br/>(EOPF Zarr, radiance / counts)<br/>— ladder input"]
+    BKT[("public S3 bucket dpr-common:<br/>S2 L1A · ESA PSD L0 SAFE · GIPP")]
+    L1["S2B L1B<br/>(EOPF Zarr, radiance / counts)<br/>— reverse chain input"]
     GIPP["operational S2A GIPP<br/>R2EQOG / R2DEPI / BLINDP /<br/>R2PARA / R2CRCO (XML)"]
     ADF["ADF<br/>SRF (spectral characterisation)"]
-    E2ES["s2_msi_raw_generator reverse ladder<br/>(invert L0→L1B corrections;<br/>CCSDS-122 + packetize)"]
-    L0["L0 RAW EOProduct<br/>(Zarr, compressed-ISP streams + STAC,<br/>PSFD names — ICD-IF-NAME)"]
+    E2ES["s2_msi_raw_generator reverse chain<br/>(invert L0→L1B corrections;<br/>CCSDS-122 + packetize)"]
+    L0["Synthetic L0 RAW EOProduct<br/>(Zarr, compressed-ISP streams + STAC,<br/>PSFD names — ICD-IF-NAME)"]
     CAL["calibration sub-set:<br/>synth diffuser + dark →<br/>derived ADF (inverse-crime)"]
     MSI["msi-processor l0_decode<br/>→ L1A′"]
-    REP["validation & report:<br/>reconstructed-L0 vs real ESA L0 'img'<br/>(10/20 m ≤~4 DN) · L0plus codec<br/>round-trip decode==L1A bit-exact"]
+    REP["validation & report:<br/>Synthetic-Synthetic L0 vs reference ESA L0 'img'<br/>(10/20 m ≤~4 DN) · L0plus codec<br/>round-trip decode==L1A bit-exact"]
     BKT -->|"s3fetch"| L1
-    BKT -.->|"real L0 (structural ref)"| REP
+    BKT -.->|"ESA L0 (structural ref)"| REP
     L1 --> E2ES
     GIPP --> E2ES
     ADF --> E2ES
-    E2ES --> L0
+    E2ES --> Synthetic L0
     E2ES -.-> CAL
     L0 --> MSI --> REP
     L1 -.-> REP
 ```
 
-**Inputs.** The primary input is a **real Sentinel-2B L1B** (radiance / counts) EOPF Zarr granule; the
+**Inputs.** The primary input is a **S2B L1B** (radiance / counts) EOPF Zarr granule; the
 operational S2A **GIPP** (per-pixel dark + relative response/PRNU, defects, offsets, crosstalk,
 on-board-eq); and the **SRF** for spectral characterisation. L1A is not an input — it is an intermediate
-the ladder *produces* on the way down to L0.
+the reverse chain *produces* on the way down to Synthetic L0.
 
-**Processing.** The reverse ladder runs the real L1B backwards through the **exact inverse** of the
+**Processing.** The reverse chain runs the S2 L1B backwards through the **exact inverse** of the
 operational L0→L1B radiometric correction chain — invert offset, relative-response/PRNU, dark, un-bin,
-SWIR re-stage, defective, crosstalk, on-board-eq — to reconstruct **L1A → L0plus → L0**. MTF-deconvolution
+SWIR re-stage, defective, crosstalk, on-board-eq — to reconstruct **L1A → L0plus → Synthetic L0**. MTF-deconvolution
 is OFF, so PSF and noise are **not** re-applied. A separate **calibration sub-set** synthesises
 sun-diffuser + dark acquisitions and *derives* the calibration coefficients back — the coefficients a
 downstream processor would actually use (inverse-crime cure).
 
-**Output.** The reconstructed **L0 RAW** EOProduct (the ICD-IF-L0 Zarr: 156 detector/band frames, quality
-masks, optional CCSDS ISP telemetry, STAC + sensor-configuration metadata); the ladder also emits the
+**Output.** The reconstructed **Synthetic L0 RAW** EOProduct (the ICD-IF-L0 Zarr: 156 detector/band frames, quality
+masks, optional CCSDS ISP telemetry, STAC + sensor-configuration metadata); the reverse chain also emits the
 **L1A** and **L0plus** (CCSDS-122 ISP) intermediates en route.
 
-**Verification context.** The reconstructed **L0** is compared against the **real ESA L0 'img'**: the
+**Verification context.** The reconstructed **L0** is compared against the **reference ESA L0 'img'**: the
 10/20 m bands agree to **≤~4 DN**. As a supporting check, the **L0plus codec round-trip** is bit-exact —
 `decode(L0plus) == L1A`.
 
 ## Calibration database (ADF output)
 
-Besides the L0 RAW product, the generator also *derives* the radiometric calibration coefficients and
+Besides the Synthetic L0 RAW product, the generator also *derives* the radiometric calibration coefficients and
 writes them as a versioned set of EOPF **Auxiliary Data Files** — the **calibration database** — that
 the downstream processor (the L1PP blocks of `msi-processor`) consumes directly. This is the single
 shared sensor-model ADF of the E2ES ⇄ processor coupling: the generator produces the ADF; the

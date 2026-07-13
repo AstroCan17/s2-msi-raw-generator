@@ -1,4 +1,4 @@
-"""Tests for the SAD module (REQ-FUNC-036/037): orbit/attitude synthesis + real CCSDS SAD ISP."""
+"""Tests for the SAD module (REQ-FUNC-036/037): orbit/attitude synthesis + CCSDS SAD ISP."""
 
 from __future__ import annotations
 
@@ -74,7 +74,7 @@ def test_l0_sad_packets_carry_real_aocs(tmp_path):
     apid = dict(g["measurements/d04/b03"].attrs)["apid"]
     rec = bytes(np.asarray(g[f"conditions/anc_data/s{apid}/isp"])[0])
     dec = sad.unpack_sad_payload(rec)
-    assert np.linalg.norm(dec["quaternion"]) == pytest.approx(1.0, abs=1e-6)   # real attitude, not zeros
+    assert np.linalg.norm(dec["quaternion"]) == pytest.approx(1.0, abs=1e-6)   # non-zero attitude, not placeholder zeros
     assert 7.0e6 < np.linalg.norm(dec["position"]) < 7.3e6
     oe = dict(g.attrs)["other_metadata"]["orbit_ephemeris_start"]
     assert "TAI" in oe and len(oe["position"]) == 3

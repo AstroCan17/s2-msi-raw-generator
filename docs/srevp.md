@@ -31,7 +31,7 @@ reviews (below) additionally bundle the document set.
 |---|---|---|
 | SRR | requirements baseline agreed | SRS baselined with the DRD set (MR !6) |
 | PDR/CDR | design + interfaces frozen per increment | per-increment design MRs with ICD/SDD updates (e.g. !12, !27, !28) |
-| TRR | test readiness | CI suite green is the standing TRR; env-gated real-data tests document their data preconditions |
+| TRR | test readiness | CI suite green is the standing TRR; env-gated S2 L1B tests document their data preconditions |
 | QR | qualification of the release | release MR + SRN + V&V evidence; assessed in the [QR report](qr.md) |
 | AR | acceptance | delivery = GitLab Release + registry packages + published docs site |
 
@@ -47,10 +47,10 @@ Milestone-relevant reviews held to date (full list: the repository MR history, 3
 |---|---|---|---|
 | Requirements/document baseline (SRR-equivalent) | !6 | full ECSS DRD set (SRS/SDD/ICD/DPM/V&V/SUM/SRN/CIDL/SCF/SRF/SDP) | merged; baseline on `main` |
 | Scope change — geometry reverse | !1 | L1C entry + geometry-reverse cancellation (REQ-FUNC-090) | approved; SRS updated |
-| Design reviews per increment (PDR/CDR-equivalent) | !2–!4, !12, !18–!25 | real ADFs, calibration sub-set, cal-DB writer, L0 completion (datation/SAD/EOQC/open container) | merged on green CI |
-| Real-data E2E design + codec (CDR-equivalent) | !27, !28, !29 | CCSDS-122 codec, compressed-ISP L0, E2E driver + PSFD naming | merged; ICD-IF-C122/ISP/NAME controlled |
-| Verification reviews | !30, !31, !33 | accessible real-L0 references (GET-403 disposition), per-resolution-group decode fix, per-band statistics report | merged; limits recorded in `real_e2e.md` |
-| Qualification/release review (QR-equivalent) | !32 | v0.3.0 release: results, publish job, SRN | merged; Release v0.3.0 + registry `e2e-real/0.3.0` |
+| Design reviews per increment (PDR/CDR-equivalent) | !2–!4, !12, !18–!25 | ESA ADFs, calibration sub-set, cal-DB writer, Synthetic L0 completion (datation/SAD/EOQC/open container) | merged on green CI |
+| S2 L1B E2E design + codec (CDR-equivalent) | !27, !28, !29 | CCSDS-122 codec, compressed-ISP Synthetic L0, E2E driver + PSFD naming | merged; ICD-IF-C122/ISP/NAME controlled |
+| Verification reviews | !30, !31, !33 | accessible ESA L0 references (GET-403 disposition), per-resolution-group decode fix, per-band statistics report | merged; limits recorded in `s2_l1b_e2e.md` |
+| Qualification/release review (QR-equivalent) | !32 | v0.3.0 release: results, publish job, SRN | merged; Release v0.3.0 + registry `e2e-s2-l1b/0.3.0` |
 | Documentation audit | !35, !36 | staleness sweep (29 findings), landing-page consolidation | merged; findings closed |
 
 ## 3. Schedule & logistics

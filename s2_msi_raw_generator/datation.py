@@ -12,9 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Real line datation for the L0 ISP — OBT/GPS/TAI line timing (ADF_DATAT model).
+"""GPS/OBT line datation for the L0 ISP — OBT/GPS/TAI line timing (ADF_DATAT model).
 
-Replaces the placeholder ``t0 = 0`` CUC time with a real Sentinel-2 on-board time derived from a real
+Replaces the placeholder ``t0 = 0`` CUC time with a Sentinel-2 on-board time derived from a
 acquisition epoch. The MSI line-datation model (ADF_DATAT) is
 
     t(line, band) = epoch + line · line_period + time_shift(band)
@@ -37,7 +37,7 @@ GPS_EPOCH = datetime(1980, 1, 6, tzinfo=timezone.utc)
 GPS_UTC_OFFSET_S = 18     # GPS − UTC  (accumulated leap seconds − 19)
 TAI_UTC_OFFSET_S = 37     # TAI − UTC
 
-# A plausible real Sentinel-2A morning descending-node acquisition (metadata realism; overridable).
+# A plausible Sentinel-2A morning descending-node acquisition (metadataism; overridable).
 DEFAULT_EPOCH_UTC = "2024-04-03T10:24:15Z"
 
 
@@ -58,7 +58,7 @@ def utc_to_gps_seconds(utc: datetime) -> float:
 
 @dataclass(frozen=True)
 class Datation:
-    """Line-datation model for one acquisition (the ADF_DATAT parameters we need for the L0)."""
+    """Line-datation model for one acquisition (the ADF_DATAT parameters we need for the Synthetic L0)."""
 
     epoch_utc: str = DEFAULT_EPOCH_UTC
     line_period_s: float = sensor.LINE_PERIOD_MS / 1000.0
@@ -88,7 +88,7 @@ class Datation:
         return _iso_z(self.line_time_utc(0)), _iso_z(self.line_time_utc(max(n_lines - 1, 0)))
 
     def band_time_stamp(self) -> dict[str, dict]:
-        """Per-band first-line GPS time stamp for the L0 ``other_metadata`` (band number → {unit, value})."""
+        """Per-band first-line GPS time stamp for the Synthetic L0 ``other_metadata`` (band number → {unit, value})."""
         return {
             sensor.band_number(b): {"unit": "s (GPS)", "value": self.line_time_gps(0, b)}
             for b in sensor.BANDS

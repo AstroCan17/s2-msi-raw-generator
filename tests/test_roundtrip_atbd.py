@@ -1,9 +1,9 @@
 """Round-trip V&V for the ATBD radiometric model + GIPP coefficients.
 
 Two checks (Increment B): (1) the forward correction and the reverse impress are **exact inverses**
-on real-DN-scale data; (2) impressing the per-pixel relative response onto a flat scene and then
+on-DN-scale data; (2) impressing the per-pixel relative response onto a flat scene and then
 correcting it **flattens** the fixed-pattern noise — the equalization genuinely inverts the modelled
-PRNU. An optional check runs on the L1A + GIPP via ``S2_E2ES_L1A`` / ``S2_E2ES_GIPP_DIR``.
+PRNU. An optional check runs on the L1A + GIPP via ``S2_L1A_INPUT`` / ``S2_GIPP_DIR``.
 """
 
 from __future__ import annotations
@@ -56,11 +56,11 @@ def test_relative_response_flattens_fpn(eq_factory):
     assert np.allclose(corrected, flat, atol=1e-6)    # recovers the flat scene
 
 
-def test_real_l1a_roundtrip_exact():
-    l1a = os.environ.get("S2_E2ES_L1A")
-    gipp_dir = os.environ.get("S2_E2ES_GIPP_DIR")
+def test_l1a_fixture_roundtrip_exact():
+    l1a = os.environ.get("S2_L1A_INPUT") or os.environ.get("S2_L1B_INPUT")
+    gipp_dir = os.environ.get("S2_GIPP_DIR")
     if not (l1a and gipp_dir and os.path.isdir(gipp_dir)):
-        pytest.skip("set S2_E2ES_L1A + S2_E2ES_GIPP_DIR to run on the product")
+        pytest.skip("set S2_L1A_INPUT + S2_GIPP_DIR to run on the product")
     zarr = pytest.importorskip("zarr")  # noqa: F841
     from s2_msi_raw_generator import gipp, io
     gs = gipp.load_gipp_set(gipp_dir)

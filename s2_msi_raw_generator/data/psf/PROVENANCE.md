@@ -1,4 +1,4 @@
-# Real Sentinel-2 MSI Point Spread Functions
+# Sentinel-2 MSI Point Spread Functions
 
 **Source:** SentiWiki (Copernicus) — <https://sentiwiki.copernicus.eu/web/s2-documents>
 (`S2A_PSF.zip`, `S2B_PSF.zip`, `S2C_PSF.zip`, modified 2025-11-07). Copernicus open data.

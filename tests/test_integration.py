@@ -1,7 +1,7 @@
-"""End-to-end integration: synthetic L1B radiance → full reverse chain → complete L0 RAW product.
+"""End-to-end integration: synthetic L1B radiance → full reverse chain → complete Synthetic L0 RAW product.
 
 Exercises the whole pipeline (reverse_full = S1,S6,S7,S8,S10,S11–S14 + l0product S15 ISP) across
-multiple detectors and bands (incl. reverse SWIR re-arrangement + injected defects), then validates the L0 RAW
+multiple detectors and bands (incl. reverse SWIR re-arrangement + injected defects), then validates the Synthetic L0 RAW
 EOProduct structure, quality masks, ISP telemetry, and sensor-config metadata.
 """
 

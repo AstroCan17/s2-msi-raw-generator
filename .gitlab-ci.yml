@@ -24,12 +24,12 @@ unit-tests:
       - report.xml
     expire_in: 1 week
 
-# Real L0→L1B E2E in a full eopf==2.8.1 + msi_processor environment (the same chain the SDE runs):
+# Real Synthetic L0→L1B E2E in a full eopf==2.8.1 + msi_processor environment (the same chain the SDE runs):
 # generator L0 + cal-DB → l0_decode → radiometric → enhancement → toa → persisted L1B + quicklooks.
 # Manual (heavy env install); msi-processor is cloned with CI_JOB_TOKEN — the generator project is on
 # ipf/msi-processor's job-token allowlist. Artifacts carry the L1B product + the quicklook PNGs.
 # Calibration campaign smoke (REQ-FUNC-048) — numpy+zarr only, no eopf needed: synthesizes
-# the dark (DASC) + sun-diffuser (ABSR) acquisitions, packages them as real downlink L0
+# the dark (DASC) + sun-diffuser (ABSR) acquisitions, packages them as downlink Synthetic L0
 # products (S02MSIDCA/S02MSISCA, compressed ISPs) and derives the Option-Y cal-DB.
 pipeline-calibration:
   stage: test
@@ -40,9 +40,13 @@ pipeline-calibration:
     - pip install -q numpy zarr
     - pip install -q -e . --no-deps
   variables:
-    S2_DATA_STORE: cal-store
-    S2_E2ES_NDET: "64"
-    S2_E2ES_CAL_LINES: "64"
+    OUTPUT_DIR: cal-store
+    S2_L1B_INPUT: cal-store/inputs/placeholder
+    S2_L0_INPUT: cal-store/inputs/placeholder
+    S2_GIPP_DIR: cal-store/inputs/placeholder
+    S2_AUX_DIR: cal-store/inputs/placeholder
+    S2_NDET: "64"
+    S2_CAL_LINES: "64"
   script:
     - python scripts/run_pipeline.py calibration
   artifacts:
@@ -54,10 +58,10 @@ pipeline-calibration:
     - when: manual
       allow_failure: true
 
-# Windowed nominal-chain E2E (REQ-FUNC-093): bucket L1A (first 4096 lines) → compressed-ISP L0 →
+# Windowed nominal-chain E2E (REQ-FUNC-093): bucket L1A (first 4096 lines) → compressed-ISP Synthetic L0 →
 # ground decode → msi-processor l0_decode → L1A′ bit-identity + report. Manual (downloads
 # ~500 MB + builds the eopf env); the authoritative full-frame run happens on the SDE store.
-e2e-real-l1a:
+e2e-s2-l1b:
   stage: test
   image: python:3.11-slim
   interruptible: true
@@ -71,36 +75,44 @@ e2e-real-l1a:
     - pip install -q "eopf==2.8.1" /tmp/msi-processor
     - pip install -q -e . pytest
   variables:
-    S2_DATA_STORE: e2e-real-store
-    S2_E2ES_PHASES: fetch-l1a,preflight,package,ground-decode,l0-decode,validate,quicklook,report
-    S2_E2ES_LINES: "4096"
+    OUTPUT_DIR: e2e-s2-l1b-store
+    S2_L1B_INPUT: e2e-s2-l1b-store/inputs/placeholder
+    S2_L0_INPUT: e2e-s2-l1b-store/inputs/placeholder
+    S2_GIPP_DIR: e2e-s2-l1b-store/inputs/placeholder
+    S2_AUX_DIR: e2e-s2-l1b-store/inputs/placeholder
+    S2_PHASES: fetch-l1a,preflight,package,ground-decode,l0-decode,validate,quicklook,report
+    S2_LINES: "4096"
   script:
     - python scripts/run_pipeline.py
   artifacts:
     when: always
     paths:
-      - e2e-real-store/report/
-      - e2e-real-store/quicklook/
+      - e2e-s2-l1b-store/report/
+      - e2e-s2-l1b-store/quicklook/
     expire_in: 1 week
   rules:
     - when: manual
       allow_failure: true
 
 # Publish the SDE store to the shared ipf/data-store registry (manual; the runner shares the
-# Studio filesystem). The knobs are job variables (override when triggering): S2_DATA_STORE
-# if the store moved, S2_E2ES_PUBLISH_NAME/VERSION for the immutable package; the phase zips
+# Studio filesystem). The knobs are job variables (override when triggering): OUTPUT_DIR
+# if the store moved, S2_PUBLISH_NAME/VERSION for the immutable package; the phase zips
 # products, uploads them with the job token (allowlisted on ipf/data-store) and refreshes
 # the manifest (provenance is stamped from CI_JOB_URL automatically).
 publish-datastore:
   stage: docs
   variables:
-    S2_DATA_STORE: /home/jovyan/data-store
-    S2_E2ES_PHASES: publish-store
-    S2_E2ES_PUBLISH_NAME: e2e-real
-    S2_E2ES_PUBLISH_VERSION: "0.3.0"
-    S2_E2ES_PUBLISH_LAYER: products
+    OUTPUT_DIR: /home/jovyan/data-store
+    S2_L1B_INPUT: /home/jovyan/data-store/inputs/placeholder
+    S2_L0_INPUT: /home/jovyan/data-store/inputs/placeholder
+    S2_GIPP_DIR: /home/jovyan/data-store/inputs/placeholder
+    S2_AUX_DIR: /home/jovyan/data-store/aux
+    S2_PHASES: publish-store
+    S2_PUBLISH_NAME: e2e-s2-l1b
+    S2_PUBLISH_VERSION: "0.3.0"
+    S2_PUBLISH_LAYER: products
   script:
-    - test -d "$S2_DATA_STORE/report" || { echo "store not found - $S2_DATA_STORE"; exit 1; }
+    - test -d "$OUTPUT_DIR/report" || { echo "store not found - $OUTPUT_DIR"; exit 1; }
     - python scripts/run_pipeline.py
   rules:
     - when: manual

@@ -144,7 +144,7 @@ def test_build_all_bands_and_consume(tmp_path):
     rg = float(np.asarray(rad[f"gain/{bn}"]))
     n_det = g.shape[0]
 
-    # synthetic L0 DN for a uniform scene through the *same* truth basis (seed 3, n_det 64)
+    # synthetic Synthetic L0 DN for a uniform scene through the *same* truth basis (seed 3, n_det 64)
     truth = adf.synthesize(b, n_det=n_det, seed=3)
     scene = np.full((8, n_det), b.lref * 0.7)
     dn = reverse.reverse_mvp(scene, truth, np.random.default_rng(0)).astype(np.float32)

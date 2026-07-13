@@ -20,10 +20,10 @@ names come from :mod:`s2_msi_raw_generator.naming` (EOPF PSFD §3 — REQ-FUNC-0
 data-store root holds every product (``inputs/ caldb/ l0/ l1a_prime/ l1b/ quicklook/
 figures/ report/``).
 
-**Real-data chain** (REQ-FUNC-093; the default phase set). Mirrors the real chain: the S2
+**S2 L1B chain** (REQ-FUNC-093; the default phase set). Mirrors the S2 L1B chain: the S2
 L0→L1A relation is *decode/packaging* (SentiWiki: L0 stores compressed ISPs, L1A
-decompresses) — the real L1A DN ``X`` is CCSDS-122 lossless-compressed and packetized into
-the canonical L0, ground-decoded back (``X′ == X`` bit-exact), written as the open-container
+decompresses) — the S2 L1A DN ``X`` is CCSDS-122 lossless-compressed and packetized into
+the canonical Synthetic L0, ground-decoded back (``X′ == X`` bit-exact), written as the open-container
 L0 and pushed through msi-processor ``l0_decode`` → **L1A′** (bit-identical on kept lines)::
 
     fetch-l1a fetch-l0 import-l0 preflight package ground-decode l0-decode validate
@@ -31,38 +31,35 @@ L0 and pushed through msi-processor ``l0_decode`` → **L1A′** (bit-identical 
 
 **Calibration mode** (the ``calibration`` positional; REQ-FUNC-048). Synthesizes the
 calibration campaign — a dark acquisition (CSM closed / deep space; ``DASC``) and a
-Lambertian sun-diffuser acquisition (``ABSR``) — and packages each **as a real downlink
-L0 product** (CCSDS-122 compressed ISPs, PSFD type codes ``S02MSIDCA`` / ``S02MSISCA``,
+Lambertian sun-diffuser acquisition (``ABSR``) — and packages each **as a downlink
+Synthetic L0 product** (CCSDS-122 compressed ISPs, PSFD type codes ``S02MSIDCA`` / ``S02MSISCA``,
 operation-mode metadata), then derives the Option-Y cal-DB ADFs from the same frames.
 Every calibration product lands under ``<store>/caldb/`` (nominal L0s under ``l0/``)::
 
     cal-acquire cal-package build-caldb report
 
 **On-demand phases** (never in a default set): ``inventory`` (metadata-only store report),
-``import-l0`` (public-L0 same-scene bridge), ``derive-adf`` (real per-detector PRNU/dark from
+``import-l0`` (public-L0 same-scene bridge), ``derive-adf`` (operational per-detector PRNU/dark from
 matched products, → ``BandADF.from_product``), ``figures`` (the single-band stage-by-stage
 README/docs figures + quality metrics).
 
-Configuration is environment-only — the CLI takes just the mode::
+Configuration is environment-only — copy ``.env.example`` to ``.env`` and set paths; the CLI takes just the mode::
 
-    S2_DATA_STORE          store root (default ~/data-store)
-    S2_E2ES_PHASES         comma phase list (default set follows the mode)
-    S2_E2ES_LINES          line window, 0 = full     S2_E2ES_BANDS      band list
-    S2_E2ES_SEED           RNG seed                  S2_E2ES_NDET       cal detector width
-    S2_E2ES_CAL_LINES      cal lines per frame
-    S2_E2ES_JOBS           parallel workers (default: all cores) — CCSDS-122 compress
-                           (package/cal-package), ground-decode, S3 fetch threads
-    S2_E2ES_L1A  S2_E2ES_PUBLIC_L0  S2_E2ES_IMPORT_DETECTOR            input paths
-    S2_E2ES_DARK  S2_E2ES_GIPP_DIR  S2_E2ES_L1B
-    S2_E2ES_EQOG_ADF       EOPF ADF_REQOG json = ESA NUC source (overrides XML GIPP equalization)
-    S2_E2ES_PUBLISH_NAME  S2_E2ES_PUBLISH_VERSION  S2_E2ES_PUBLISH_LAYER  publish-store
+    S2_L1B_INPUT   S2_L0_INPUT   S2_GIPP_DIR   S2_AUX_DIR   OUTPUT_DIR   (required in .env)
+    S2_PHASES      comma phase list (default set follows the mode)
+    S2_LINES         line window, 0 = full     S2_BANDS      band list
+    S2_SEED          RNG seed                  S2_NDET       cal detector width
+    S2_CAL_LINES     cal lines per frame
+    S2_JOBS          parallel workers (default: all cores)
+    S2_IMPORT_DETECTOR   S2_DARK   S2_DETECTORS
+    S2_PUBLISH_NAME  S2_PUBLISH_VERSION  S2_PUBLISH_LAYER  publish-store
 
 Examples::
 
-    python scripts/run_pipeline.py                    # real chain → ~/data-store
-    python scripts/run_pipeline.py calibration        # cal campaign → <store>/caldb/
-    S2_E2ES_PHASES=preflight,package S2_E2ES_LINES=4096 python scripts/run_pipeline.py
-    S2_E2ES_PHASES=figures S2_E2ES_L1B=<L1B.zarr[.zip]> python scripts/run_pipeline.py
+    python scripts/run_pipeline.py                    # S2 L1B chain → $OUTPUT_DIR
+    python scripts/run_pipeline.py calibration        # cal campaign → <OUTPUT_DIR>/caldb/
+    S2_PHASES=preflight,package S2_LINES=4096 python scripts/run_pipeline.py
+    S2_PHASES=figures python scripts/run_pipeline.py
 
 The eopf/msi_processor imports are lazy (``ground-decode``/``l0-decode``/``validate``), so
 every other phase — and this module's import — works in the plain generator environment (CI).
@@ -86,6 +83,7 @@ from s2_msi_raw_generator import (
     caldb as caldb_mod,
     ccsds122,
     datation,
+    env as s2env,
     io as gio,
     isp,
     import_l0,
@@ -103,8 +101,8 @@ ENDPOINT = "https://dpr-common.s3.sbg.io.cloud.ovh.net"
 L1A_PREFIX = "s2-msi-l1-example/PDI_MSI_S2_L1A.zarr/"
 # The unpacked PSD L0 SAFE mirror (incl. per-band ISP .bin files) is LISTable but its objects
 # return **HTTP 403 on GET** (verified 2026-07-02) — the bucket grants read only on selected
-# archives. The accessible real-L0 references are the datastrip PDI tar (metadata + QI) and the
-# real **SADATA** tars, whose members are genuine downlinked CCSDS packets — exactly what the
+# archives. The accessible ESA L0 references are the datastrip PDI tar (metadata + QI) and the
+# **SADATA** tars, whose members are genuine downlinked CCSDS packets — exactly what the
 # structural scan needs.
 REAL_L0_SAFE_PREFIX = (
     "S2AMSIdataset/S2A_OPER_PRD_MSIL0P_PDMC_20220803T144026_" "R123_V20220803T113642_20220803T113704.SAFE/"
@@ -115,7 +113,7 @@ REAL_L0_KEYS = [
     "S2AMSIdataset/S2A_OPER_AUX_SADATA_2APS_20241218T074251_" "V20241218T070943_20241218T072345_A049567_WP_LN.tar",
 ]
 DETECTOR = 1  # the example PDI L1A carries DD01 only
-# Bands grouped by ground resolution: line counts differ per resolution in a real product
+# Bands grouped by ground resolution: line counts differ per resolution in a ESA product
 # (10 m = 2× the 20 m, 6× the 60 m line count), and a persisted EOPF product must not mix
 # 'line' sizes in one group (PSFD: different resolutions use different dimensions) — so
 # l0_decode + persist run per resolution group.
@@ -149,7 +147,7 @@ PHASES = [
     "publish-store",
     "inventory",
 ]
-#: Default phase sets per --mode: the nominal (real-data) chain and the calibration campaign.
+#: Default phase sets per --mode: the nominal (S2 L1B) chain and the calibration campaign.
 NOMINAL_PHASES = [
     "fetch-l1a",
     "fetch-l0",
@@ -165,51 +163,13 @@ NOMINAL_PHASES = [
 ]
 CALIBRATION_PHASES = ["cal-acquire", "cal-package", "build-caldb", "report"]
 
-#: Baked-in run defaults so the pipeline runs with a bare
-#: ``python scripts/run_pipeline.py [nominal|calibration]`` — no shell ``export`` needed.
-#: Paths hang off ``~/data-store`` (the store symlink in $HOME), so this works on any machine
-#: whose home holds that link. Anything already set in the environment wins, so
-#: ``export S2_E2ES_GIPP_DIR=...`` (etc.) still overrides a value here for a one-off run.
-_LOCAL_STORE = Path.home() / "data-store"
-LOCAL_ENV_DEFAULTS: dict[str, str] = {
-    "S2_DATA_STORE": str(_LOCAL_STORE),
-    "S2_E2ES_GIPP_DIR": str(_LOCAL_STORE / "inputs/s2-sensor/GIPP"),
-    "S2_E2ES_PUBLIC_L0": str(
-        _LOCAL_STORE / "inputs/public-data/level-0/S02MSIL0__20230216T182840_0001_A123_T000.zarr.zip"
-    ),
-    "S2_E2ES_IMPORT_DETECTOR": "1",
-    "S2_E2ES_JOBS": "16",
-}
-
-
-def _eqog_adf_path(args) -> str | None:
-    """Optional EOPF ``ADF_REQOG`` json = ESA-provided NUC source (dark + PRNU) for the reverse chain.
-
-    Selected via ``S2_E2ES_EQOG_ADF`` (or ``args.eqog_adf``). When set to an existing file, the
-    equalization is read from this ESA ADF instead of the XML GIPP (see ``gipp.load_gipp_set``);
-    returns ``None`` (→ XML GIPP) when unset or the path is missing.
-    """
-    p = getattr(args, "eqog_adf", None) or os.environ.get("S2_E2ES_EQOG_ADF")
-    return p if (p and os.path.exists(p)) else None
-
 
 def _full_reverse_adf(args, env_var: str, adf_type: str) -> str | None:
-    """Locate an EOPF ADF json for the full reverse chain (RSWIR / REOB2 / RCRCO).
-
-    ``env_var`` override first, else auto-find ``S0*_ADF_<adf_type>_*.json`` alongside the
-    ADF_REQOG (same ``adf-eopf`` directory). Returns ``None`` when nothing is found → the step is
-    skipped and the reverse falls back to the radiometric-only chain.
-    """
-    import glob
-
+    """Locate EOPF ADF json for the full reverse chain (RSWIR / REOB2 / RCRCO)."""
     p = os.environ.get(env_var)
     if p and os.path.exists(p):
         return p
-    eqog = _eqog_adf_path(args)
-    if not eqog:
-        return None
-    hits = sorted(glob.glob(os.path.join(os.path.dirname(eqog), f"S0*_ADF_{adf_type}_*.json")))
-    return hits[0] if hits else None
+    return s2env.find_adf_eopf(adf_type)
 
 
 def _reverse_crosstalk(sig_by_band: dict[str, np.ndarray], matrix) -> dict[str, np.ndarray]:
@@ -245,11 +205,10 @@ def _reverse_crosstalk(sig_by_band: dict[str, np.ndarray], matrix) -> dict[str, 
     return out
 
 
-#: Default phase chain applied for ``nominal`` mode only (the public-L0 same-scene bridge +
-#: inventory alongside the standard package/decode/validate chain).
-LOCAL_NOMINAL_PHASES = "import-l0,preflight,package,ground-decode,l0-decode,validate," "radiometric-vv,inventory,report"
+#: Default phase chain applied for ``nominal`` mode only.
+LOCAL_NOMINAL_PHASES = "import-l0,preflight,package,ground-decode,l0-decode,validate,radiometric-vv,inventory,report"
 
-_SENTINEL_SATURATED = 32768  # IF-IN-L1A saturation sentinel in the real product
+_SENTINEL_SATURATED = 32768  # IF-IN-L1A saturation sentinel in the ESA product
 
 
 # ---------------------------------------------------------------------------
@@ -257,23 +216,24 @@ _SENTINEL_SATURATED = 32768  # IF-IN-L1A saturation sentinel in the real product
 # ---------------------------------------------------------------------------
 
 
-def _store_paths(store: Path) -> dict[str, Path]:
+def _store_paths(store: Path | None = None) -> dict[str, Path]:
+    if store is not None:
+        root = store.expanduser()
+    elif os.environ.get("OUTPUT_DIR"):
+        return s2env.store_paths()
+    else:
+        root = Path("cal-store").expanduser()
     p = {
-        "inputs": store / "inputs",
-        "caldb": store / "caldb",
-        "l1a": store / "l1a",
-        "l0": store / "l0",
-        "l1a_prime": store / "l1a_prime",
-        "l1b": store / "l1b",
-        "quicklook": store / "quicklook",
-        "figures": store / "figures",
-        "report": store / "report",
+        "inputs": root / "inputs",
+        "caldb": root / "caldb",
+        "l1a": root / "l1a",
+        "l0": root / "l0",
+        "l1a_prime": root / "l1a_prime",
+        "l1b": root / "l1b",
+        "quicklook": root / "quicklook",
+        "figures": root / "figures",
+        "report": root / "report",
     }
-    # S2_E2ES_L0_DIR re-homes the produced-L0 directory outside the work store (e.g. the curated
-    # data-store's synthetic-raw-generated/outputs/L0). Every phase that writes or reads packaged
-    # L0 resolves it through p["l0"], so the single override moves producer and consumers together.
-    if os.environ.get("S2_E2ES_L0_DIR"):
-        p["l0"] = Path(os.environ["S2_E2ES_L0_DIR"]).expanduser()
     for d in p.values():
         d.mkdir(parents=True, exist_ok=True)
     return p
@@ -318,7 +278,7 @@ def phase_fetch_l1a(store: dict[str, Path], args) -> None:
 
 
 def phase_fetch_l0(store: dict[str, Path], args) -> None:
-    """Fetch the accessible real-L0 references (DS + SADATA tars; the SAFE mirror is GET-403)."""
+    """Fetch the accessible ESA L0 references (DS + SADATA tars; the SAFE mirror is GET-403)."""
     dest = store["inputs"] / "real_l0"
     results, total = [], 0
     for key in REAL_L0_KEYS:
@@ -336,7 +296,7 @@ def phase_fetch_l0(store: dict[str, Path], args) -> None:
         },
         store["report"] / "fetch_l0_manifest.json",
     )
-    print(f"[fetch-l0] {len(REAL_L0_KEYS)} real-L0 references, {total/1e6:.1f} MB → {dest}")
+    print(f"[fetch-l0] {len(REAL_L0_KEYS)} ESA L0 references, {total/1e6:.1f} MB → {dest}")
 
 
 def _default_public_l0(store: dict[str, Path]) -> Path | None:
@@ -349,9 +309,13 @@ def _default_public_l0(store: dict[str, Path]) -> Path | None:
 
 def phase_import_l0(store: dict[str, Path], args) -> None:
     """Import a public distribution L0 image product as the same-scene pipeline L1A input."""
-    src = Path(args.public_l0) if args.public_l0 else _default_public_l0(store)
+    src = Path(args.public_l0) if args.public_l0 else None
+    if src is None and os.environ.get("S2_L0_INPUT"):
+        src = Path(os.environ["S2_L0_INPUT"])
     if src is None:
-        raise SystemExit("[import-l0] needs $S2_E2ES_PUBLIC_L0 or " "inputs/public-data/level-0/S02MSIL0__*.zarr.zip")
+        src = _default_public_l0(store)
+    if src is None:
+        raise SystemExit("[import-l0] needs $S2_L0_INPUT or inputs/public-data/level-0/S02MSIL0__*.zarr.zip")
     report = import_l0.convert(
         src,
         store["inputs"],
@@ -360,13 +324,16 @@ def phase_import_l0(store: dict[str, Path], args) -> None:
         jobs=args.jobs,
     )
     _jdump(report, store["report"] / "import_l0.json")
-    os.environ["S2_E2ES_L1A"] = report["output"]
+    os.environ["S2_L1A_INPUT"] = report["output"]
     args.l1a = report["output"]
     print(f"[import-l0] d{args.import_detector:02d} {len(report['bands'])} bands → " f"{report['output']}")
 
 
 def _l1a_path(store: dict[str, Path], args) -> str:
-    return args.l1a or os.environ.get("S2_E2ES_L1A") or str(store["inputs"] / "PDI_MSI_S2_L1A.zarr")
+    p = args.l1a or os.environ.get("S2_L1A_INPUT") or os.environ.get("S2_L1B_INPUT")
+    if not p:
+        raise SystemExit("[preflight] needs $S2_L1A_INPUT or $S2_L1B_INPUT (set in .env or run import-l0)")
+    return p
 
 
 def phase_preflight(store: dict[str, Path], args) -> None:
@@ -466,11 +433,11 @@ def phase_package(store: dict[str, Path], args) -> None:
         jobs=args.jobs,
     )
     del frames
-    print(f"[package] canonical L0 → {out}")
+    print(f"[package] canonical Synthetic L0 → {out}")
 
 
 def _l1b_props(attrs: dict) -> dict:
-    """STAC properties of an EOPF L1B product (tolerant to the nested ``stac_discovery`` layouts)."""
+    """STAC properties of EOPF L1B product (tolerant to the nested ``stac_discovery`` layouts)."""
     sd = attrs.get("stac_discovery", {})
     if isinstance(sd, dict):
         p = sd.get("properties")
@@ -505,7 +472,7 @@ def _reinsert_blind(active: np.ndarray, blind_cols, fill: int) -> np.ndarray:
 
 
 def phase_reverse_l1b(store: dict[str, Path], args) -> None:
-    """``reverse-l1b`` — real L1B digital counts → L0 raw, the vault-canonical inverse of the full
+    """``reverse-l1b`` — S2 L1B digital counts → Synthetic L0 raw, the vault-canonical inverse of the full
     L0→L1B radiometric chain in the downlink DN domain (``forward_radiometric_atbd.reverse_l1b_to_l0``).
 
     Inverts every ON forward step: remove the R2PARA offset (S4), impress the relative response
@@ -515,27 +482,26 @@ def phase_reverse_l1b(store: dict[str, Path], args) -> None:
     add inter-band crosstalk back (RCRCO, S9 — phase-level, same-resolution groups), re-insert blind
     columns (BLINDP), then CCSDS-122 + ISP package (S15). MTF restoration/deconvolution (forward
     step 8) is off in the operational chain, so PSF/noise are NOT re-applied (see DPM). The S8/S9/S10/
-    S12 ADFs are auto-found next to the ADF_REQOG (or ``$S2_E2ES_{RSWIR,REOB2,RCRCO}_ADF``); set
-    ``S2_E2ES_REVERSE_FULL=0`` for the radiometric-only reverse. Detectors via
-    ``$S2_E2ES_L1B_DETECTORS`` (default ``5``); bands via ``args.bands``.
+    S12 ADFs are auto-found under ``{S2_AUX_DIR}/adf-eopf`` (or ``$S2_{RSWIR,REOB2,RCRCO}_ADF``); set
+    ``S2_REVERSE_FULL=0`` for the radiometric-only reverse. Detectors via
+    ``$S2_DETECTORS`` (default ``5``); bands via ``args.bands``.
     """
     import zarr
 
     from s2_msi_raw_generator import forward_radiometric_atbd as fwd, gipp as gipp_mod
 
-    src = os.environ.get("S2_E2ES_L1B")
+    src = os.environ.get("S2_L1B_INPUT")
     if not src:
-        print("[reverse-l1b] skipped (needs $S2_E2ES_L1B, a real L1B .zarr[.zip])")
+        print("[reverse-l1b] skipped (needs $S2_L1B_INPUT, a S2 L1B .zarr[.zip])")
         return
-    gipp_dir = args.gipp or os.environ.get("S2_E2ES_GIPP_DIR")
+    gipp_dir = args.gipp or os.environ.get("S2_GIPP_DIR")
     if not gipp_dir:
-        raise SystemExit("[reverse-l1b] needs $S2_E2ES_GIPP_DIR")
-    eqog = _eqog_adf_path(args)
-    full = str(os.environ.get("S2_E2ES_REVERSE_FULL", "1")).lower() not in ("0", "false", "no")
-    rswir_adf = _full_reverse_adf(args, "S2_E2ES_RSWIR_ADF", "RSWIR") if full else None
-    reob2_adf = _full_reverse_adf(args, "S2_E2ES_REOB2_ADF", "REOB2") if full else None
-    rcrco_adf = _full_reverse_adf(args, "S2_E2ES_RCRCO_ADF", "RCRCO") if full else None
-    gs = gipp_mod.load_gipp_set(gipp_dir, bands=tuple(args.bands), eqog_adf=eqog,
+        raise SystemExit("[reverse-l1b] needs $S2_GIPP_DIR")
+    full = str(os.environ.get("S2_REVERSE_FULL", "1")).lower() not in ("0", "false", "no")
+    rswir_adf = _full_reverse_adf(args, "S2_RSWIR_ADF", "RSWIR") if full else None
+    reob2_adf = _full_reverse_adf(args, "S2_REOB2_ADF", "REOB2") if full else None
+    rcrco_adf = _full_reverse_adf(args, "S2_RCRCO_ADF", "RCRCO") if full else None
+    gs = gipp_mod.load_gipp_set(gipp_dir, bands=tuple(args.bands),
                                 rswir_adf=rswir_adf, reob2_adf=reob2_adf, rcrco_adf=rcrco_adf)
     print(f"[reverse-l1b] full chain: S8(SWIR)={'on' if rswir_adf else 'off'} "
           f"S12(onboard-eq)={'on' if reob2_adf else 'off'} S9(crosstalk)={'on' if rcrco_adf else 'off'}")
@@ -543,7 +509,7 @@ def phase_reverse_l1b(store: dict[str, Path], args) -> None:
         offsets = gipp_mod.read_r2para(gipp_dir).radiance_offset_l1b
     except Exception:  # R2PARA optional — fall back to the sensor constant
         offsets = {}
-    detectors = [int(d) for d in str(os.environ.get("S2_E2ES_L1B_DETECTORS", "5")).split(",") if d.strip()]
+    detectors = [int(d) for d in str(os.environ.get("S2_DETECTORS", "5")).split(",") if d.strip()]
     l0_dark = sensor.L0_DARK_LSB
     props = _l1b_props(dict(zarr.open_group(src, mode="r").attrs))
     start = props.get("start_datetime") or props.get("datetime")
@@ -624,7 +590,7 @@ def phase_package_l0(store: dict[str, Path], args) -> None:
 
     Reverse merdiveninin L0 ucu (kanonik forward L0→L0plus→L1A'nın tersi). ``reverse-l1b``'in yazdığı L1A
     ham sayımlarını okur; **L0plus** = compressed/işleme-hazır (as-downlinked), **L0** = decompressed img
-    (gerçek ESA L0-zarr layout'u, doğrudan karşılaştırılabilir). L0plus ISP'si kendi codec'imizle çözülüp
+    (reference ESA L0-zarr layout'u, doğrudan karşılaştırılabilir). L0plus ISP'si kendi codec'imizle çözülüp
     L1A ile bit-exact eşleşme (codec round-trip) doğrulanır."""
     import zarr as _zarr
 
@@ -668,61 +634,57 @@ def phase_package_l0(store: dict[str, Path], args) -> None:
          "codec_round_trip_bit_exact": rt_ok},
         store["report"] / "package_l0.json",
     )
-    print(f"[package-l0] L1A → L0plus {Path(l0plus).name} → L0 {Path(l0).name} "
+    print(f"[package-l0] L1A → L0plus {Path(l0plus).name} → Synthetic L0 {Path(l0).name} "
           f"(codec round-trip {'OK' if rt_ok else 'FAIL'})")
 
 
 def _framing_offsets(bands) -> dict:
-    """Per-(band) L0→L1B begin-line crop (ADF_PRDLO). Auto-found in esa-source/aux/framing or env."""
-    cand = os.environ.get("S2_E2ES_FRAMING")
+    """Per-(band) L0→L1B begin-line crop (ADF_PRDLO). From ``{S2_AUX_DIR}/framing`` or env override."""
+    cand = os.environ.get("S2_FRAMING")
     if not cand:
-        for base in (os.environ.get("S2_DATA_STORE"), os.path.expanduser("~/data-store")):
-            if not base:
-                continue
-            hits = list(Path(base).glob("**/aux/framing/framing_lines_*.json"))
-            if hits:
-                cand = str(hits[0])
-                break
+        hit = s2env.find_framing_table()
+        cand = str(hit) if hit else None
     if not cand or not Path(cand).exists():
         return {}
     try:
-        return json.loads(Path(cand).read_text())
+        data = json.loads(Path(cand).read_text())
+        return data.get("framing", data)
     except Exception:  # noqa: BLE001
         return {}
 
 
 def phase_validate_reverse(store: dict[str, Path], args) -> None:
-    """``validate-reverse`` — sentetik L1A/L0 ↔ **gerçek L0 `img`** (framing-hizalı, decode YOK).
+    """``validate-reverse`` — Synthetic L1A vs reference ESA L0 ↔ **reference ESA L0 `img`** (framing-hizalı, decode YOK).
 
-    Gerçek ESA L0 ölçümleri decode edilmiş ``measurements/d{DD}/{bBB}/img`` saklar (Faz 0). Sentetik L1A
-    ham sayımlarını, framing (ADF_PRDLO begin-crop) hizasıyla gerçek L0 ``img`` ile bant bant karşılaştırır
-    (median/rmse DN). ``$S2_E2ES_REAL_L0`` = gerçek L0 TC7D yolu."""
+    Reference ESA L0 ölçümleri decode edilmiş ``measurements/d{DD}/{bBB}/img`` saklar (Faz 0). Sentetik L1A
+    ham sayımlarını, framing (ADF_PRDLO begin-crop) hizasıyla reference L0 ``img`` ile bant bant karşılaştırır
+    (median/rmse DN). ``$S2_L0_INPUT`` = reference ESA L0 TC7D yolu."""
     import zarr as _zarr
 
-    real_l0 = os.environ.get("S2_E2ES_REAL_L0")
+    real_l0 = os.environ.get("S2_L0_INPUT")
     rev = _jload(store["report"] / "reverse_l1b.json")
     l1a = rev.get("output_l1a")
     if not real_l0 or not l1a:
-        print("[validate-reverse] skipped (needs $S2_E2ES_REAL_L0 and a reverse-l1b L1A)")
+        print("[validate-reverse] skipped (needs $S2_L0_INPUT and a reverse-l1b L1A)")
         return
     detectors = [int(x) for x in rev["detectors"]]
     bands = list(rev["bands"])
     fr = _framing_offsets(bands)
     rg = _zarr.open_group(real_l0, mode="r")
-    win = _env_int("S2_E2ES_VALIDATE_LINES", 8000)
+    win = _env_int("S2_VALIDATE_LINES", 8000)
     res = {}
     for det in detectors:
         for bn in bands:
             syn = gio.read_l1a_raw(l1a, det, bn, dtype=np.uint16).astype(np.float64)
             try:
-                real = np.asarray(rg[f"measurements/d{det:02d}/{sensor.zarr_band_key(bn)}/img"])
+                esa_l0 = np.asarray(rg[f"measurements/d{det:02d}/{sensor.zarr_band_key(bn)}/img"])
             except Exception:  # noqa: BLE001
                 continue
             begin = int(fr.get(bn, {}).get(str(det), {}).get("begin", 0)) if fr else 0
-            real = real[begin : begin + syn.shape[0]].astype(np.float64)
-            n = min(win, syn.shape[0], real.shape[0])
-            w = min(syn.shape[1], real.shape[1])
-            a, b = syn[:n, :w], real[:n, :w]
+            esa_l0 = esa_l0[begin : begin + syn.shape[0]].astype(np.float64)
+            n = min(win, syn.shape[0], esa_l0.shape[0])
+            w = min(syn.shape[1], esa_l0.shape[1])
+            a, b = syn[:n, :w], esa_l0[:n, :w]
             diff = a - b
             res[f"d{det:02d}_{bn}"] = {
                 "median_abs_dn": round(float(np.median(np.abs(diff))), 3),
@@ -732,7 +694,7 @@ def phase_validate_reverse(store: dict[str, Path], args) -> None:
             }
             print(f"[validate-reverse] d{det:02d} {bn}: median|Δ|={res[f'd{det:02d}_{bn}']['median_abs_dn']} "
                   f"rmse={res[f'd{det:02d}_{bn}']['rmse_dn']} DN (crop {begin})")
-    _jdump({"real_l0": real_l0, "l1a": l1a, "per_band": res}, store["report"] / "validate_reverse.json")
+    _jdump({"esa_l0_ref": real_l0, "l1a": l1a, "per_band": res}, store["report"] / "validate_reverse.json")
 
 
 def phase_ground_decode(store: dict[str, Path], args) -> None:
@@ -740,7 +702,7 @@ def phase_ground_decode(store: dict[str, Path], args) -> None:
     l1a = pre["l1a_path"]
     d = _datation_from_preflight(pre)
     canon = str(store["l0"] / pre["product_names"]["l0"])
-    # Operational decoder = the CONSUMER's (msi-processor ground_decode — the real-chain
+    # Operational decoder = the CONSUMER's (msi-processor ground_decode — the S2 L1B chain
     # L1A-side decompression); the generator's read_l0_isp_dn stays as the E2ES-side
     # reference decoder and cross-checks it when the consumer is importable. The codec's
     # decompression is pure-Python/GIL-bound → bands fan out to worker processes.
@@ -785,7 +747,7 @@ def phase_ground_decode(store: dict[str, Path], args) -> None:
         rt[bn].update(dict(mg.attrs)["compression"])
         rt[bn]["n_packets"] = dict(mg.attrs)["n_packets"]
     _jdump(rt, store["report"] / "ground_decode.json")
-    # the real-chain order: the open container is written from the RECONSTRUCTED DN
+    # the S2 L1B chain order: the open container is written from the RECONSTRUCTED DN
     oc = str(store["l0"] / pre["product_names"]["l0_oc"])
     l0product.write_l0_opencontainer(
         oc,
@@ -794,7 +756,7 @@ def phase_ground_decode(store: dict[str, Path], args) -> None:
         platform=pre.get("platform", "Sentinel-2A"),
         orbit=pre.get("orbit"),
     )
-    print(f"[ground-decode] open-container L0 → {oc}")
+    print(f"[ground-decode] open-container Synthetic L0 → {oc}")
 
 
 def phase_l0_decode(store: dict[str, Path], args) -> None:
@@ -808,7 +770,7 @@ def phase_l0_decode(store: dict[str, Path], args) -> None:
     oc = str(store["l0"] / pre["product_names"]["l0_oc"])
     g = zarr.open_group(oc, mode="r")
     bands = sorted(g["measurements/detector"].array_keys())
-    # resolution groups keep 'line' uniform within each persisted product (real products mix
+    # resolution groups keep 'line' uniform within each persisted product (ESA products mix
     # 10 m / 20 m / 60 m line counts).
     groups: list[list[str]] = [[b for b in bands if b in res_bands] for res_bands in RES_GROUPS.values()]
     groups += [[b for b in bands if not any(b in r for r in RES_GROUPS.values())]]
@@ -960,11 +922,11 @@ def phase_fetch_store(store: dict[str, Path], args) -> None:
 def phase_publish_store(store: dict[str, Path], args) -> None:
     """Publish the local store's products to the shared registry + refresh the manifest.
 
-    Packages are immutable versions (``S2_E2ES_PUBLISH_NAME``/``_VERSION``); only the
+    Packages are immutable versions (``S2_PUBLISH_NAME``/``_VERSION``); only the
     ``manifest/latest`` entry is replaced in place. The "git push" of the data DB.
     """
     if not args.publish_version:
-        raise SystemExit("[publish-store] needs S2_E2ES_PUBLISH_VERSION (immutable package version)")
+        raise SystemExit("[publish-store] needs S2_PUBLISH_VERSION (immutable package version)")
     name, version = args.publish_name, args.publish_version
     headers = _store_auth_headers()
     root = store["report"].parent
@@ -1112,9 +1074,9 @@ def _cal_names(args) -> dict[str, str]:
 
 
 def phase_cal_package(store: dict[str, Path], args) -> None:
-    """Package the campaign acquisitions as REAL downlink L0 products (compressed ISPs).
+    """Package the campaign acquisitions as downlink Synthetic L0 products (compressed ISPs).
 
-    Two canonical L0 products — dark ``S02MSIDCA`` (operation mode ``DASC``) and
+    Two canonical reference ESA L0 products — dark ``S02MSIDCA`` (operation mode ``DASC``) and
     sun-diffuser ``S02MSISCA`` (``ABSR``) — with the same CCSDS-122 + space-packet
     carrier, PSFD naming and metadata as any nominal datatake (ICD-IF-L0-CAL).
     Calibration products live under ``<store>/caldb/`` (nominal L0s under ``l0/``).
@@ -1169,8 +1131,8 @@ def phase_build_caldb(store: dict[str, Path], args) -> None:
     """Option-Y cal-DB ADFs — derived from the campaign acquisitions when present.
 
     Inside the calibration mode the coefficients come from the very frames just
-    packaged as L0 products (:func:`s2_msi_raw_generator.caldb.derive_from_acquisitions`);
-    standalone (``S2_E2ES_PHASES=build-caldb``) it synthesizes deterministically-identical
+    packaged as Synthetic L0 products (:func:`s2_msi_raw_generator.caldb.derive_from_acquisitions`);
+    standalone (``S2_PHASES=build-caldb``) it synthesizes deterministically-identical
     frames via :func:`s2_msi_raw_generator.caldb.build` — same numbers either way.
     """
     acq = _ctx_acq.get(id(store["report"]))
@@ -1218,9 +1180,9 @@ def phase_derive_adf(store: dict[str, Path], args) -> None:
     """Real per-detector PRNU (+ dark from a dark-calibration granule) → ``.npz`` for
     :meth:`s2_msi_raw_generator.adf.BandADF.from_product` (alternative to the GIPP path).
     """
-    src = args.l1a or os.environ.get("S2_E2ES_L1A")
+    src = args.l1a or os.environ.get("S2_L1A_INPUT") or os.environ.get("S2_L1B_INPUT")
     if not src:
-        raise SystemExit("[derive-adf] needs $S2_E2ES_L1A (a real L1A/L1B .zarr[.zip])")
+        raise SystemExit("[derive-adf] needs $S2_L1A_INPUT or $S2_L1B_INPUT (a S2 L1A/L1B .zarr[.zip])")
     sl = slice(0, args.lines or 2048)
     tables: dict[str, np.ndarray] = {}
     for det in _parse_detectors(args.detectors):
@@ -1242,7 +1204,7 @@ def phase_derive_adf(store: dict[str, Path], args) -> None:
     has_dark = any(k.endswith("_dark") for k in tables)
     print(
         f"[derive-adf] wrote {out} ({len(tables)} arrays; "
-        f"dark={'real' if has_dark else 'NOT derived — set $S2_E2ES_DARK'})"
+        f"dark={'derived' if has_dark else 'NOT derived — set $S2_DARK'})"
     )
 
 
@@ -1272,16 +1234,16 @@ def _stage_row(name: str, a: np.ndarray) -> str:
 
 
 def phase_figures(store: dict[str, Path], args) -> None:
-    """Single-band stage-by-stage README/docs figures + quality metrics (real L1B input).
+    """Single-band stage-by-stage README/docs figures + quality metrics (S2 L1B input).
 
-    Runs the reverse chain step by step on one band/detector of a real L1B and writes the
+    Runs the reverse chain step by step on one band/detector of a S2 L1B and writes the
     three stage images (+ zoom crops + impressed-noise field) and a markdown metrics table.
     Each image is percentile-stretched independently (2–98 %) so the *texture* differences
     (PSF blur, PRNU striping, noise speckle) are what changes between panels.
     """
-    src = args.fig_l1b or os.environ.get("S2_E2ES_L1B")
+    src = args.fig_l1b or os.environ.get("S2_L1B_INPUT")
     if not src:
-        print("[figures] skipped (needs $S2_E2ES_L1B, a real L1B .zarr[.zip])")
+        print("[figures] skipped (needs $S2_L1B_INPUT, a S2 L1B .zarr[.zip])")
         return
     b = sensor.band(args.fig_band)
     radiance = gio.read_l1b_band(
@@ -1292,21 +1254,16 @@ def phase_figures(store: dict[str, Path], args) -> None:
     )
     n_lines, n_det = radiance.shape
 
-    gipp_dir = args.gipp or os.environ.get("S2_E2ES_GIPP_DIR")
+    gipp_dir = args.gipp or os.environ.get("S2_GIPP_DIR")
     if gipp_dir:
         from s2_msi_raw_generator import gipp as gipp_mod
 
-        eqog_adf = _eqog_adf_path(args)
-        gs = gipp_mod.load_gipp_set(gipp_dir, eqog_adf=eqog_adf)
+        gs = gipp_mod.load_gipp_set(gipp_dir)
         a = adfmod.BandADF.from_gipp(b, args.fig_detector, gs, active_width=n_det)
-        adf_kind = (
-            f"ESA EOPF ADF_REQOG ({os.path.basename(eqog_adf)})"
-            if eqog_adf
-            else "real operational GIPP (per-pixel dark + relative response)"
-        )
+        adf_kind = "GIPP JSON (per-pixel dark + relative response)"
     else:
         a = adfmod.synthesize(b, n_det=n_det, seed=2026)
-        adf_kind = "real PSF/SRF/noise model; synthetic-fallback dark/PRNU/equalization " "(no GIPP dir supplied)"
+        adf_kind = "ESA PSF/SRF/noise model; synthetic-fallback dark/PRNU/equalization " "(no GIPP dir supplied)"
 
     rng = np.random.default_rng(args.seed)
     # Stage captures (reverse_mvp order: S1 -> S6 -> S7 -> S13 -> S11 -> S12 -> S14).
@@ -1364,7 +1321,7 @@ def phase_figures(store: dict[str, Path], args) -> None:
     print("|---|---|---|---|---|---|---|")
     print(_stage_row("original — ideal DN (S1)", x_ideal))
     print(_stage_row("effects impressed (S6–S13)", x_fx))
-    print(_stage_row("RAW L0 DN (S14, uint16)", np.asarray(x_raw, dtype=np.float64)))
+    print(_stage_row("RAW Synthetic L0 DN (S14, uint16)", np.asarray(x_raw, dtype=np.float64)))
     print()
     print("| Quality figure | Value |")
     print("|---|---|")
@@ -1384,27 +1341,17 @@ def phase_figures(store: dict[str, Path], args) -> None:
 
 
 def phase_radiometric_vv(store: dict[str, Path], args) -> None:
-    gipp_dir = args.gipp or os.environ.get("S2_E2ES_GIPP_DIR")
+    gipp_dir = args.gipp or os.environ.get("S2_GIPP_DIR")
     if not gipp_dir:
         _jdump({"skipped": "no GIPP dir supplied"}, store["report"] / "radiometric_vv.json")
-        print("[radiometric-vv] skipped (no $S2_E2ES_GIPP_DIR)")
+        print("[radiometric-vv] skipped (no $S2_GIPP_DIR)")
         return
     from s2_msi_raw_generator import forward_radiometric_atbd as fwd, gipp as gipp_mod
 
     pre = _jload(store["report"] / "preflight.json")
-    eqog_adf = _eqog_adf_path(args)
-    gs = gipp_mod.load_gipp_set(gipp_dir, bands=tuple(pre["bands"]), eqog_adf=eqog_adf)
+    gs = gipp_mod.load_gipp_set(gipp_dir, bands=tuple(pre["bands"]))
     out = {}
-    if eqog_adf:
-        print(f"[radiometric-vv] NUC source: ESA EOPF ADF_REQOG ({os.path.basename(eqog_adf)})")
-        epoch = gipp_mod.parse_eqog_adf_epoch(eqog_adf)
-        acq_utc = pre.get("start_utc")
-        if epoch and acq_utc:
-            tv = gipp_mod.temporal_validity(epoch, acq_utc)
-            out["_adf_temporal_validity"] = tv
-            print(f"[radiometric-vv] {'WARNING — ' if tv['warn'] else ''}temporal-validity: {tv['message']}")
-        else:
-            out["_adf_temporal_validity"] = {"skipped": "no ADF epoch or acquisition date"}
+    print("[radiometric-vv] NUC source: GIPP JSON REQOG")
     for bn in pre["bands"]:
         try:
             eq = gs.band(bn).detectors[DETECTOR]  # GIPP forward/reverse round-trip pattern
@@ -1461,10 +1408,10 @@ def _scan_member(name: str, buf: bytes) -> dict:
 
 
 def phase_scan_l0(store: dict[str, Path], args) -> None:
-    """Structural scan of the accessible real-L0 references (REQ-FUNC-093).
+    """Structural scan of the accessible ESA L0 references (REQ-FUNC-093).
 
-    The real **SADATA** tar members are genuine downlinked CCSDS packet streams — our packet
-    walker must tile them; the **DS** tar gives the real PSD datastrip identifiers for the
+    The **SADATA** tar members are genuine downlinked CCSDS packet streams — our packet
+    walker must tile them; the **DS** tar gives the ESA PSD datastrip identifiers for the
     naming crosswalk.  (The SAFE image-ISP ``.bin`` files are GET-403 on the bucket; that
     limitation is recorded in the report.)
     """
@@ -1475,10 +1422,10 @@ def phase_scan_l0(store: dict[str, Path], args) -> None:
     tars = sorted(dest.glob("*.tar"))
     if not tars:
         _jdump(
-            {"skipped": f"no real-L0 tars under {dest}"},
+            {"skipped": f"no ESA-L0 tars under {dest}"},
             store["report"] / "isp_structural.json",
         )
-        print("[scan-l0] skipped (real-L0 references not fetched)")
+        print("[scan-l0] skipped (ESA L0 references not fetched)")
         return
     sad_scans, ds_info = [], {}
     for t in tars:
@@ -1501,12 +1448,12 @@ def phase_scan_l0(store: dict[str, Path], args) -> None:
                         times = sorted(set(re.findall(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}", xml)))
                         ds_info["psd_datastrip_ids"] = ids[:5]
                         ds_info["sensing_times"] = times[:6]
-    # naming crosswalk: our PSD-style metadata id + PSFD file names vs the real PSD forms
+    # naming crosswalk: our PSD-style metadata id + PSFD file names vs the ESA PSD forms
     pre = _jload(store["report"] / "preflight.json")
     crosswalk = {
         "ours_psfd_l0": pre["product_names"]["l0"],
-        "real_psd_ds_tar": ds_info.get("tar"),
-        "real_psd_datastrip_ids": ds_info.get("psd_datastrip_ids", []),
+        "reference_psd_ds_tar": ds_info.get("tar"),
+        "reference_psd_datastrip_ids": ds_info.get("psd_datastrip_ids", []),
     }
     canon = store["l0"] / pre["product_names"]["l0"]
     if canon.exists():
@@ -1537,7 +1484,7 @@ def phase_scan_l0(store: dict[str, Path], args) -> None:
         {
             "safe_limitation": "PSD L0 SAFE image-ISP .bin objects are HTTP 403 on GET "
             "(bucket policy) — image-packet accounting not possible; "
-            "structural ISP validation done on real SADATA packet streams",
+            "structural ISP validation done on SADATA packet streams",
             "real_sadata": sad_scans,
             "real_ds": ds_info,
             "naming_crosswalk": crosswalk,
@@ -1611,7 +1558,7 @@ def phase_report(store: dict[str, Path], args) -> None:
         p = rep / f"{name}.json"
         sections[name] = _jload(p) if p.exists() else {"missing": True}
     pre = sections["preflight"]
-    lines = ["# Real-L1A E2E run report", ""]
+    lines = ["# S2 L1B E2E run report", ""]
     if not pre.get("missing"):
         lines += [
             f"- L1A: `{pre['l1a_path']}` · bands {len(pre['bands'])} · "
@@ -1687,8 +1634,8 @@ def phase_report(store: dict[str, Path], args) -> None:
                 f"- ours (PSFD file): `{cw.get('ours_psfd_l0')}`",
                 f"- ours (PSD datastrip id in metadata): `{cw.get('ours_psd_datastrip_id')}` "
                 f"(pattern match: {cw.get('psd_pattern_match')})",
-                f"- real (PSD DS tar): `{cw.get('real_psd_ds_tar')}`",
-                f"- real datastrip ids: {cw.get('real_psd_datastrip_ids')}",
+                f"- (PSD DS tar): `{cw.get('reference_psd_ds_tar')}`",
+                f"- reference datastrip ids: {cw.get('reference_psd_datastrip_ids')}",
                 "",
             ]
     (rep / "e2e_report.md").write_text("\n".join(lines) + "\n")
@@ -1711,45 +1658,43 @@ def _settings(mode: str) -> argparse.Namespace:
     """
     e = os.environ.get
     s = argparse.Namespace(mode=mode)
-    s.phases = e("S2_E2ES_PHASES") or None
-    s.l1a = e("S2_E2ES_L1A") or None
-    s.public_l0 = e("S2_E2ES_PUBLIC_L0") or None
-    s.import_detector = _env_int("S2_E2ES_IMPORT_DETECTOR", 1)
-    s.dark = e("S2_E2ES_DARK") or None
-    s.gipp = e("S2_E2ES_GIPP_DIR") or None
-    s.eqog_adf = e("S2_E2ES_EQOG_ADF") or None
-    s.bands = [b.strip().upper() for b in (e("S2_E2ES_BANDS") or ",".join(sensor.BANDS)).split(",") if b.strip()]
-    s.lines = _env_int("S2_E2ES_LINES", 0)
+    s.phases = e("S2_PHASES") or None
+    s.l1a = e("S2_L1A_INPUT") or e("S2_L1B_INPUT") or None
+    s.public_l0 = e("S2_L0_INPUT") or None
+    s.import_detector = _env_int("S2_IMPORT_DETECTOR", 1)
+    s.dark = e("S2_DARK") or None
+    s.gipp = e("S2_GIPP_DIR") or None
+    s.bands = [b.strip().upper() for b in (e("S2_BANDS") or ",".join(sensor.BANDS)).split(",") if b.strip()]
+    s.lines = _env_int("S2_LINES", 0)
     s.line_slice = slice(0, s.lines) if s.lines else None
-    s.seed = _env_int("S2_E2ES_SEED", 0)
-    s.n_det = _env_int("S2_E2ES_NDET", 400)
-    s.cal_lines = _env_int("S2_E2ES_CAL_LINES", 256)
-    s.jobs = _env_int("S2_E2ES_JOBS", os.cpu_count() or 8)
+    s.seed = _env_int("S2_SEED", 0)
+    s.n_det = _env_int("S2_NDET", 400)
+    s.cal_lines = _env_int("S2_CAL_LINES", 256)
+    s.jobs = _env_int("S2_JOBS", os.cpu_count() or 8)
     # fixed internals — formerly niche flags no consumer ever overrode
     s.detectors = "1-12"
     s.max_payload = isp.DEFAULT_MAX_PAYLOAD
     s.store_decoded = True
-    s.fig_l1b = e("S2_E2ES_L1B") or None
+    s.fig_l1b = e("S2_L1B_INPUT") or None
     s.fig_band, s.fig_detector = "B04", 7
     s.fig_line_start, s.fig_lines = 8450, 650
     s.fig_zoom_line, s.fig_zoom_col, s.fig_zoom_size = 0, 0, 256
     s.fig_out = None
     # data-store sync (ipf/data-store registry)
-    s.publish_name = e("S2_E2ES_PUBLISH_NAME") or "products"
-    s.publish_version = e("S2_E2ES_PUBLISH_VERSION") or None
-    s.publish_layer = e("S2_E2ES_PUBLISH_LAYER") or "products"
+    s.publish_name = e("S2_PUBLISH_NAME") or "products"
+    s.publish_version = e("S2_PUBLISH_VERSION") or None
+    s.publish_layer = e("S2_PUBLISH_LAYER") or "products"
     if s.publish_layer not in ("products", "inputs"):
-        raise SystemExit(f"S2_E2ES_PUBLISH_LAYER must be products|inputs, got {s.publish_layer!r}")
+        raise SystemExit(f"S2_PUBLISH_LAYER must be products|inputs, got {s.publish_layer!r}")
     job = e("CI_JOB_URL")
     s.publish_source = f"run_pipeline publish-store ({job})" if job else "run_pipeline publish-store"
     return s
 
 
-def main(argv=None, *, use_local_defaults: bool = False) -> int:
+def main(argv=None, *, load_env: bool = True) -> int:
     ap = argparse.ArgumentParser(
         description=__doc__.splitlines()[0],
-        epilog="runs with no exports via the baked-in LOCAL_ENV_DEFAULTS (store root, GIPP dir, "
-        "public L0, detector, jobs); export any S2_E2ES_* / S2_DATA_STORE var to override "
+        epilog="copy .env.example to .env and set paths; override any S2_* variable for one-off runs "
         "(full list in the module docstring)",
     )
     ap.add_argument(
@@ -1757,28 +1702,25 @@ def main(argv=None, *, use_local_defaults: bool = False) -> int:
         nargs="?",
         default="nominal",
         choices=("nominal", "calibration"),
-        help="nominal (default): real S2 product -> synthetic RAW downlink; "
+        help="nominal (default): ESA S2 product -> synthetic RAW downlink; "
         "calibration: campaign acquisitions -> S02MSIDCA/S02MSISCA L0 + cal-DB "
         "under <store>/caldb/",
     )
     mode = ap.parse_args(argv).mode
-    # Command-line runs (``use_local_defaults``, set from ``__main__``) get the baked-in
-    # LOCAL_ENV_DEFAULTS so a bare ``python scripts/run_pipeline.py`` needs no shell exports;
-    # an already-exported value always wins (setdefault). Programmatic callers (tests) opt out
-    # so the process environment stays clean. Phases default per mode.
-    if use_local_defaults:
-        for key, value in LOCAL_ENV_DEFAULTS.items():
-            os.environ.setdefault(key, value)
-        if mode == "nominal":
-            os.environ.setdefault("S2_E2ES_PHASES", LOCAL_NOMINAL_PHASES)
+    if load_env:
+        s2env.ensure_repo_on_path()
+        s2env.init_env(require=True)
     args = _settings(mode)
 
-    store = _store_paths(Path(os.environ.get("S2_DATA_STORE") or "~/data-store").expanduser())
+    store = _store_paths()
     default_phases = CALIBRATION_PHASES if args.mode == "calibration" else NOMINAL_PHASES
-    todo = [p.strip() for p in (args.phases or ",".join(default_phases)).split(",") if p.strip()]
+    if load_env and mode == "nominal" and not args.phases:
+        todo = [p.strip() for p in LOCAL_NOMINAL_PHASES.split(",") if p.strip()]
+    else:
+        todo = [p.strip() for p in (args.phases or ",".join(default_phases)).split(",") if p.strip()]
     unknown = [p for p in todo if p not in PHASES]
     if unknown:
-        ap.error(f"unknown phases: {unknown} (S2_E2ES_PHASES: choose from {PHASES})")
+        ap.error(f"unknown phases: {unknown} (S2_PHASES: choose from {PHASES})")
     fns = {
         "fetch-store": phase_fetch_store,
         "publish-store": phase_publish_store,
@@ -1811,4 +1753,4 @@ def main(argv=None, *, use_local_defaults: bool = False) -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main(use_local_defaults=True))
+    raise SystemExit(main())

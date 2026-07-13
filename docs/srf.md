@@ -17,9 +17,9 @@
 # Software reuse file
 
 ECSS-E-ST-40C Rev.1 / ECSS-Q-ST-80C. This SRF records reused software and reused data, and states the
-originality of the reverse-ladder L0 reconstruction tool: it runs a real Sentinel-2B **L1B** backwards
-through the exact inverse of the operational L0->L1B radiometric chain to reconstruct **L1A -> L0plus -> L0**,
-validated against the real ESA L0 `img`.
+originality of the reverse-chain Synthetic L0 reconstruction tool: it runs a Sentinel-2B **L1B** backwards
+through the exact inverse of the operational Synthetic L0->L1B radiometric chain to reconstruct **L1A -> L0plus -> Synthetic L0**,
+validated against the reference ESA L0 `img`.
 <!-- NAMING CASCADE: repo s2-msi-raw-generator / package s2_msi_raw_generator is a project-wide rename
      across all ECSS docs; not applied unilaterally here. -->
 
@@ -34,12 +34,12 @@ implementations from public specifications.
 | Component | Role | License |
 |-----------|------|---------|
 | `numpy` | numerical arrays, the entire processing core | BSD-3-Clause |
-| `zarr` | EOPF L1A/L1B read + L0 RAW write (optional `read` extra) | MIT |
-| Python stdlib `xml.etree.ElementTree` | original GIPP XML parser | PSF |
+| `zarr` | EOPF L1A/L1B read + Synthetic L0 RAW write (optional `read` extra) | MIT |
+| Python stdlib `json` + `xml.etree.ElementTree` | GIPP JSON parser (+ XML fixtures for tests) | PSF |
 | `pytest` | test runner (dev only) | MIT |
 
 
-No EOPF CPM, no geometry library, and no credentialed package is required for the realized path.
+No EOPF CPM, no geometry library, and no credentialed package is required for the referenceized path.
 
 ## Reused data
 
@@ -53,11 +53,11 @@ All reused data is **public** ESA/Copernicus reference data; only the data value
 
 ## Originality statement
 
-The reverse-ladder inverse radiometric chain (invert offset, relative-response/PRNU, dark, un-bin, SWIR
+The reverse-chain inverse radiometric chain (invert offset, relative-response/PRNU, dark, un-bin, SWIR
 re-stage, defective, crosstalk, on-board-eq; MTF-deconvolution OFF), the GIPP reader, the calibration
-sub-set and the L1A/L0plus/L0 product assembly are **original implementations** written from the public
+sub-set and the L1A/L0plus/Synthetic L0 product assembly are **original implementations** written from the public
 Sentinel-2 L1 ATBD and the GIPP data layout. **No external mission-processor source code is copied,
 vendored, imported or referenced by name** in this deliverable. This satisfies REQ-QUAL-003 (originality),
-verified by inspection (source review + name grep) in the V&V report. The ladder's own V&V uses only this
+verified by inspection (source review + name grep) in the V&V report. The reverse chain's own V&V uses only this
 project's code: the L0plus codec round-trip (decode(L0plus)==L1A, bit-exact) and validation of the
-reconstructed L0 against the real ESA L0 `img` (10/20 m bands <=~4 DN).
+Synthetic L0 against the reference ESA L0 `img` (10/20 m bands <=~4 DN).

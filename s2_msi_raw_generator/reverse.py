@@ -1,4 +1,4 @@
-"""Reverse radiometric chain (L1B radiance → L0 RAW DN), pure NumPy.
+"""Reverse radiometric chain (L1B radiance → Synthetic L0 RAW DN), pure NumPy.
 
 Each function is one ATBD §5 step (S1, S6, S7, S11, S12, S13, S14). All operate on a 2-D
 per-band, per-detector array ``(lines, detector_columns)``. The MVP chain (Increment 1) is
@@ -17,7 +17,7 @@ from .adf import BandADF
 
 def s1_radiance_to_dn(radiance: np.ndarray, gain: float) -> np.ndarray:
     """S1 — radiance → equalized signal DN: ``DN = A · L``, the absolute-calibration term of the
-    official L1 ATBD raw model ``X = A·G·L + D``. ``A`` is ``Band.cal_gain`` (real-derived from the
+    official L1 ATBD raw model ``X = A·G·L + D``. ``A`` is ``Band.cal_gain`` (datasheet-derived from the
     noise model + SNR@Lref, so the chain reproduces SNR@Lref). Processor forward: ``L = DN/A``."""
     return np.asarray(radiance, dtype=np.float64) * gain
 
@@ -69,7 +69,7 @@ def s14_quantize(dn: np.ndarray, dn_max: int = 4095) -> np.ndarray:
 # --- MVP chain ----------------------------------------------------------------
 
 def reverse_mvp(radiance: np.ndarray, adf: BandADF, rng: np.random.Generator) -> np.ndarray:
-    """Full MVP reverse chain for one band/detector: radiance → uint16 L0 DN.
+    """Full MVP reverse chain for one band/detector: radiance → uint16 Synthetic L0 DN.
 
     S1 → S6 → S7 → S13 → S11 → S12 → S14. Noise (S13) is impressed on the *signal* DN (before the
     dark pedestal is added in S11), so σ=√(α²+β·DN_signal) reproduces the SNR@Lref exactly —
@@ -199,7 +199,7 @@ def reverse_full(
     S1 → S6 → S7 → [S8] → S13 → S11 → S12 → [S10] → S14. Noise (S13) is on the signal DN (before
     the dark pedestal); defects (S10) are applied last so dead columns stay 0 and hot pixels stay
     saturated in the output. (S5 un-bin changes width and S9 crosstalk needs multiple bands —
-    applied separately.) Returns ``(uint16 L0 DN, qa uint8)``.
+    applied separately.) Returns ``(uint16 Synthetic L0 DN, qa uint8)``.
     """
     dn = s1_radiance_to_dn(radiance, adf.band.cal_gain)
     dn = s6_psf_reblur(dn, adf.psf)
