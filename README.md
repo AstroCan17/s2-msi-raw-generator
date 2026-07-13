@@ -230,6 +230,72 @@ when `S2_E2ES_GIPP_DIR` / `S2_E2ES_L1A` are set. The full variable reference is 
 decode checks, cal-DB gains, reports) open `notebooks/inspect_products.ipynb` in JupyterLab;
 for a tabular store inventory use `notebooks/data_inventory.ipynb`.
 
+## Codespaces + private dataset setup
+
+Use a **public code repo + private data repo** model:
+
+- `AstroCan17/s2-msi-raw-generator` (public): code
+- `AstroCan17/s2-msi-raw-generator-data` (private): release assets (`input-data.tar.gz`, optional `input-data.tar.gz.sha256`)
+
+The devcontainer runs `.devcontainer/scripts/fetch-input-data.sh` on create. It downloads the
+dataset release asset via GitHub API, optionally verifies checksum, and extracts into `data/`
+(`data/` is git-ignored).
+
+Required Codespaces secret:
+
+- `DATA_REPO_PAT`: fine-grained PAT with read access to `s2-msi-raw-generator-data`
+
+Optional environment overrides:
+
+- `DATA_REPO_OWNER` (default: `AstroCan17`)
+- `DATA_REPO_NAME` (default: `s2-msi-raw-generator-data`)
+- `DATASET_TAG` (default: `datasets-v1`)
+- `DATASET_ASSET_NAME` (default: `input-data.tar.gz`)
+- `DATA_DIR` (default: `data`)
+- `FORCE_DATA_SYNC=1` to force redownload even if the same tag is already present
+
+Local refresh without Codespaces:
+
+```bash
+make data-sync          # re-download release asset into data/
+export S2_DATA_STORE="$PWD/data"
+```
+
+### `DATA_REPO_PAT` scopes (fine-grained)
+
+Create a fine-grained PAT limited to the private data repo:
+
+| Permission | Access |
+|---|---|
+| Repository | `AstroCan17/s2-msi-raw-generator-data` only |
+| Contents | Read-only |
+| Metadata | Read-only |
+
+Add it as a **Codespaces user secret** (`DATA_REPO_PAT`) or repository secret if you only
+use org Codespaces. Rotate the PAT on a schedule; never commit it to the public code repo.
+
+### Publishing a new dataset release
+
+Package a local store root that matches the pipeline layout (`inputs/`, `l0/`, …) and upload
+immutable release assets:
+
+```bash
+make publish-dataset STORE_ROOT=/path/to/store-root
+# or: DATASET_TAG=datasets-v2 bash .devcontainer/scripts/publish-dataset.sh /path/to/store-root
+```
+
+Release contract:
+
+| Field | Value |
+|---|---|
+| Tag | `datasets-vN` (immutable) |
+| Asset | `input-data.tar.gz` |
+| Checksum | `input-data.tar.gz.sha256` (recommended) |
+| Size limit | ≤ 2 GiB per GitHub release asset |
+
+CI validates consumption via `.github/workflows/data-fetch-smoke.yml` (requires
+`DATA_REPO_PAT` repository secret).
+
 ## Status
 
 **Complete — full reverse ladder (real S2B L1B → L1A → L0plus (CCSDS-122 compressed ISPs) → L0), the reconstructed L0 validated to ≤ ~4 DN vs the real ESA L0 `img` on the ten 10/20 m bands; 201 tests, CI green.**

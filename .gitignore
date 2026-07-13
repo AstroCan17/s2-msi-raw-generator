@@ -8,7 +8,7 @@ venv/
 .mypy_cache/
 .ruff_cache/
 
-# All data lives in the shared ipf/data-store registry; local working stores are untracked.
+# All runtime input datasets (including private Codespaces fetches) stay untracked.
 data/
 
 # Build / docs

@@ -1,0 +1,11 @@
+{
+  "name": "s2-msi-raw-generator",
+  "image": "mcr.microsoft.com/devcontainers/python:1-3.11-bullseye",
+  "containerEnv": {
+    "S2_DATA_STORE": "${containerWorkspaceFolder}/data"
+  },
+  "remoteEnv": {
+    "S2_DATA_STORE": "${containerWorkspaceFolder}/data"
+  },
+  "postCreateCommand": "bash .devcontainer/scripts/setup.sh"
+}
