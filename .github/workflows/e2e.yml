@@ -1,0 +1,79 @@
+name: E2E pipeline
+
+on:
+  workflow_dispatch:
+    inputs:
+      job:
+        description: E2E job to run
+        required: true
+        default: pipeline-calibration
+        type: choice
+        options:
+          - pipeline-calibration
+          - e2e-real-l1a
+
+jobs:
+  pipeline-calibration:
+    name: Calibration campaign smoke
+    if: inputs.job == 'pipeline-calibration'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    continue-on-error: true
+    env:
+      S2_DATA_STORE: cal-store
+      S2_E2ES_NDET: "64"
+      S2_E2ES_CAL_LINES: "64"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install (numpy + zarr only)
+        run: |
+          python -m pip install --upgrade pip
+          pip install numpy zarr
+          pip install -e . --no-deps
+      - name: Run calibration pipeline
+        run: python scripts/run_pipeline.py calibration
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: calibration-report
+          path: |
+            cal-store/report/
+            cal-store/quicklook/
+
+  e2e-real-l1a:
+    name: Windowed nominal-chain E2E
+    if: inputs.job == 'e2e-real-l1a'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    continue-on-error: true
+    env:
+      S2_DATA_STORE: e2e-real-store
+      S2_E2ES_PHASES: fetch-l1a,preflight,package,ground-decode,l0-decode,validate,quicklook,report
+      S2_E2ES_LINES: "4096"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install eopf + msi-processor + generator
+        run: |
+          python -m pip install --upgrade pip
+          git clone --depth 1 https://github.com/AstroCan17/msi-processor.git /tmp/msi-processor
+          pip install "eopf==2.8.1" /tmp/msi-processor
+          pip install -e . pytest
+      - name: Run E2E pipeline
+        run: python scripts/run_pipeline.py
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-real-l1a-report
+          path: |
+            e2e-real-store/report/
+            e2e-real-store/quicklook/
