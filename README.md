@@ -230,6 +230,25 @@ when `S2_E2ES_GIPP_DIR` / `S2_E2ES_L1A` are set. The full variable reference is 
 decode checks, cal-DB gains, reports) open `notebooks/inspect_products.ipynb` in JupyterLab;
 for a tabular store inventory use `notebooks/data_inventory.ipynb`.
 
+## Codespaces + Google Drive (rclone)
+
+Input products (L1B/L0, GIPP) are fetched from Google Drive via **rclone**. The devcontainer
+installs rclone on create and injects your config from a Codespaces secret.
+
+| Secret | Where | Value |
+|---|---|---|
+| `RCLONE_CONF_B64` | **Codespaces** secrets (required) | Full `~/.config/rclone/rclone.conf` copy-paste |
+| `RCLONE_CONF_B64` | **Actions** secrets (required for CI) | Same file — CI smoke uses the same secret |
+
+`S2_DATA_STORE` defaults to `data/` in the workspace (`data/` is git-ignored).
+
+Post-create smoke (no multi-GB download): `listremotes` + `rclone about` API check only.
+CI runs the same smoke via [`.github/workflows/devcontainer-rclone-smoke.yml`](.github/workflows/devcontainer-rclone-smoke.yml).
+
+```bash
+make verify-rclone   # local smoke after exporting RCLONE_CONF_B64 or injecting config manually
+```
+
 ## Status
 
 **Complete — full reverse ladder (real S2B L1B → L1A → L0plus (CCSDS-122 compressed ISPs) → L0), the reconstructed L0 validated to ≤ ~4 DN vs the real ESA L0 `img` on the ten 10/20 m bands; 201 tests, CI green.**

@@ -32,6 +32,8 @@ graphify-out/
 
 # Secrets / credentials (never commit)
 secrets.json
+rclone.conf
+.config/rclone/
 .eopf/
 *.pem
 *.key
