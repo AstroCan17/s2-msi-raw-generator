@@ -22,40 +22,40 @@ document, SRelD). Full history: `../CHANGELOG.md`.
 ## 1. Release
 
 - **Package:** `s2_msi_raw_generator` · **version:** `0.3.0` · **date:** 2026-07-02.
-- **Status:** all-real-data reverse-ladder run (real S2B L1B → L1A → L0plus → L0); 201 tests pass (v0.3.0);
+- **Status:** all-S2 L1B reverse chain run (S2B L1B → L1A → L0plus → Synthetic L0); 201 tests pass (v0.3.0);
   GitLab CI green on `main`.
 - **License:** Apache-2.0.
 
 ## 2. Contents
 
-- Reverse ladder (`reverse.py`): run a real L1B backwards through the exact inverse of the operational
+- Reverse chain (`reverse.py`): run a S2 L1B backwards through the exact inverse of the operational
   L0→L1B chain — invert offset, relative-response/PRNU, dark, un-bin, SWIR re-stage, defective, crosstalk,
   on-board-eq — with MTF-deconvolution OFF (PSF and noise are **not** re-applied), reconstructing
-  L1A → L0plus → L0; ISP packetization (`isp.py`) and L0 RAW EOProduct assembly (`l0product.py`).
-- Real-data ADFs: the original operational-GIPP reader (`gipp.py` → per-pixel dark + relative response that
-  the ladder inverts) and the per-unit SRF spectral characterisation / sensor model (`sensor.py`, used for
+  L1A → L0plus → Synthetic L0; ISP packetization (`isp.py`) and Synthetic L0 RAW EOProduct assembly (`l0product.py`).
+- S2 L1B ADFs: the original operational-GIPP reader (`gipp.py` → per-pixel dark + relative response that
+  the reverse chain inverts) and the per-unit SRF spectral characterisation / sensor model (`sensor.py`, used for
   the SWIR re-stage and relative-response inversion).
-- Exact radiometric **inverse** (`forward_radiometric_atbd.py`) the ladder uses to undo gain/offset
+- Exact radiometric **inverse** (`forward_radiometric_atbd.py`) the reverse chain uses to undo gain/offset
   ($X = A\cdot G\cdot L + D \rightarrow$ recover $L$); the forward relation appears only as the thing being
   inverted. Plus the calibration sub-set (`calibration.py`, cal-DB derivation).
 - Documentation set (this release): ATBD (issued v1.0), SRS, SDD, ICD, DPM, V&V plan + report, SUM, this
   SRN, CIDL, SCF, SRF, SDP; plus README, CHANGELOG, LICENSE.
-- Scripts: `demo_reverse_real.py` (reverse ladder), `demo_build_l0.py` (L0 assembly),
+- Scripts: `demo_reverse_real.py` (reverse chain), `demo_build_l0.py` (L0 assembly),
   `demo_calibration.py` (cal-DB), `derive_prnu_dark.py` (dark / relative-response derivation) — since
   consolidated into `scripts/run_pipeline.py`.
 
 ## 3. Changes (this cycle)
 
-**v0.3.0 — real-data reverse ladder:** CCSDS 122.0-B lossless codec (`ccsds122.py`, ICD-IF-C122);
-compressed-ISP canonical L0 (`isp.packetize_stream`, ground decode `read_l0_isp_dn`); EOPF PSFD §3 naming
-(`naming.py`, ICD-IF-NAME); real S2B L1B run backwards to a reconstructed L0 that is validated against the
-real ESA L0 `img` — the 10/20 m bands agree to ≤ ~4 DN — with the L0plus stream compressed losslessly at
-3.66× (`docs/vv/real_e2e.md`); products in the package registry `e2e-real/0.3.0`; Release v0.3.0.
+**v0.3.0 — S2 L1B reverse chain:** CCSDS 122.0-B lossless codec (`ccsds122.py`, ICD-IF-C122);
+compressed-ISP canonical Synthetic L0 (`isp.packetize_stream`, ground decode `read_l0_isp_dn`); EOPF PSFD §3 naming
+(`naming.py`, ICD-IF-NAME); S2B L1B run backwards to a Synthetic L0 that is validated against the
+reference ESA L0 `img` — the 10/20 m bands agree to ≤ ~4 DN — with the L0plus stream compressed losslessly at
+3.66× (`docs/vv/s2_l1b_e2e.md`); products in the package registry `e2e-s2-l1b/0.3.0`; Release v0.3.0.
 
-- **Real operational GIPP** → per-pixel dark + relative response (replaces the DQR-summary dark / seeded
+- **Operational GIPP** → per-pixel dark + relative response (replaces the DQR-summary dark / seeded
   PRNU).
 - **Official L1 ATBD raw relation** $X = A\cdot G\cdot L + D$ (true 12-bit DN) is the forward relation the
-  ladder **inverts** — undo the offset $D$, then the gain $A\cdot G$ — to recover L1A/L0. Noise is not
+  reverse chain **inverts** — undo the offset $D$, then the gain $A\cdot G$ — to recover L1A/Synthetic L0. Noise is not
   re-applied (MTF-deconvolution OFF).
 - **Calibration sub-set** — synthetic CSM diffuser + dark → derived coefficients (inverse-crime cure).
 - **Documentation:** ATBD issued v1.0; added the full ECSS-E-ST-40C DRD set, LICENSE (Apache-2.0), CHANGELOG.
@@ -66,8 +66,8 @@ real ESA L0 `img` — the 10/20 m bands agree to ≤ ~4 DN — with the L0plus s
   undo). Geometry inversion is out of scope.
 - **Deferred requirements:** credentialed ADF service (REQ-FUNC-043), configurable PU orchestration
   (REQ-FUNC-053), Dask distribution (REQ-FUNC-062).
-- Radiometric validation is against the real ESA L0 `img` (the reconstructed L0 agrees to ≤ ~4 DN on the
+- Radiometric validation is against the reference ESA L0 `img` (the Synthetic L0 agrees to ≤ ~4 DN on the
   10/20 m bands). The publicly available EOPF **test L1B/L1A is DN-scaled** (not a physically-calibrated
-  radiance product), and real physically-calibrated S2 L1A/L1B is not publicly distributed.
+  radiance product), and physically-calibrated S2 L1A/L1B is not publicly distributed.
 - A **dark-calibration** (night/ocean) granule was not available; the dark is the per-pixel GIPP
   value (DQR-range), not derived from a dedicated dark acquisition.

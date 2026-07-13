@@ -21,7 +21,7 @@ Two representations, one source of truth:
   ``DEFECTIVE=8``), so the processor's monotone OR-accumulation picks up the generator's seeds directly
   (the open-container ``quality/l0_flags/<band>``).
 * :func:`to_msk_qualit` → ``uint8`` in the Sentinel-2 ``MSK_QUALIT`` 8-bit-plane layout (the canonical
-  L0 product mask ``quality/d{DD}/b{BB}/mask``).
+  Synthetic L0 product mask ``quality/d{DD}/b{BB}/mask``).
 """
 
 from __future__ import annotations

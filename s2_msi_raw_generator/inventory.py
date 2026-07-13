@@ -341,7 +341,7 @@ def consistency_findings(records: list[dict], store: str | Path) -> list[dict]:
             "HIGH",
             "PDI_MSI_S2_L1A.zarr has no readable STAC discovery attributes.",
             "The pipeline falls back to placeholder naming and orbit context.",
-            "Import or supply real STAC identity before packaging.",
+            "Import or supply STAC identity before packaging.",
         ))
     public = [r for r in records if r["kind"] == "external-l0-public"]
     ours = [r for r in records if r["kind"].startswith("our-l0")]
@@ -360,16 +360,17 @@ def consistency_findings(records: list[dict], store: str | Path) -> list[dict]:
             "LOW",
             "One or more S02MSIL0P companions have no STAC properties.",
             "They are useful as distribution annotations, not as science-image identity anchors.",
-            "Keep them classified separately from image L0 products.",
+            "Keep them classified separately from image Synthetic L0 products.",
         ))
     root = Path(store)
-    if (root / ".publish-stage/gipp.zip").exists() and not (root / "inputs/gipp").exists():
+    gipp_env = os.environ.get("S2_GIPP_DIR")
+    if (root / ".publish-stage/gipp.zip").exists() and not gipp_env:
         out.append(_finding(
             "radiometric-vv-gipp-skipped",
             "MEDIUM",
-            ".publish-stage/gipp.zip exists but inputs/gipp is missing or broken.",
+            ".publish-stage/gipp.zip exists but S2_GIPP_DIR is unset.",
             "radiometric_vv can skip even though the GIPP payload is available.",
-            "Set S2_E2ES_GIPP_DIR or restore the inputs/gipp link.",
+            "Set S2_GIPP_DIR to aux/gipp-json (or extract the published GIPP zip).",
         ))
     l0_decode = root / "report/l0_decode.json"
     if l0_decode.exists():

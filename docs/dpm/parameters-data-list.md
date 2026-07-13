@@ -18,10 +18,10 @@
 
 ## Processing parameters
 
-The generator runs a real Sentinel-2B **L1B** backwards through the **exact inverse of the operational
-L0→L1B radiometric chain** to reconstruct **L1A → L0plus → L0** in the downlink DN domain. Per reverse-ladder
+The generator runs a Sentinel-2B **L1B** backwards through the **exact inverse of the operational
+L0→L1B radiometric chain** to reconstruct **L1A → L0plus → Synthetic L0** in the downlink DN domain. Per reverse-chain
 step: the algorithm, the auxiliary data (ADF) it consumes, and the parameter source. All values are
-S2-sourced. The ladder enters in the DN domain from the real L1B (`units: digital_counts`, **not** radiance);
+S2-sourced. The reverse chain enters in the DN domain from the S2 L1B (`units: digital_counts`, **not** radiance);
 **PSF and noise are not re-applied** (MTF-deconvolution is OFF, so L0 and L1B stay spatially identical).
 
 | Step | Operation | ADF / parameter | Source |
@@ -40,18 +40,18 @@ S2-sourced. The ladder enters in the DN domain from the real L1B (`units: digita
 Per-band static parameters (`sensor.py`): `PHYSICAL_GAIN`, `LREF`, `SNR_AT_LREF`, `NOISE_ALPHA/BETA`,
 `INTEGRATION_TIME_MS`, `COMPRESSION_RATE`, per-unit SRF (`BAND_CENTRE_NM`/`BANDWIDTH_NM`/
 `EQUIV_WAVELENGTH_NM`), `TDI_BANDS={B03,B04,B11,B12}`, `SWIR_BANDS={B10,B11,B12}`, `NUC_TABLE_ID=3`.
-`SNR_AT_LREF` and `NOISE_ALPHA/BETA` are sensor-characterization values **not applied by the ladder** (there
+`SNR_AT_LREF` and `NOISE_ALPHA/BETA` are sensor-characterization values **not applied by the reverse chain** (there
 is no synthetic gain derivation and no noise re-impression — the L1B carries its own noise realization);
 they are retained only for reporting / SNR context. `COMPRESSION_RATE` (CCSDS-122), the SRF/wavelength set,
-the TDI/SWIR band sets and `NUC_TABLE_ID` are consumed by the ladder.
+the TDI/SWIR band sets and `NUC_TABLE_ID` are consumed by the reverse chain.
 
 **Calibration sub-set parameters** (`calibration.py`): diffuser radiance $L_\mathrm{diff}$ (default $1.5 \cdot L_\mathrm{ref}$),
 `n_dark`/`n_diffuser` averaging lines; outputs derived $D(j)$, relative response $g(j)$ ($\langle g \rangle = 1$),
 absolute coefficient $A$.
 
-## Real-L1B reverse path (`reverse-l1b` phase)
+## S2 L1B reverse path (`reverse-l1b` phase)
 
-A real S2B **EOPF L1B is already digital
+A S2B **EOPF L1B is already digital
 counts** (`units: digital_counts`, not radiance), so the `reverse-l1b` phase
 (`forward_radiometric_atbd.reverse_l1b_to_l0`) enters in the **downlink DN domain** and inverts the
 **full** L0→L1B radiometric chain — every step ESA applies (`payload.yaml` `AllRadiometricCorrectionL1B`,
@@ -73,8 +73,8 @@ then the spatial / cross-band steps. Per (band, detector), in reverse order:
 | onboard-eq (1) | re-apply bilinear non-linearity (S12) | **REOB2** `coeff_a1/a2/zs` (`reapply_onboard_eq`) | S2B $a_1{\approx}1.005,a_2{\approx}0.995$ (sub-percent); its dark $d{\approx}455$ cancels COEFF_D |
 
 Blind columns are then re-inserted from **BLINDP**, and CCSDS-122 + ISP package the L0 (S15). The full-
-chain ADFs (RSWIR/REOB2/RCRCO) are auto-found next to `$S2_E2ES_EQOG_ADF` or set via
-`$S2_E2ES_{RSWIR,REOB2,RCRCO}_ADF`; `S2_E2ES_REVERSE_FULL=0` restores the radiometric-only reverse.
+chain ADFs (RSWIR/REOB2/RCRCO) are auto-found under `{S2_AUX_DIR}/adf-eopf` or set via
+`$S2_{RSWIR,REOB2,RCRCO}_ADF`; `S2_REVERSE_FULL=0` restores the radiometric-only reverse.
 
 **MTF restoration / deconvolution (forward step 8) is deliberately skipped — and so are PSF re-blur
 and noise re-impression.** In the operational forward chain `feature_flag_with_deconvolution = False` and
@@ -85,40 +85,36 @@ and its noise realization** (L0 and L1B are spatially identical) — re-blurring
 double-count. Both are non-invertible in any case (deconvolution is lossy; the exact noise realization is
 unrecoverable), so they are correctly omitted, not approximated.
 
-Success is the reconstructed L0 DN vs the real ESA L0 `img`: validated against the real 2024-04-08 S2B PPB
-pair (13 bands), the reconstructed L0 agrees within ≤ ~4 DN on the 10/20 m bands (median ≤ ~5 %), active-region
+Success is the Synthetic L0 DN vs the reference ESA L0 `img`: validated against the 2024-04-08 S2B PPB
+pair (13 bands), the Synthetic L0 agrees within ≤ ~4 DN on the 10/20 m bands (median ≤ ~5 %), active-region
 column FPN matches, and the L0plus codec round-trip (`decode(L0plus) == L1A`) is bit-exact; S8 brings the
 SWIR (B11/B12) images into spatial agreement.
-Inputs: `$S2_E2ES_L1B` (real L1B `.zarr`), `$S2_E2ES_GIPP_DIR`, `$S2_E2ES_EQOG_ADF`; detectors via
-`$S2_E2ES_L1B_DETECTORS` (default 5).
+Inputs: `$S2_L1B_INPUT` (S2 L1B `.zarr`), `$S2_GIPP_DIR` (gipp-json); detectors via
+`$S2_DETECTORS` (default 5).
 
 ## Data items
 
 | Item | Type | Role | Directory | Consumed by (input to) |
 |---|---|---|---|---|
-| real S2B L1B (`digital_counts`) | EOPF Zarr | input product | `<store>/inputs/` (`$S2_E2ES_L1B` / `$S2_E2ES_L1A`; public L0 under `inputs/public-data/level-0/`) | `forward_radiometric_atbd.reverse_l1b_to_l0` in the DN domain (ladder produces **L1A → L0plus → L0**); sensor-model harvest (`sensor.py`) |
-| operational GIPP | XML | auxiliary calibration data (per-pixel) | `<store>/inputs/s2-sensor/GIPP/` (`$S2_E2ES_GIPP_DIR`) | `gipp.py` → `adf.BandADF.from_gipp`; reverse steps **S4/S5/S7/S9/S10/S11** (inverse L0→L1B chain) |
-| PSF matrices | CSV (33×33) | auxiliary — optical kernel (packaged, **not applied** by the ladder) | `s2_msi_raw_generator/data/psf/{S2A,S2B,S2C}/` (packaged) | `adf.real_psf_kernel` → `BandADF.psf`; retained for reference only — **PSF re-blur is skipped** (deconvolution OFF, L0≡L1B spatially) |
+| S2B L1B (`digital_counts`) | EOPF Zarr | input product | `<store>/inputs/` (`$S2_L1B_INPUT` / `$S2_L1A_INPUT`; public L0 under `inputs/public-data/level-0/`) | `forward_radiometric_atbd.reverse_l1b_to_l0` in the DN domain (reverse chain produces **L1A → L0plus → Synthetic L0**); sensor-model harvest (`sensor.py`) |
+| operational GIPP | JSON (`GS2_*` schema) | auxiliary calibration data (per-pixel) | `$S2_GIPP_DIR` (`aux/gipp-json/{Bxx}/`) | `gipp.py` → `adf.BandADF.from_gipp`; reverse steps **S4/S5/S7/S9/S10/S11** |
+| PSF matrices | CSV (33×33) | auxiliary — optical kernel (packaged, **not applied** by the reverse chain) | `s2_msi_raw_generator/data/psf/{S2A,S2B,S2C}/` (packaged) | `adf.real_psf_kernel` → `BandADF.psf`; retained for reference only — **PSF re-blur is skipped** (deconvolution OFF, L0≡L1B spatially) |
 | `BandADF` | in-memory dataclass | assembled per-band ADF (dark, PRNU, eq, cross-band maps) | in-memory — `s2_msi_raw_generator/adf.py` | `reverse_l1b_to_l0` (**S7/S11/S12** + cross-band: `prnu_gain`, `dark_dn`, `eq_gain`); `calibration` campaign. `psf` and `noise_a/b` are carried but **not consumed** (re-blur/noise skipped) |
 | signal/raw DN frames | `numpy` `(lines, cols)` | intermediate per step | in-memory — `s2_msi_raw_generator/reverse.py` | next reverse step → `ccsds122` compress + `isp` packetize (**S15**) → `l0product.write_l0_product` |
-| L0 RAW EOProduct | Zarr v2 (156 arrays + masks + ISP) | output product (ICD-IF-L0) | `<store>/l0/` (writer `l0product.write_l0_product`); `$S2_E2ES_L0_DIR` re-homes it (e.g. the curated store's `synthetic-raw-generated/outputs/L0/`) for producer **and** consumers | `l0product.read_l0_isp_dn` (`ground-decode`/`l0-decode` → `validate`); downstream **msi-processor** |
+| Synthetic L0 RAW EOProduct | Zarr v2 (156 arrays + masks + ISP) | output product (ICD-IF-Synthetic L0) | `$OUTPUT_DIR/l0/` (`l0product.write_l0_product`) | `l0product.read_l0_isp_dn` (`ground-decode`/`l0-decode` → `validate`); downstream **msi-processor** |
 | derived calibration | `DerivedCalibration` | estimated dark/gain/A from the calibration sub-set | `<store>/caldb/` (dataclass `s2_msi_raw_generator/calibration.py`) | downstream **msi-processor** (nuc/dark/radiometric/spectral ADFs); `calibration.estimated_adf` (test-only) |
 
-`<store>` = `$S2_DATA_STORE` (default `~/data-store`), with sub-dirs `inputs/ caldb/ l0/ l1b/ quicklook/ figures/ report/` (`scripts/run_pipeline.py`).
+`<store>` = `$OUTPUT_DIR`, with sub-dirs `inputs/ caldb/ l0/ l1b/ quicklook/ figures/ report/` (`scripts/run_pipeline.py`).
 
 **S15 compression/packetization parameters** (`ccsds122.py`, `isp.py`, `l0product.write_l0_product`):
 `pixel_bit_depth` (12, or 16 when DN > 4095 — e.g. the 32768 saturation sentinel; preflight-chosen),
 `segment_blocks` (default one block row = 8 image lines — line-accurate packet datation),
 `isp_max_payload` (octets per packet data field, default 8192), `store_decoded`
-(False → ISP-only product mirroring the real S2 L0).
+(False → ISP-only product mirroring the ESA S2 Synthetic L0).
 
-## Operational GIPP set (local / VM)
+## Operational GIPP set (gipp-json)
 
-Source: XML GIPP under `<store>/inputs/s2-sensor/GIPP/` (`$S2_E2ES_GIPP_DIR`), platform **S2A**. File names:
-`S2A_OPER_GIP_<TYPE>_MPC__<creation>_V<validity-start>_<validity-stop>_<band>.xml`; validity-stop
-`21000101` is ESA's open-ended placeholder, so the **validity-start is the effective calibration epoch**.
-This is a single static snapshot — one version per GIPP type (R2EQOG resolved per band B01–B12 / B8A) — not
-the monthly series ESA issues operationally.
+Source: band-organised JSON under `$S2_GIPP_DIR` (`aux/gipp-json/{B01..B12,B8A,B00}/S2B_ADF_*.json`), wrapping the documented `GS2_*` schemas. Global ADFs (RDEPI, BLIND, RPARA, RCRCO) live in `B00/`; per-band REQOG in `{Bxx}/`.
 
 | GIPP | Role | Reverse step | Creation | Validity-start (epoch) | Bands |
 |---|---|---|---|---|---|
@@ -130,7 +126,7 @@ the monthly series ESA issues operationally.
 | `R2BINN` | 60 m binning kernel | S5 | 2015-06-05 | 2015-06-22 | B00 |
 
 No absolute-cal GIPP (`R2ABCA`) and no PSF are present in this set — PSF ships packaged (see *Data items*) but
-is not applied, and no absolute-cal step is needed since the ladder enters from the real L1B DN (not radiance).
+is not applied, and no absolute-cal step is needed since the reverse chain enters from the S2 L1B DN (not radiance).
 The NUC we correct with (`R2EQOG`, epoch **2020-03-17**) is the binding
 constraint: it is ~4 years older than the ESA EOPF `REQOG` ADF (2024-04-17) below, and further still from any
 2024-era acquisition — the core temporal-provenance issue tracked in issue #1.
@@ -175,9 +171,9 @@ snapshot (RABCA, RDEPI), not a per-type derivation.
 
 The temporal-provenance gap above (stale or future NUC vs acquisition epoch — issue #1, !58 Phase 5 open
 item) is closed by selecting the input from the other direction: pick the datatake whose sensing epoch is
-*covered* by an ESA calibration set of the same platform. Inventorying an S3 listing of the ESA EOPF
+*covered* by ESA calibration set of the same platform. Inventorying an S3 listing of the ESA EOPF
 validation bucket (985 140 keys; filtered by file-name validity windows, never read in full) surfaced
-exactly **one real-datatake L0↔L1B pair**, under `Validation/PPB/`:
+exactly **one S2 L1Btake L0↔L1B pair**, under `Validation/PPB/`:
 
 | Product | Size | Objects |
 |---|---|---|
@@ -188,7 +184,7 @@ Datatake: **2024-04-08T05:36:21 UTC, 566 s, Sentinel-2B, relative orbit 105**. P
 `XVVV` field is *aux-consolidation + quasi-unique hex*, **not** an MGRS tile — the differing `TC7D`/`T5B0`
 suffixes do not indicate different scenes; product identity is the shared `sensing + duration + PRRR`
 triple (both are full d01–d12 datastrip products). The pair enables validation in both directions:
-real L1B → reverse chain → synthetic L0 ↔ real L0, and real L0 → msi-processor → synthetic L1B ↔ real L1B.
+S2 L1B → reverse chain → synthetic L0 ↔ ESA L0, and ESA L0 → msi-processor → synthetic L1B ↔ S2 L1B.
 
 Bundled with the pair: `GCPs.zip` (373 MB, geometric validation) and IERS `bulletina-xxxvii-014`
 (April 2024). The L0 zarr embeds its SAD under `conditions/ancillary_data/` (33 groups: attitudes,
@@ -215,7 +211,7 @@ reference only since PSF re-blur is not applied.
 
 ### Known limitations
 
-- The listing holds **no real-datatake L1A** (placeholder products only) — validation runs L1B↔L0.
+- The listing holds **no S2 L1Btake L1A** (placeholder products only) — validation runs L1B↔Synthetic L0.
 - No `S02MSISCA`/`S02MSIDCA` products — calibration-mode (sun-diffuser/dark) verification cannot be fed
   from this source.
 - The GIPP parser is validated against S2A files; the S2B set is structurally identical by naming

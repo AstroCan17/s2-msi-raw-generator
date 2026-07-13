@@ -14,42 +14,42 @@ limitations under the License. -->
 
 # Sentinel-2 MSI Synthetic Raw Data Generator
 
-**Runs a real Sentinel-2B L1B *backwards* through the exact inverse of the operational
-L0 → L1B radiometric chain to reconstruct the L1A → L0plus → L0 product ladder** (focal-plane
+**Runs S2B L1B *backwards* through the exact inverse of the operational
+Synthetic L0 → L1B radiometric chain to reconstruct the L1A → L0plus → Synthetic L0 EOPF product chain** (focal-plane
 DN, 12 detectors × 13 bands).
 
-Step by step the ladder **inverts** each operational radiometric correction — offset,
+Step by step the reverse chain **inverts** each operational radiometric correction — offset,
 relative-response/PRNU, dark, un-bin, SWIR re-stage, defective pixels, crosstalk and
-on-board equalization — against the **real operational GIPP** (per-pixel dark + relative
-response), reconstructing the focal-plane counts. Every radiometric coefficient is **real
+on-board equalization — against the **operational GIPP** (per-pixel dark + relative
+response), reconstructing the focal-plane counts. Every radiometric coefficient is **ESA-sourced
 ESA-sourced** — nothing is fitted or synthetic. **MTF-deconvolution is OFF**, so the PSF
 and noise are **not** re-applied.
 
-Its purpose is to reconstruct the **L1A / L0plus / L0 ladder** from a real L1B and validate
-it against the real ESA L0 `img`. A calibration sub-set derives the coefficients from
+Its purpose is to reconstruct the **L1A / L0plus / Synthetic L0 product chain** from a S2 L1B and validate
+it against the reference ESA L0 `img`. A calibration sub-set derives the coefficients from
 synthetic CSM sun-diffuser + dark acquisitions (the inverse-crime cure). Implemented from
 the public L1 ATBD and the GIPP data only.
 
 Source repository:
 [gitlab.eopf.copernicus.eu/ipf/s2-msi-raw-generator](https://gitlab.eopf.copernicus.eu/ipf/s2-msi-raw-generator)
 
-## Reverse L1B → L1A → L0plus → L0 ladder (real S2B, 2024-04-08)
+## Reverse L1B → L1A → L0plus → Synthetic L0 reverse chain (S2B, 2024-04-08)
 
-The generator's headline path: a real **S2B L1B** run *backwards* through the full operational
-radiometric chain into the EOPF product ladder — synthetic **L1A** (decompressed raw counts) →
-**L0plus** (CCSDS-122 ISP + ancillary) → **L0** (decoded `img`, **format-identical to the real ESA
-`S02MSIL0__` product**). Validated against the real ESA L0 `img` for all 13 bands (detector d05): the
+The generator's headline path: an **S2B L1B** run *backwards* through the full operational
+radiometric chain into the EOPF EOPF product chain — Synthetic **L1A** (decompressed raw counts) →
+**L0plus** (CCSDS-122 ISP + ancillary) → **L0** (decoded `img`, **format-identical to the ESA
+`S02MSIL0__` product**). Validated against the reference ESA L0 `img` for all 13 bands (detector d05): the
 **ten 10 m + 20 m bands agree to ≤ ~4 DN**; the three native-60 m bands (B01/B09/B10) are limited by the
 ×3 un-bin. Full per-band table, S8-SWIR / framing figures and the run command:
-[Reverse ladder V&V report](vv/real_e2e_run_report.md).
+[Reverse chain V&V report](vv/s2_l1b_e2e_run_report.md).
 
-![Synthetic L1A vs original ESA L0, all 13 bands (synthetic | real | difference)](_static/showcase/reverse_l1b_allbands.png)
+![Synthetic L1A vs reference ESA L0, all 13 bands (Synthetic L0 | ESA L0 | difference)](_static/showcase/reverse_l1b_allbands.png)
 
-The **L0plus** stage packages the reconstructed L1A as CCSDS-122 ISP records; the codec
+The **L0plus** stage packages the Synthetic L1A as CCSDS-122 ISP records; the codec
 round-trip is lossless — `decode(L0plus)` reproduces the L1A counts bit-exactly (overall
-lossless ratio ≈ **3.66×**), a supporting check on the ladder's product assembly.
+lossless ratio ≈ **3.66×**), a supporting check on the reverse chain's product assembly.
 
-The "real ESA L0" panels contain **modified Copernicus Sentinel data 2024** (Sentinel-2B, 2024-04-08),
+The "reference ESA L0" panels contain **modified Copernicus Sentinel data 2024** (Sentinel-2B, 2024-04-08),
 shown as low-resolution demo previews only — no raw product data is redistributed.
 
 ```{toctree}

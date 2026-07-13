@@ -135,12 +135,12 @@ def reverse_l1b_to_l0(
     onboard_eq: dict[str, np.ndarray] | None = None,
     nodata: float = 0.0,
 ) -> np.ndarray:
-    """E2ES reverse of the L0→L1B radiometric chain: real L1B digital counts → L0 raw uint16 DN.
+    """E2ES reverse of the L0→L1B radiometric chain: S2 L1B digital counts → Synthetic L0 raw uint16 DN.
 
     The SentiWiki / EOPF forward chain (ON steps) is ``on-board-eq⁻¹(REOB2) → dark → blind →
     crosstalk(RCRCO) → relative-response(REQOG) → SWIR-rearr(RSWIR) → defective(RDEPI) →
     restoration[OFF] → binning → +RADIO_ADD_OFFSET``. This inverts it in the **downlink DN domain**
-    (where both real L1B and L0 live), undoing the steps in reverse order::
+    (where both S2 L1B and L0 live), undoing the steps in reverse order::
 
         z    = G⁻¹(L1B + radio_offset_l1b)          # undo offset (S4) + impress relative response (S7)
         z    = a·z (on-board-eq non-linearity)      # S12 — undo REOB2 (a1≈a2≈1, sub-percent; optional)
@@ -163,7 +163,7 @@ def reverse_l1b_to_l0(
     Optional full-chain inputs (all ``None`` → the validated radiometric-only reverse): ``swir_shift``
     = ``(shifts, kernel, method)`` from :func:`~s2_msi_raw_generator.gipp.read_rswir_eopf`;
     ``defective_cols`` = RDEPI ``singularity_columns``; ``onboard_eq`` = REOB2 coefficients from
-    :func:`~s2_msi_raw_generator.gipp.read_reob2_eopf`. Validated against the real 2024-04-08 S2B PPB
+    :func:`~s2_msi_raw_generator.gipp.read_reob2_eopf`. Validated against the 2024-04-08 S2B PPB
     pair (all 13 bands): median ≤~5 %, active-region column FPN matches, CCSDS-122/ISP round-trip
     bit-exact; S8 brings the SWIR (B11/B12) images into spatial agreement.
     """

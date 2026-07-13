@@ -19,7 +19,7 @@ Naming Rules" scheme::
 
     MMMSSSCCC_YYYYMMDDTHHMMSS_UUUU_PRRR_XVVV[_Z*]
 
-for the products this generator emits (L0 RAW, plus the L1A / L1B / ISP / SAD context types).
+for the products this generator emits (Synthetic L0 RAW, plus the L1A / L1B / ISP / SAD context types).
 ECSS-M-ST-40C requires a project-wide unique product identification coding system; this module *is*
 that system for the reverse E2ES (the interface is recorded in ``docs/icd.md``).
 
@@ -27,7 +27,7 @@ The grammar, field by field:
 
 * ``MMMSSSCCC`` — the 9-character type code (mission ``S02`` + sensor + processing level); see
   :data:`TYPE_CODES`. A code ending in the pad character ``_`` yields the doubled underscore seen
-  in real names, e.g. ``S02MSIL0__...``.
+  in operational product names, e.g. ``S02MSIL0__...``.
 * ``YYYYMMDDTHHMMSS`` — acquisition start (UTC).
 * ``UUUU`` — acquisition duration in whole seconds (4 digits, ``0001``–``9999``).
 * ``PRRR`` — platform unit letter ``P`` + relative orbit ``RRR`` (``001``–``143``).

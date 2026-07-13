@@ -16,8 +16,8 @@
 
 Emulates the minimum content of the EOPF ``eopf.qualitycontrol`` (EOQC) per-product report — product
 name/type, station, facility, sensing times, orbit numbers, an overall flag and a per-check list —
-self-asserted from the L0 product the generator just wrote. Pure ``json``/stdlib (no ``eopf`` dependency);
-when the real ``EOQCProcessor`` is available (in the SDE) it may additionally be run. ECSS-Q-ST-20C.
+self-asserted from the Synthetic L0 product the generator just wrote. Pure ``json``/stdlib (no ``eopf`` dependency);
+when the ``EOQCProcessor`` is available (in the SDE) it may additionally be run. ECSS-Q-ST-20C.
 """
 
 from __future__ import annotations

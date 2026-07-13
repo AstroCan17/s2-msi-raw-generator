@@ -113,11 +113,11 @@ def test_structured_frame_actually_compresses():
     assert np.array_equal(ccsds122.decompress_frame(payload), frame)
 
 
-def test_real_l1a_window_roundtrip():
-    """Env-gated: compress a real S2 window bit-exactly (S2_E2ES_L1A set on the SDE)."""
-    path = os.environ.get("S2_E2ES_L1A")
+def test_l1a_fixture_window_roundtrip():
+    """Env-gated: compress a S2 window bit-exactly (S2_L1A_INPUT set on the SDE)."""
+    path = os.environ.get("S2_L1A_INPUT") or os.environ.get("S2_L1B_INPUT")
     if not path:
-        pytest.skip("S2_E2ES_L1A not set")
+        pytest.skip("S2_L1A_INPUT / S2_L1B_INPUT not set")
     zarr = pytest.importorskip("zarr")
     from s2_msi_raw_generator import io as gio
 

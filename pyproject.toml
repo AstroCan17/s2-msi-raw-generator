@@ -1,7 +1,7 @@
 [project]
 name = "s2_msi_raw_generator"
 version = "0.3.0"
-description = "Sentinel-2 MSI Synthetic Raw Data Generator — a reverse E2ES degrading L1A/L1B back to synthetic L0 RAW"
+description = "Sentinel-2 MSI Synthetic Raw Data Generator — reverse E2ES degrading S2 L1B back to Synthetic L0 RAW"
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "Apache-2.0" }

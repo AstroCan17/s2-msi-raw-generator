@@ -1,4 +1,4 @@
-"""Tests for the real line-datation model (REQ-FUNC-035)."""
+"""Tests for the line-datation model (REQ-FUNC-035)."""
 
 from __future__ import annotations
 

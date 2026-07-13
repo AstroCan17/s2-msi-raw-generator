@@ -1,4 +1,4 @@
-"""Increment-2 tests: L0 RAW EOProduct assembly (REQ-FUNC-030–036)."""
+"""Increment-2 tests: Synthetic L0 RAW EOProduct assembly (REQ-FUNC-030–036)."""
 
 from __future__ import annotations
 
@@ -32,7 +32,7 @@ def test_reverse_to_l0_frames_are_uint16_in_range():
 def test_write_and_reopen_l0_structure(tmp_path):
     detectors, bands = [4, 7], ["B02", "B03", "B8A"]
     frames = l0product.reverse_to_l0_frames(_synthetic_l1b(detectors, bands), seed=2)
-    out = str(tmp_path / "L0.zarr")
+    out = str(tmp_path / "Synthetic L0.zarr")
     l0product.write_l0_product(out, frames, platform="Sentinel-2A")
 
     g = zarr.open_group(out, mode="r")
@@ -57,7 +57,7 @@ def test_write_and_reopen_l0_structure(tmp_path):
 
 
 def test_stac_geometry_orbit_and_datation(tmp_path):
-    """REQ-FUNC-035/038: real datation span + STAC geometry/bbox/orbit + band time stamps."""
+    """REQ-FUNC-035/038: GPS/OBT datation span + STAC geometry/bbox/orbit + band time stamps."""
     from s2_msi_raw_generator import datation as dm
 
     detectors, bands = [4], ["B02", "B03"]
@@ -78,7 +78,7 @@ def test_stac_geometry_orbit_and_datation(tmp_path):
     assert p["sat:orbit_state"] == "descending"
     assert p["constellation"] == "sentinel-2" and p["product:type"] == "S2MSIL0_"
     assert p["eopf:datastrip_id"].startswith("S2A_OPER_MSI_L0__DS_2024")
-    # real datetime span (Zulu, ordered, not the old placeholder)
+    # acquisition datetime span (Zulu, ordered, not the old placeholder)
     assert p["start_datetime"].endswith("Z") and p["start_datetime"] <= p["end_datetime"]
     assert p["start_datetime"].startswith("2024-04-03T10:24:15")
 

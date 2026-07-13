@@ -12,17 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Satellite Ancillary Data (SAD) — real AOCS attitude + orbit ephemeris + thermal for the L0 ISP.
+"""Satellite Ancillary Data (SAD) — AOCS attitude + orbit ephemeris + thermal for the L0 ISP.
 
-The real S2A ``S2A_OPER_AUX_SADATA_*`` / HKTM binary inner layout is proprietary (S2 PDGS ISP ICD, not
+The S2A ``S2A_OPER_AUX_SADATA_*`` / HKTM binary inner layout is proprietary (S2 PDGS ISP ICD, not
 public), so a bit-exact decode is infeasible. This module degrades gracefully in three tiers:
 
-1. **Outer framing decode** (real, optional): :func:`scan_ccsds_packets` / :func:`decode_sadata_framing`
-   parse the CCSDS Space-Packet boundaries (APID, length, CUC time) of a real SADATA/HKTM stream.
-2. **Inner AOCS/orbit synthesis** (physically real values): :func:`synth_orbit_attitude` propagates a
+1. **Outer framing decode** (optional): :func:`scan_ccsds_packets` / :func:`decode_sadata_framing`
+   parse the CCSDS Space-Packet boundaries (APID, length, CUC time) of a SADATA/HKTM stream.
+2. **Inner AOCS/orbit synthesis** (physically plausible values): :func:`synth_orbit_attitude` propagates a
    Sentinel-2 sun-synchronous circular orbit (ECEF position/velocity), a nadir/velocity-aligned attitude
    quaternion, and a slow thermal cycle — numpy-only, no external ephemeris.
-3. **Re-pack as real CCSDS ISP** (:func:`pack_sad_isp`): a documented big-endian float64 payload
+3. **Re-pack as CCSDS ISP** (:func:`pack_sad_isp`): a documented big-endian float64 payload
    [q0..q3, x, y, z, vx, vy, vz, T] replacing the previous all-zero SAD payload.
 
 ``msi-processor`` does not consume the SAD for L1B (it is optional passthrough); this exists for product
@@ -49,7 +49,7 @@ INCLINATION_DEG = 98.62
 DETECTOR_T0_K = 195.0          # SWIR MCT detector operating point (<195 K)
 DETECTOR_DT_K = 2.0            # thermal cycle amplitude over the orbit
 
-# Real CCSDS SAD payload: 11 big-endian float64 = quaternion(4) + position(3) + velocity(3) + thermal(1).
+# CCSDS SAD payload: 11 big-endian float64 = quaternion(4) + position(3) + velocity(3) + thermal(1).
 SAD_PAYLOAD_FMT = ">11d"
 SAD_PAYLOAD_LEN = struct.calcsize(SAD_PAYLOAD_FMT)   # 88 octets
 
@@ -141,7 +141,7 @@ def synth_orbit_attitude(
 
 
 def pack_sad_isp(aocs: AocsSeries, apid: int) -> tuple[np.ndarray, np.ndarray]:
-    """Pack an :class:`AocsSeries` into real CCSDS SAD ISP packets (primary header + CUC + payload)."""
+    """Pack an :class:`AocsSeries` into CCSDS SAD ISP packets (primary header + CUC + payload)."""
     n = aocs.times_s.size
     data_field_len = isp.CUC_TIME_LEN + SAD_PAYLOAD_LEN
     out = np.empty((n, isp.PRIMARY_HEADER_LEN + data_field_len), dtype=np.uint8)
@@ -164,7 +164,7 @@ def unpack_sad_payload(rec: bytes) -> dict:
 
 
 def scan_ccsds_packets(buf: bytes) -> list[dict]:
-    """Scan a byte buffer for consecutive CCSDS Space Packets (real outer-framing decode, tier 1)."""
+    """Scan a byte buffer for consecutive CCSDS Space Packets (outer-framing decode, tier 1)."""
     packets, off, n = [], 0, len(buf)
     while off + isp.PRIMARY_HEADER_LEN <= n:
         hdr = isp.parse_primary_header(buf[off:off + isp.PRIMARY_HEADER_LEN])
@@ -179,7 +179,7 @@ def scan_ccsds_packets(buf: bytes) -> list[dict]:
 
 
 def decode_sadata_framing(tar_path) -> list[dict]:
-    """Tier-1 real decode: CCSDS packet framing of a real ``S2A_OPER_AUX_SADATA_*`` / HKTM ``.tar``.
+    """Tier-1 decode: CCSDS packet framing of an ``S2A_OPER_AUX_SADATA_*`` / HKTM ``.tar``.
 
     Returns the aggregated packet headers (APID, sequence, length, CUC not decoded here — inner layout
     is proprietary). Enrichment only; the synthesis path (:func:`synth_orbit_attitude`) is the default.

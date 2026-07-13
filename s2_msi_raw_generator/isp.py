@@ -1,12 +1,12 @@
 """S15 — CCSDS Instrument Source Packet (ISP) generation + SAD telemetry.
 
-Implements the ATBD §5.S15 step: package the synthetic L0 detector/band frames into CCSDS Space
+Implements the ATBD §5.S15 step: package the Synthetic L0 detector/band frames into CCSDS Space
 Packets (CCSDS 133.0-B primary header + a CUC secondary time header), and generate Satellite
 Ancillary Data (SAD) packets per APID. Timestamps derive from ``sensor.LINE_PERIOD_MS``.
 
 Layout (ATBD Annex A.9):
 
-* ``measurements/d{DD}/b{BB}/{isp, isp_offsets, packet_data_length}`` — real CCSDS space packets
+* ``measurements/d{DD}/b{BB}/{isp, isp_offsets, packet_data_length}`` — CCSDS space packets
   whose payloads carry the **CCSDS-122-compressed image data** (module ``ccsds122``; ICD-IF-ISP).
 * ``conditions/anc_data/s{APID}/isp`` + ``packet_data_length`` — SAD/housekeeping telemetry.
 """
@@ -96,7 +96,7 @@ def frame_isp_headers(
     t0_seconds: float = 0.0,
     line_period_s: float,
 ) -> tuple[np.ndarray, np.ndarray]:
-    """Legacy per-line ISP headers (superseded by :func:`packetize_stream` in the canonical L0).
+    """Legacy per-line ISP headers (superseded by :func:`packetize_stream` in the canonical Synthetic L0).
 
     Returns ``(headers, packet_data_length)``:
 
@@ -204,7 +204,7 @@ def packetize_stream(
 def iter_packets(buf: bytes | np.ndarray):
     """Iterate CCSDS packets in a concatenated stream → ``(header dict, cuc_seconds, body bytes)``.
 
-    Shared by our reassembly and by structural scans of real ISP files: the primary header's
+    Shared by our reassembly and by structural scans of ISP files: the primary header's
     *Packet Data Length* field walks the stream; a stream is well-formed iff packets tile it
     exactly.  ``body`` excludes the CUC secondary header.
     """

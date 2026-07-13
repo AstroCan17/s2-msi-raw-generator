@@ -1,4 +1,4 @@
-"""Assemble a synthetic L0 RAW EOProduct (Increment 2, ICD-IF-L0).
+"""Assemble a synthetic Synthetic L0 RAW EOProduct (Increment 2, ICD-IF-Synthetic L0).
 
 Writes the EOPF L0 Zarr structure (ATBD Annex A.9 / REQ-FUNC-030–036):
 
@@ -7,7 +7,7 @@ Writes the EOPF L0 Zarr structure (ATBD Annex A.9 / REQ-FUNC-030–036):
     root attrs: stac_discovery (geometry/bbox/orbit/datetime) + other_metadata (sensor-config, datation)
 
 Uses ``zarr`` (v2 format for EOPF/msi-processor interoperability), not the full ``eopf`` CPM. Line
-timing / STAC datetime come from a real :class:`~s2_msi_raw_generator.datation.Datation`; when
+timing / STAC datetime come from an :class:`~s2_msi_raw_generator.datation.Datation`; when
 ``with_isp`` is set the CCSDS ISP headers + ``conditions/anc_data/...`` SAD telemetry (S15) are written.
 """
 
@@ -31,7 +31,7 @@ except ImportError:  # pragma: no cover
 # Frame key = (detector index 1–12, band name e.g. "B03").
 FrameKey = tuple[int, str]
 
-# Default synthetic S2A acquisition footprint + orbit (metadata realism; overridable per call).
+# Default synthetic S2A acquisition footprint + orbit (metadataism; overridable per call).
 # The orbit default is aligned with naming.DEFAULT_RELATIVE_ORBIT so placeholder products do not
 # carry contradictory PSFD file-name and STAC identities.
 DEFAULT_FOOTPRINT: dict = {
@@ -69,7 +69,7 @@ def reverse_to_l0_frames(
     adfs: dict[str, BandADF] | None = None,
     unit: str = sensor.DEFAULT_UNIT,
 ) -> dict[FrameKey, np.ndarray]:
-    """Run the MVP reverse chain on each (detector, band) radiance frame → uint16 L0 DN."""
+    """Run the MVP reverse chain on each (detector, band) radiance frame → uint16 Synthetic L0 DN."""
     out: dict[FrameKey, np.ndarray] = {}
     adfs = adfs or {}
     for (det, bname), radiance in l1b_frames.items():
@@ -169,10 +169,10 @@ def build_root_metadata(
                 "psf": "ESA SentiWiki S2{A,B,C}_PSF",
                 "spectral": "SRF doc COPE-GSEG-EOPG-TN-15-0007",
                 "noise": "verbatim (L1A product noise_model α,β; S2-RUT)",
-                "dark": "per-pixel (operational S2A GIPP R2EQOG COEFF_D) — or DQR 440-520 LSB fallback",
-                "equalization": "per-pixel relative-response (GIPP R2EQOG); stability Clerc 2026 Table 3",
-                "prnu": "per-pixel (GIPP R2EQOG, BandADF.from_gipp) — or L1B-derived / seeded fallback",
-                "defects": "GIPP R2DEPI saturated+blind columns",
+                "dark": "per-pixel (operational GIPP JSON REQOG COEFF_D) — or DQR 440-520 LSB fallback",
+                "equalization": "per-pixel relative-response (GIPP JSON REQOG); stability Clerc 2026 Table 3",
+                "prnu": "per-pixel (GIPP JSON REQOG, BandADF.from_gipp) — or L1B-derived / seeded fallback",
+                "defects": "GIPP JSON RDEPI saturated+blind columns",
             },
         },
     }
@@ -215,7 +215,7 @@ def _band_payload(
         segment_times_gps=seg_times,
         max_payload=max_payload,
     )
-    # SAD telemetry for this APID: real AOCS quaternion + orbit ephemeris + thermal (not zeros)
+    # SAD telemetry for this APID: AOCS quaternion + orbit ephemeris + thermal (not zeros)
     n_sad = max(dn.shape[0] // 8, 1)
     sad_times = gps_epoch_s + np.arange(n_sad) * (line_period_s * 8)
     sad_arr, sad_len = sad.pack_sad_isp(sad.synth_orbit_attitude(sad_times), apid)
@@ -249,22 +249,22 @@ def write_l0_product(
     datatake_type: str = "INS-NOBS",
     jobs: int = 1,
 ) -> str:
-    """Write the L0 RAW EOProduct Zarr to ``out_path`` and return it.
+    """Write the Synthetic L0 RAW EOProduct Zarr to ``out_path`` and return it.
 
     Each frame must be uint16 in ``[0, DN_MAX]``. A quality mask is written per frame (saturated
     pixels flagged where DN ≥ DN_MAX if no explicit mask is given). The datation (``Datation``) sets
-    the real GPS/OBT line timing and the STAC datetime span; ``footprint``/``orbit`` set the STAC
+    the GPS/OBT line timing and the STAC datetime span; ``footprint``/``orbit`` set the STAC
     geometry/orbit (S2A defaults). ``datetime_iso`` is a deprecated shortcut for
     ``Datation(epoch_utc=...)``.
 
     When ``with_isp`` is set (S15) the band's image data is **CCSDS-122 lossless compressed**
-    (:mod:`~s2_msi_raw_generator.ccsds122`) and carried as real CCSDS space packets
+    (:mod:`~s2_msi_raw_generator.ccsds122`) and carried as CCSDS space packets
     (:func:`~s2_msi_raw_generator.isp.packetize_stream`; codec segments = 8 image lines →
     line-accurate CUC datation; ``SEQ_FIRST/CONT/LAST`` grouping) under
     ``measurements/d{DD}/b{BB}/{isp, isp_offsets, packet_data_length}``; SAD telemetry goes to
     ``conditions/anc_data/s{APID}/isp``. Achieved per-band compression ratios replace the
     static ``compression_rate`` metadata. With ``store_decoded=False`` the decoded ``band{BB}``
-    arrays are omitted — the product then stores ISPs only, mirroring the real S2 L0
+    arrays are omitted — the product then stores ISPs only, mirroring the ESA S2 Synthetic L0
     (SentiWiki: L0 = compressed ISPs; ground L1A decompresses via :func:`read_l0_isp_dn`).
 
     ``jobs > 1`` fans the per-band CPU work (compression/packetization/SAD —
@@ -273,7 +273,7 @@ def write_l0_product(
     """
     if zarr is None:
         raise ImportError(
-            "zarr is required to write L0 products: `uv pip install zarr`"
+            "zarr is required to write Synthetic L0 products: `uv pip install zarr`"
         )
     from . import _zarrio
 
@@ -317,7 +317,7 @@ def write_l0_product(
             dn,
             mask,
             with_isp,
-            datation.line_time_gps(0, bname),  # real GPS/OBT epoch of the band's first line
+            datation.line_time_gps(0, bname),  # GPS/OBT epoch of the band's first line
             line_period_s,
             datation.gps_epoch_s,
             isp.apid_for(det, sensor.BANDS.index(bname)),
@@ -369,7 +369,7 @@ def write_l0_product(
             _zarrio.put_array(sg, "isp", pay["sad_arr"], dtype="uint8")
             _zarrio.put_array(sg, "packet_data_length", pay["sad_len"], dtype="uint16")
 
-    # Achieved (real) compression ratios replace the static datasheet rates (REQ-FUNC-092).
+    # Achieved compression ratios replace the static datasheet rates (REQ-FUNC-092).
     if achieved_ratio:
         info = meta["other_metadata"]["sensor_configuration"][
             "acquisition_configuration"
@@ -399,17 +399,17 @@ def write_l0_decoded_product(
     footprint: dict | None = None,
     eopf_type: str = "S2MSIL0_",
 ) -> str:
-    """Write decoded raw-count frames as an EOPF **L0** product mirroring the *real* ESA L0-zarr layout.
+    """Write decoded raw-count frames as EOPF **L0** product format-identical to the reference ESA L0-zarr layout.
 
     The archived EOPF L0 stores the losslessly-decompressed counts as ``measurements/d{DD}/b{BB}/img``
     (uint16, dims ``alt,act``) plus per-band decode-quality group attrs (``decoding_error_number``,
-    ``valid_line_percentage`` …), verified against the real ``S02MSIL0__…TC7D.zarr``. This makes the
-    synthetic L0 **format-identical** to the real product for a direct array comparison (``validate-l0``);
+    ``valid_line_percentage`` …), verified against the ``S02MSIL0__…TC7D.zarr``. This makes the
+    Synthetic L0 **format-identical** to the ESA product for a direct array comparison (``validate-l0``);
     the compressed as-downlinked transport lives in the sibling L0plus (:func:`write_l0_product`). Frames
     must be uint16 ``(line, column)``.
     """
     if zarr is None:
-        raise ImportError("zarr is required to write L0 products")
+        raise ImportError("zarr is required to write Synthetic L0 products")
     from . import _zarrio
 
     if datation is None:
@@ -456,15 +456,15 @@ def write_l0_decoded_product(
 
 
 def read_l0_isp_dn(path: str, det: int, bname: str) -> np.ndarray:
-    """Ground decompression: canonical L0 ISP stream → the exact uint16 DN frame.
+    """Ground decompression: canonical Synthetic L0 ISP stream → the exact uint16 DN frame.
 
-    The real-chain L1A-side operation (SentiWiki: decompression happens at L1A): read
+    The S2 L1B chain L1A-side operation (SentiWiki: decompression happens at L1A): read
     ``measurements/d{DD}/b{BB}/isp``, reassemble the packet groups
     (:func:`~s2_msi_raw_generator.isp.reassemble_segments` — seq_flags + continuity enforced),
     join them back into the CCSDS-122 stream and decode it bit-exactly.
     """
     if zarr is None:
-        raise ImportError("zarr is required to read L0 products: `uv pip install zarr`")
+        raise ImportError("zarr is required to read Synthetic L0 products: `uv pip install zarr`")
     g = zarr.open_group(str(path), mode="r")
     mg = g[f"measurements/d{det:02d}/{sensor.zarr_band_key(bname)}"]
     stream = np.asarray(mg["isp"])
@@ -479,7 +479,7 @@ def decode_verify_band(
     l1a_path: str,
     line_slice: slice | None,
 ) -> tuple[np.ndarray, bool, bool | None]:
-    """Ground-decode one band of a canonical L0 and verify it against the original L1A DN.
+    """Ground-decode one band of a canonical Synthetic L0 and verify it against the original L1A DN.
 
     Uses the CONSUMER decoder (msi-processor ``ground_decode``) when importable,
     cross-checked bit-exactly against the E2ES reference :func:`read_l0_isp_dn`; falls
@@ -524,7 +524,7 @@ def write_l0_opencontainer(
     """
     if zarr is None:
         raise ImportError(
-            "zarr is required to write L0 products: `uv pip install zarr`"
+            "zarr is required to write Synthetic L0 products: `uv pip install zarr`"
         )
     from . import _zarrio
 

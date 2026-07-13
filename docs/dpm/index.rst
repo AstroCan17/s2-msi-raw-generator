@@ -16,7 +16,7 @@
 Data Processing Model
 =====================
 
-The reverse data-processing model of the Sentinel-2 MSI E2ES: the L1A/L1B → L0 RAW chain (S1–S15),
+The reverse data-processing model of the Sentinel-2 MSI E2ES: the L1A/L1B → Synthetic L0 RAW chain (S1–S15),
 its notation, context, and the parameter / data-item list.
 
 .. toctree::
