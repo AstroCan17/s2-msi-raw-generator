@@ -15,6 +15,7 @@ data/
 build/
 dist/
 docs/_build/
+_site/
 
 # Scratch / OS
 .DS_Store
