@@ -10,6 +10,7 @@ import pytest
 zarr = pytest.importorskip("zarr")
 
 from s2_msi_raw_generator import _fsutil, _zarrio, inventory
+from tests.conftest import patch_pipeline_env
 
 _SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "run_pipeline.py"
 _spec = importlib.util.spec_from_file_location("run_pipeline", _SCRIPT)
@@ -96,7 +97,7 @@ def test_findings_and_outputs(mini_store):
 
 
 def test_inventory_phase(monkeypatch, mini_store):
-    monkeypatch.setenv("S2_DATA_STORE", str(mini_store))
-    monkeypatch.setenv("S2_E2ES_PHASES", "inventory")
-    assert drv.main([]) == 0
+    patch_pipeline_env(monkeypatch, mini_store)
+    monkeypatch.setenv("S2_PHASES", "inventory")
+    assert drv.main([], load_env=False) == 0
     assert (mini_store / "report/inventory.json").exists()

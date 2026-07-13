@@ -1,9 +1,10 @@
-"""Reader for the Sentinel-2A operational GIPP calibration files.
+"""Reader for Sentinel-2 operational GIPP calibration data.
 
-The GIPPs (``S2A_OPER_GIP_<TYPE>_MPC__…xml``) are ESA auxiliary calibration **data**. This module is
-an original parser of their documented XML element layout (Python stdlib ``xml.etree`` + numpy) — it
-carries no processor source code. It turns the GIPP into per-band / per-detector / per-pixel numpy
-arrays the reverse chain needs:
+Production layout: band-organised JSON under ``S2_GIPP_DIR`` (``aux/gipp-json/{Bxx}/S2B_ADF_*.json``),
+each file wrapping the documented ``GS2_*`` schema (XML-to-JSON conversion). Unit tests may still
+use flat XML fixtures (``*GIP_*.xml``).
+
+The parser turns GIPP into per-band / per-detector / per-pixel numpy arrays the reverse chain needs:
 
 * **R2EQOG** — the on-ground equalization file: per-pixel **dark signal** ``D`` and the
   **relative-response (PRNU) gains** — VNIR cubic ``(A, B, C)`` (``Y = A·Z³+B·Z²+C·Z``) or SWIR
@@ -27,10 +28,23 @@ import re
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass, field
 from functools import lru_cache
+from pathlib import Path
+from typing import Literal
 
 import numpy as np
 
 from . import sensor
+
+# JSON ADF type → (schema root key, per-band file?)
+_JSON_ADF: dict[str, tuple[str, bool]] = {
+    "REQOG": ("GS2_RADIOS2_EQUALIZATION_ONGROUND", True),
+    "RDEPI": ("GS2_RADIOS2_DEFECTIVE_PIXELS", False),
+    "BLIND": ("GS2_BLIND_PIXELS", False),
+    "RPARA": ("GS2_RADIOS2_PARAMETERS", False),
+    "RCRCO": ("GS2_RADIOS2_CROSSTALK_CORRECTION", False),
+}
+# XML GIPP type names for flat-xml fixtures
+_XML_GTYPE = {"REQOG": "R2EQOG", "RDEPI": "R2DEPI", "BLIND": "BLINDP", "RPARA": "R2PARA", "RCRCO": "R2CRCO"}
 
 # GIPP band_id (0..12) → canonical band name. Matches sensor.BANDS exactly (B8A at index 8).
 _BAND_BY_ID: tuple[str, ...] = sensor.BANDS
@@ -68,6 +82,210 @@ def _find_band(gipp_dir: str, gtype: str, band: str) -> str:
     if not hits:
         raise FileNotFoundError(f"no {gtype} GIPP for band {band} under {gipp_dir!r}")
     return hits[0]
+
+
+def _gipp_layout(gipp_dir: str) -> Literal["json-bands", "xml-flat"]:
+    """Detect ``gipp-json`` band folders vs flat ``gipp-xml`` fixture layout."""
+    if any(Path(gipp_dir, d).is_dir() and list(Path(gipp_dir, d).glob("*_ADF_*.json"))
+           for d in os.listdir(gipp_dir) if d.startswith("B")):
+        return "json-bands"
+    if glob.glob(os.path.join(gipp_dir, "*GIP_*.xml")):
+        return "xml-flat"
+    raise FileNotFoundError(f"no recognised GIPP layout under {gipp_dir!r}")
+
+
+def _find_json_adf(gipp_dir: str, adf_type: str, band: str | None = None) -> str:
+    """Locate ``S*_ADF_<adf_type>_*.json`` in a band folder (or ``B00`` for global ADFs)."""
+    folder = band if band else "B00"
+    hits = sorted(glob.glob(os.path.join(gipp_dir, folder, f"*_ADF_{adf_type}_*.json")))
+    if not hits:
+        raise FileNotFoundError(
+            f"no ADF_{adf_type} JSON for band {band or 'global'} under {gipp_dir!r}"
+        )
+    return hits[0]
+
+
+def _load_json_gipp(path: str) -> tuple[str, dict]:
+    """Load a GIPP JSON file → ``(schema_root_key, DATA dict)``."""
+    with open(path, encoding="utf-8") as fh:
+        root = json.load(fh)
+    if not root:
+        raise ValueError(f"empty GIPP JSON: {path}")
+    schema_key = next(iter(root))
+    data = root[schema_key].get("DATA")
+    if data is None:
+        raise KeyError(f"no DATA in {path!r} ({schema_key})")
+    return schema_key, data
+
+
+def _jattr(node: dict, name: str, default: str | None = None) -> str | None:
+    if not isinstance(node, dict):
+        return default
+    return node.get(f"@{name}") or node.get(name) or default
+
+
+def _jtext(val) -> str | None:
+    if val is None:
+        return None
+    if isinstance(val, str):
+        return val
+    if isinstance(val, dict):
+        return val.get("#text") or val.get("_text")
+    return None
+
+
+def _jlist(node) -> list:
+    if node is None:
+        return []
+    return node if isinstance(node, list) else [node]
+
+
+def _parse_coeff_d_json(coeff_d_node: dict) -> np.ndarray:
+    """JSON COEFF_D → per-pixel dark (mean over along-track sub-lines)."""
+    band_el = coeff_d_node
+    for k, v in coeff_d_node.items():
+        if isinstance(k, str) and k.startswith("A_") and k.endswith("_BAND"):
+            band_el = v
+            break
+    if not isinstance(band_el, dict):
+        return _floats(_jtext(band_el))
+    line_keys = sorted((k for k in band_el if str(k).upper().startswith("LINE")), key=str)
+    if line_keys:
+        rows = [_floats(_jtext(band_el[k])) for k in line_keys]
+        return np.mean(np.stack(rows), axis=0)
+    return _floats(_jtext(band_el))
+
+
+def _parse_r2eqog_data(data: dict, band: str) -> BandEq:
+    clist = data["COEFFICIENTS_LIST"]
+    tdi_raw = _jattr(clist, "tdi_config") or clist.get("tdi_config") or "NO_TDI"
+    tdi = str(tdi_raw).upper() == "APPLIED"
+    detectors: dict[int, DetectorEq] = {}
+    for coeff in _jlist(clist.get("COEFFICIENTS")):
+        det = int(_jattr(coeff, "detector_id"))
+        ge = coeff["GROUND_EQUALIZATION"]
+        cubic = ge.get("CUBIC")
+        bilinear = ge.get("BI-LINEAR") or ge.get("BI_LINEAR")
+        if cubic is not None:
+            cf = {k: _floats(_jtext(cubic.get(f"COEFF_{k}"))) for k in ("A", "B", "C")}
+            dark = _parse_coeff_d_json(cubic["COEFF_D"])
+            detectors[det] = DetectorEq("CUBIC", dark, cf)
+        else:
+            cf = {
+                "A1": _floats(_jtext(bilinear["COEFF_A1"])),
+                "A2": _floats(_jtext(bilinear["COEFF_A2"])),
+                "Zs": _floats(_jtext(bilinear["COEFF_Zs"])),
+            }
+            dark = _parse_coeff_d_json(bilinear["COEFF_D"])
+            detectors[det] = DetectorEq("BILINEAR", dark, cf)
+    return BandEq(band=band, tdi=tdi, detectors=detectors, source="GIPP JSON REQOG")
+
+
+def read_r2eqog_json(gipp_dir: str, band: str) -> BandEq:
+    """Parse per-band ``ADF_REQOG`` JSON → :class:`BandEq`."""
+    path = _find_json_adf(gipp_dir, "REQOG", band)
+    _, data = _load_json_gipp(path)
+    return _parse_r2eqog_data(data, band)
+
+
+def _parse_r2depi_data(data: dict) -> dict[str, dict[int, np.ndarray]]:
+    out: dict[str, dict[int, np.ndarray]] = {}
+    for band_el in _jlist(data.get("BAND")):
+        band = _band_name(int(_jattr(band_el, "band_id")))
+        per_det: dict[int, set] = {d: set() for d in range(1, 13)}
+        slist = band_el.get("SINGULARITY_LIST") or band_el
+        for sing in _jlist(slist.get("SINGULARITY") if isinstance(slist, dict) else None):
+            for pos in _jlist(sing.get("POSITION")):
+                det = int(_jattr(pos, "detector_id"))
+                cols = pos.get("COLUMNS")
+                text = _jtext(cols)
+                if text:
+                    per_det[det].update(int(x) for x in text.split())
+        out[band] = {d: np.array(sorted(c), dtype=int) for d, c in per_det.items()}
+    return out
+
+
+def read_r2depi_json(gipp_dir: str) -> dict[str, dict[int, np.ndarray]]:
+    path = _find_json_adf(gipp_dir, "RDEPI")
+    _, data = _load_json_gipp(path)
+    return _parse_r2depi_data(data)
+
+
+def _parse_blindp_data(data: dict) -> dict[str, dict[int, np.ndarray]]:
+    out: dict[str, dict[int, np.ndarray]] = {}
+    for band_el in _jlist(data.get("BAND")):
+        band = _band_name(int(_jattr(band_el, "band_id")))
+        per_det: dict[int, np.ndarray] = {}
+        for det_el in _jlist(band_el.get("DETECTOR")):
+            det = int(_jattr(det_el, "detector_id"))
+            cols: set = set()
+            for side in _jlist(det_el.get("SIDE")):
+                for tag in ("VALID_BLIND_PIXELS", "NON_VALID_BLIND_PIXELS"):
+                    text = _jtext(side.get(tag))
+                    if text:
+                        cols.update(int(x) for x in text.split())
+            per_det[det] = np.array(sorted(cols), dtype=int)
+        out[band] = per_det
+    return out
+
+
+def read_blindp_json(gipp_dir: str) -> dict[str, dict[int, np.ndarray]]:
+    path = _find_json_adf(gipp_dir, "BLIND")
+    _, data = _load_json_gipp(path)
+    return _parse_blindp_data(data)
+
+
+def _parse_r2para_data(data: dict) -> RadioParams:
+    def _offsets_from_node(node) -> dict[str, int]:
+        res: dict[str, int] = {}
+        for el in _jlist(node):
+            if isinstance(el, dict) and "RADIO_ADD_OFFSET" in str(el):
+                pass
+        for el in _jlist(node.get("RADIO_ADD_OFFSET") if isinstance(node, dict) else node):
+            bid = int(_jattr(el, "band_id"))
+            res[_band_name(bid)] = int(float(_jtext(el)))
+        return res
+
+    shift = data.get("RADIOMETRIC_SHIFT") or next(
+        (v for k, v in data.items() if "RADIOMETRIC_SHIFT" in str(k)), {}
+    )
+    l1b_node = shift.get("RADIANCE_OFFSET_L1B") if isinstance(shift, dict) else {}
+    l1c_node = shift.get("REFLECTANCE_OFFSET_L1C") if isinstance(shift, dict) else {}
+    l1b = _offsets_from_node(l1b_node)
+    l1c = _offsets_from_node(l1c_node)
+    eq, off, dsnu = {}, {}, {}
+    nom = data.get("NOMINAL_SCENARIO") or data
+    eq_block = nom.get("EQUALIZATION") if isinstance(nom, dict) else {}
+    for be in _jlist(eq_block.get("BAND_EQUALIZATION") if isinstance(eq_block, dict) else None):
+        bid = be.get("BAND_ID") or _jattr(be, "band_id")
+        b = _band_name(int(bid) if bid is not None else int(_jattr(be, "band_id")))
+        eq[b] = (_jtext(be.get("EQUALIZATION_FLAG")) or "true").lower() == "true"
+        off[b] = (_jtext(be.get("OFFSET")) or "true").lower() == "true"
+        dsnu[b] = (_jtext(be.get("DARK_SIGNAL_NON_UNIFORMITY")) or "true").lower() == "true"
+    return RadioParams(l1b, l1c, eq, off, dsnu)
+
+
+def read_r2para_json(gipp_dir: str) -> RadioParams:
+    path = _find_json_adf(gipp_dir, "RPARA")
+    _, data = _load_json_gipp(path)
+    return _parse_r2para_data(data)
+
+
+def _parse_r2crco_data(data: dict) -> dict[str, np.ndarray]:
+    out: dict[str, np.ndarray] = {}
+    clist = data.get("CROSSTALK_COEFF_LIST") or data
+    for cc in _jlist(clist.get("CROSSTALK_COEFF") if isinstance(clist, dict) else None):
+        band = _band_name(int(_jattr(cc, "band_id_k")))
+        opt = _floats(_jtext(cc.get("OPTICAL")))
+        ele = _floats(_jtext(cc.get("ELECTRICAL")))
+        out[band] = opt + ele
+    return out
+
+
+def read_r2crco_json(gipp_dir: str) -> dict[str, np.ndarray]:
+    path = _find_json_adf(gipp_dir, "RCRCO")
+    _, data = _load_json_gipp(path)
+    return _parse_r2crco_data(data)
 
 
 # --- R2EQOG (equalization on-ground: dark + relative-response gains) ----------------------
@@ -109,7 +327,9 @@ def _parse_coeff_d(coeff_d_el: ET.Element) -> np.ndarray:
 
 
 def read_r2eqog_band(gipp_dir: str, band: str) -> BandEq:
-    """Parse the per-band R2EQOG file →  per-detector dark + relative-response gains."""
+    """Parse per-band equalization (JSON ``gipp-json`` or XML fixture layout)."""
+    if _gipp_layout(gipp_dir) == "json-bands":
+        return read_r2eqog_json(gipp_dir, band)
     root = ET.parse(_find_band(gipp_dir, "R2EQOG", band)).getroot()
     data = root.find("DATA")
     clist = data.find("COEFFICIENTS_LIST")
@@ -132,17 +352,17 @@ def read_r2eqog_band(gipp_dir: str, band: str) -> BandEq:
     return BandEq(band=band, tdi=tdi, detectors=detectors)
 
 
-# --- R2EQOG from an EOPF ADF (.json) -----------------------------------------------------
+# --- R2EQOG from EOPF ADF (.json) -----------------------------------------------------
 
 @lru_cache(maxsize=4)
 def _load_eopf_adf(adf_json_path: str) -> dict:
-    """Parse an EOPF ADF json once (cached — the R2EQOG ADF is ~60 MB per satellite)."""
+    """Parse EOPF ADF json once (cached — the R2EQOG ADF is ~60 MB per satellite)."""
     with open(adf_json_path, encoding="utf-8") as fh:
         return json.load(fh)
 
 
 def read_r2eqog_eopf(adf_json_path: str, band: str) -> BandEq:
-    """Parse an EOPF ``ADF_REQOG`` (``S2[AB]_ADF_REQOG_…json``) → the same :class:`BandEq` as the
+    """Parse EOPF ``ADF_REQOG`` (``S2[AB]_ADF_REQOG_…json``) → the same :class:`BandEq` as the
     XML :func:`read_r2eqog_band`.
 
     The EOPF ADF stores, per band ``<b>`` (lower-case; ``b8a`` for B8A) over 12 detectors: VNIR cubic
@@ -207,7 +427,7 @@ def _parse_utc(s: str) -> dt.datetime:
 
 
 def parse_eqog_adf_epoch(adf_path: str) -> dict:
-    """Parse an EOPF ADF filename (``S2A_ADF_REQOG_<start>_<stop>_<creation>.json``, or the PSFD
+    """Parse EOPF ADF filename (``S2A_ADF_REQOG_<start>_<stop>_<creation>.json``, or the PSFD
     platform spelling ``S02B_ADF_…``) → its applicability-start / validity-stop / creation epochs
     (UTC ISO). Empty dict if it doesn't match. ``platform`` is normalized to ``S2x``.
     """
@@ -227,7 +447,7 @@ def temporal_validity(adf_epoch: dict, acquisition_utc: str, warn_years: float =
     """Check an ADF's temporal applicability to an acquisition.
 
     ``within_validity`` uses the ADF's declared ``[applicability_start, valid_stop]`` window — but
-    note the ``2100`` stop is an open-ended placeholder, **not** proof of applicability. So the real
+    note the ``2100`` stop is an open-ended placeholder, **not** proof of applicability. So the operational
     signal is ``gap_years`` = ``|acquisition − applicability_start|``: the satellite's radiometric
     state drifts (monthly-refreshed R2EQOG/R2ABCA), and a stale ADF is flagged (``warn``) when the
     gap exceeds ``warn_years`` or the acquisition falls outside the declared window.
@@ -254,7 +474,7 @@ def temporal_validity(adf_epoch: dict, acquisition_utc: str, warn_years: float =
     }
 
 
-# --- RSWIR (SWIR staggered-readout shift map) from an EOPF ADF ----------------------------
+# --- RSWIR (SWIR staggered-readout shift map) from EOPF ADF ----------------------------
 
 # RSWIR `swir_band_list/swir_band/detector` band axis order (confirmed from the ADF coords).
 _RSWIR_BANDS: tuple[str, ...] = ("B10", "B11", "B12")
@@ -285,7 +505,7 @@ def read_rswir_eopf(adf_json_path: str, band: str, detector: int) -> tuple[np.nd
     return shifts, kernel, method
 
 
-# --- REOB2 (on-board equalization, 2-table) from an EOPF ADF ------------------------------
+# --- REOB2 (on-board equalization, 2-table) from EOPF ADF ------------------------------
 
 def read_reob2_eopf(adf_json_path: str, band: str, detector: int,
                     table: str = "new_table") -> dict[str, np.ndarray]:
@@ -310,7 +530,7 @@ def read_reob2_eopf(adf_json_path: str, band: str, detector: int,
     return {"a1": _a("a1"), "a2": _a("a2"), "zs": _a("zs"), "d": _a("d")}
 
 
-# --- RCRCO (inter-band crosstalk) from an EOPF ADF ---------------------------------------
+# --- RCRCO (inter-band crosstalk) from EOPF ADF ---------------------------------------
 
 def read_rcrco_eopf(adf_json_path: str) -> np.ndarray:
     """EOPF ``ADF_RCRCO`` → the combined crosstalk matrix ``dtalk[k, l]`` (optical + electrical).
@@ -330,6 +550,8 @@ def read_rcrco_eopf(adf_json_path: str) -> np.ndarray:
 
 def read_r2depi(gipp_dir: str) -> dict[str, dict[int, np.ndarray]]:
     """Defective (saturated ∪ blind) 0-based across-track column indices, per band → detector."""
+    if _gipp_layout(gipp_dir) == "json-bands":
+        return read_r2depi_json(gipp_dir)
     root = ET.parse(_find_one(gipp_dir, "R2DEPI")).getroot()
     out: dict[str, dict[int, np.ndarray]] = {}
     for band_el in root.iter("BAND"):
@@ -347,6 +569,8 @@ def read_r2depi(gipp_dir: str) -> dict[str, dict[int, np.ndarray]]:
 
 def read_blindp(gipp_dir: str) -> dict[str, dict[int, np.ndarray]]:
     """Blind-pixel 0-based column indices (valid ∪ non-valid, both sides), per band → detector."""
+    if _gipp_layout(gipp_dir) == "json-bands":
+        return read_blindp_json(gipp_dir)
     root = ET.parse(_find_one(gipp_dir, "BLINDP")).getroot()
     out: dict[str, dict[int, np.ndarray]] = {}
     for band_el in root.iter("BAND"):
@@ -377,6 +601,8 @@ class RadioParams:
 
 
 def read_r2para(gipp_dir: str) -> RadioParams:
+    if _gipp_layout(gipp_dir) == "json-bands":
+        return read_r2para_json(gipp_dir)
     root = ET.parse(_find_one(gipp_dir, "R2PARA")).getroot()
     data = root.find("DATA")
 
@@ -403,6 +629,8 @@ def read_r2para(gipp_dir: str) -> RadioParams:
 
 def read_r2crco(gipp_dir: str) -> dict[str, np.ndarray]:
     """Per-band crosstalk row (OPTICAL+ELECTRICAL summed). ≈0 for S2A."""
+    if _gipp_layout(gipp_dir) == "json-bands":
+        return read_r2crco_json(gipp_dir)
     root = ET.parse(_find_one(gipp_dir, "R2CRCO")).getroot()
     out: dict[str, np.ndarray] = {}
     for cc in root.iter("CROSSTALK_COEFF"):
@@ -453,19 +681,18 @@ class GippSet:
 def load_gipp_set(gipp_dir: str, bands: tuple[str, ...] = sensor.BANDS,
                   eqog_adf: str | None = None, rswir_adf: str | None = None,
                   reob2_adf: str | None = None, rcrco_adf: str | None = None) -> GippSet:
-    """Load the full GIPP set from ``gipp_dir`` (R2EQOG per band + R2DEPI/BLINDP/R2PARA/R2CRCO).
+    """Load the full GIPP set from ``gipp_dir`` (JSON ``gipp-json`` or XML test fixtures).
 
-    If ``eqog_adf`` is given (path to an EOPF ``ADF_REQOG`` json, e.g. the ESA
-    ``S2A_ADF_REQOG_…json``), the equalization (dark + PRNU) is read from that ESA ADF via
-    :func:`read_r2eqog_eopf` instead of the per-band XML — the rest (defective/blind/params/
-    crosstalk) still comes from ``gipp_dir``. ``rswir_adf`` / ``reob2_adf`` (EOPF ``ADF_RSWIR`` /
-    ``ADF_REOB2`` json) enable the full reverse chain's SWIR re-arrangement (S8) and on-board
-    equalization (S12); they are stored on the set and read lazily.
+    Equalization comes from ``gipp_dir`` (``ADF_REQOG`` per band). Optional ``eqog_adf`` forces
+    EOPF ``data_vars`` REQOG (V&V only — not used by the production pipeline). ``rswir_adf`` /
+    ``reob2_adf`` / ``rcrco_adf`` enable the full reverse chain (S8/S9/S12) from ``adf-eopf``.
     """
     gs = GippSet(gipp_dir=gipp_dir, rswir_adf=rswir_adf, reob2_adf=reob2_adf)
     for b in bands:
-        gs.equalization[b] = (read_r2eqog_eopf(eqog_adf, b) if eqog_adf
-                              else read_r2eqog_band(gipp_dir, b))
+        if eqog_adf:
+            gs.equalization[b] = read_r2eqog_eopf(eqog_adf, b)
+        else:
+            gs.equalization[b] = read_r2eqog_band(gipp_dir, b)
     gs.defective = read_r2depi(gipp_dir)
     gs.blind = read_blindp(gipp_dir)
     gs.params = read_r2para(gipp_dir)

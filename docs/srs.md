@@ -24,18 +24,18 @@ inspection · **R** review.
 ## 1. Introduction
 
 ### 1.1 Purpose
-Specify the requirements for the **reverse radiometric ladder** of the Sentinel-2 MSI. The software takes a
-real Sentinel-2B **L1B** product and runs it backwards through the **exact inverse of the operational
+Specify the requirements for the **reverse radiometric chain** of the Sentinel-2 MSI. The software takes a
+Sentinel-2B **L1B** product and runs it backwards through the **exact inverse of the operational
 L0→L1B radiometric chain** (invert offset, relative-response/PRNU, dark, un-bin, SWIR re-stage, defective,
-crosstalk, on-board equalization) to reconstruct its **L1A → L0plus → L0**. MTF-deconvolution is **OFF**,
-so PSF and noise are **not** re-applied. The objective is reconstructing the real **L0** (focal-plane DN,
-12 detectors × 13 bands), validated against the real ESA L0 `img` (10/20 m bands ≤ ~4 DN).
+crosstalk, on-board equalization) to reconstruct its **L1A → L0plus → Synthetic L0**. MTF-deconvolution is **OFF**,
+so PSF and noise are **not** re-applied. The objective is reconstructing the **L0** (focal-plane DN,
+12 detectors × 13 bands), validated against the reference ESA L0 `img` (10/20 m bands ≤ ~4 DN).
 
 ### 1.2 Scope
 Radiometric-only reverse chain (ATBD §5), **L1B** entry in per-detector sensor geometry, inverting the
-operational L0→L1B radiometric corrections to reconstruct L0. Geometry inversion (de-orthorectification /
+operational L0→L1B radiometric corrections to reconstruct Synthetic L0. Geometry inversion (de-orthorectification /
 L1C entry) is **cancelled** — not applicable to an L1A/L1B entry (Issue #17). All instrument data is
-S2-sourced (real operational GIPP, SRF); nothing is fitted or synthetic in the realized path. Because
+S2-sourced (operational GIPP, SRF); nothing is fitted or synthetic in the referenceized path. Because
 MTF-deconvolution is off, the S6 PSF re-blur and S13 noise-addition steps are **dropped** — PSF and noise
 are not re-applied.
 
@@ -57,8 +57,8 @@ IDs are stable: **REQ-FUNC-NNN** (functional), **REQ-PERF-NNN** (performance), *
 ## 2. Mission context
 The forward `msi-processor` applies the operational radiometric corrections that turn L0 focal-plane DN
 into an L1B product. This software runs that chain **backwards**: it inverts those same corrections on a
-real Sentinel-2B L1B to reconstruct the real **L0** (via L1A → L0plus). Success is measured by agreement
-of the reconstructed L0 with the real ESA L0 `img` (10/20 m bands ≤ ~4 DN) — a direct, deterministic
+S2B L1B to reconstruct the **L0** (via L1A → L0plus). Success is measured by agreement
+of the Synthetic L0 with the reference ESA L0 `img` (10/20 m bands ≤ ~4 DN) — a direct, deterministic
 comparison against the operational archive product.
 
 ## 3. Functional requirements (REQ-FUNC)
@@ -67,19 +67,19 @@ comparison against the operational archive product.
 - **REQ-FUNC-001 — Accept L1A/L1B inputs.** *The software shall accept Sentinel-2 L1A and L1B products in
   EOPF Zarr format.* Rationale: the entry levels (RD 1 §1.1). **V: T** (`io.read_l1b_band`/`read_l1a_raw`). realized
 - **REQ-FUNC-003 — Per-unit platform support.** *The software shall select per-unit (S2A/S2B/S2C)
-  parameters from the product platform.* **V: T** (`sensor.unit_from_platform`, `test_real_data`). realized
+  parameters from the product platform.* **V: T** (`sensor.unit_from_platform`, `test_esa_adf_data`). realized
 - **REQ-FUNC-005 — Reject unsupported inputs.** *The software shall raise a descriptive error for unknown
   bands/units.* **V: T** (`sensor.band` KeyError). realized
 
 ### 3.2 Radiometric reverse chain (invert each operational L0→L1B correction)
-Each requirement below **inverts** one step of the operational L0→L1B radiometric chain to reconstruct L0
+Each requirement below **inverts** one step of the operational L0→L1B radiometric chain to reconstruct Synthetic L0
 focal-plane DN. With MTF-deconvolution off, the S6 PSF re-blur (REQ-FUNC-014) and S13 noise-addition
 (REQ-FUNC-021) steps are retired — PSF and noise are not re-applied (see stubs below).
 - **REQ-FUNC-010 — Invert absolute-calibration gain/offset (S1).** *The software shall invert the L1 ATBD
   raw radiometric model $X = A \cdot G \cdot L + D$ in the DN domain — recovering equalized signal DN from
   L1B counts via the per-band gain/offset inversion ($A$ = `Band.cal_gain`).* **V: T**
-  (`reverse.s1_radiance_to_dn`, `test_real_data`). realized
-- **REQ-FUNC-014 — PSF re-blur (S6).** **Cancelled** (MTF-deconvolution is off in the reverse ladder, so
+  (`reverse.s1_radiance_to_dn`, `test_esa_adf_data`). realized
+- **REQ-FUNC-014 — PSF re-blur (S6).** **Cancelled** (MTF-deconvolution is off in the reverse chain, so
   optical blur is not re-applied). *Retired step — no forward PSF convolution in the reconstruction path.*
 - **REQ-FUNC-015 — Invert relative response / PRNU (S7).** *The software shall invert the per-pixel
   relative response using the operational GIPP R2EQOG (cubic VNIR / bilinear SWIR).* **V: T**
@@ -90,7 +90,7 @@ focal-plane DN. With MTF-deconvolution off, the S6 PSF re-blur (REQ-FUNC-014) an
 - **REQ-FUNC-020 — Reverse onboard equalization (S12).** *The software shall reverse the onboard
   equalization gain/offset.* **V: T** (`reverse.s12_reapply_onboard_eq`). realized
 - **REQ-FUNC-021 — Add sensor noise (S13).** **Cancelled** (MTF-deconvolution is off in the reverse
-  ladder, so noise is not re-applied — the real L1B noise is preserved). *Retired step — no noise model
+  reverse chain, so noise is not re-applied — the S2 L1B noise is preserved). *Retired step — no noise model
   applied in the reconstruction path.*
 - **REQ-FUNC-022 — Quantize to 12-bit (S14).** *The software shall clip/round to `uint16` in `[0, 4095]`.*
   **V: T** (`reverse.s14_quantize`, inline `np.clip`/`np.rint`→`uint16`). realized
@@ -108,33 +108,33 @@ focal-plane DN. With MTF-deconvolution off, the S6 PSF re-blur (REQ-FUNC-014) an
   (`reverse.s3_undo_framing`). realized
 
 ### 3.3 Output product
-- **REQ-FUNC-030 — L0 RAW EOProduct (Zarr).** *The software shall write a L0 RAW product in the EOPF L0
+- **REQ-FUNC-030 — Synthetic L0 RAW EOProduct (Zarr).** *The software shall write a Synthetic L0 RAW product in the EOPF Synthetic L0
   Zarr structure.* **V: T** (`l0product.write_l0_product`, `test_l0product`). realized
 - **REQ-FUNC-031 — 156 measurement arrays.** *…`measurements/d{DD}/b{BB}/band{N}` uint16 in `[0,4095]`,
   12 det × 13 bands.* **V: T** (`test_l0product::test_full_156_array_contract`). realized
 - **REQ-FUNC-032 — 156 quality masks.** *…`quality/d{DD}/b{BB}/mask` uint8.* **V: T** (`test_l0product`). realized
 - **REQ-FUNC-040 — Quality-flag taxonomy.** *The software shall express L0 quality as msi-processor
-  `QAFlag`-compatible seeds (NO_DATA/LOST_PACKET/SATURATED/DEFECTIVE) and write the canonical L0 mask in the
+  `QAFlag`-compatible seeds (NO_DATA/LOST_PACKET/SATURATED/DEFECTIVE) and write the canonical Synthetic L0 mask in the
   Sentinel-2 `MSK_QUALIT` 8-bit-plane layout.* **V: T** (`quality`, `test_quality`, `test_integration`). realized
-- **REQ-FUNC-041 — EOQC quality report.** *The software shall emit an EOPF EOQC-style per-product quality
-  report (overall OK/KO + per-check list; ECSS-Q-ST-20C) embedded in the L0 `quality` group and available as
+- **REQ-FUNC-041 — EOQC quality report.** *The software shall emit EOPF EOQC-style per-product quality
+  report (overall OK/KO + per-check list; ECSS-Q-ST-20C) embedded in the Synthetic L0 `quality` group and available as
   standalone JSON.* **V: T** (`quality_report`, `test_quality_report`). realized
 - **REQ-FUNC-033 — STAC discovery metadata.** *…platform, instrument, eopf:type, datetime.* **V: T**
   (`l0product.build_root_metadata`). realized
 - **REQ-FUNC-034 — Sensor-configuration metadata.** *…spectral_band_info, tdi_configuration_list,
   line_period, per-unit SRF values.* **V: T** (`test_l0product`, `test_integration`). realized
-- **REQ-FUNC-035 — Real line datation.** *The software shall stamp each ISP line with a real GPS/OBT time
+- **REQ-FUNC-035 — GPS/OBT line datation.** *The software shall stamp each ISP line with a GPS/OBT time
   from an acquisition epoch (`datation.Datation`, ADF_DATAT model), and record per-band `band_time_stamp`
   + the acquisition epoch in the L0 metadata.* **V: T** (`datation`, `test_datation`, `test_isp`). realized
 - **REQ-FUNC-038 — STAC geometry & orbit metadata.** *The software shall write the STAC footprint
   (`bbox` + closed `geometry` polygon), `sat:relative_orbit`/`sat:absolute_orbit`/`sat:orbit_state`,
-  `eopf:datastrip_id`, and a real acquisition datetime span (start/end).* **V: T**
+  `eopf:datastrip_id`, and a acquisition datetime span (start/end).* **V: T**
   (`l0product.build_root_metadata`, `test_l0product`). realized
 - **REQ-FUNC-036 — Orbit/attitude ephemeris metadata.** *The software shall record `orbit_ephemeris_start/stop`
   (TAI/UTC/UT1 + ECEF position/velocity) in the L0 metadata from a synthesised Sentinel-2 orbit.* **V: T**
   (`sad.orbit_ephemeris`, `test_sad`). realized
 - **REQ-FUNC-037 — SAD content.** *The software shall decode/synthesise the Satellite Ancillary Data — AOCS
-  attitude quaternion, orbit ephemeris and detector thermal — and pack it as real CCSDS ISP into
+  attitude quaternion, orbit ephemeris and detector thermal — and pack it as CCSDS ISP into
   `conditions/anc_data/s{APID}/isp` (replacing the placeholder zero payload).* **V: T** (`sad`, `test_sad`). realized
 - **REQ-FUNC-042 — Open-container L0 handoff.** *The software shall additionally emit an
   open-container L0 (`measurements/detector/<band>` + `quality/l0_flags/<band>` + `conditions/*`) that the
@@ -145,7 +145,7 @@ focal-plane DN. With MTF-deconvolution off, the S6 PSF re-blur (REQ-FUNC-014) an
   metadata.* **V: I** (`l0product` `adf_provenance`). realized
 
 ### 3.4 ADF / calibration data
-- **REQ-FUNC-046 — Real operational GIPP ingest.** *The software shall parse the S2A GIPP
+- **REQ-FUNC-046 — Operational GIPP ingest.** *The software shall parse the S2A GIPP
   (R2EQOG/R2DEPI/BLINDP/R2PARA/R2CRCO) into per-pixel ADF arrays.* **V: T** (`gipp.load_gipp_set`,
   `test_gipp`). realized
 - **REQ-FUNC-044 — Synthetic fallback.** *The software shall provide physically-plausible fallback ADFs
@@ -161,25 +161,25 @@ focal-plane DN. With MTF-deconvolution off, the S6 PSF re-blur (REQ-FUNC-014) an
 - **REQ-FUNC-015 ADF source** SRF (RD 3), per-pixel dark/PRNU from the operational GIPP.
   **V: I/T**. realized
 
-### 3.4b Real-data E2E requirements
+### 3.4b S2 L1B E2E requirements
 - **REQ-FUNC-091 — PSFD product naming.** *Every emitted product file name shall follow the EOPF
   PSFD §3 rule (ICD-IF-NAME) and round-trip through `naming.parse_psfd_name`; fields not
   derivable from source metadata shall fall back to documented defaults and be flagged.*
   **V: T** (`test_naming`, driver fixture test). realized
-- **REQ-FUNC-092 — Onboard-representative ISP payloads.** *The canonical L0 shall carry each
-  band as CCSDS-122-lossless-compressed data in real CCSDS space packets (ICD-IF-C122 +
+- **REQ-FUNC-092 — Onboard-representative ISP payloads.** *The canonical Synthetic L0 shall carry each
+  band as CCSDS-122-lossless-compressed data in CCSDS space packets (ICD-IF-C122 +
   ICD-IF-ISP layout), and a ground-decode operation shall restore the exact DN.* **V: T**
   (`test_ccsds122`, `test_isp_packetize`, `test_isp`, `test_integration`). realized
-- **REQ-FUNC-093 — Real-L1B reconstruction & validation driver.** *The software shall provide a driver
-  that reconstructs **L1A → L0plus → L0** from a real Sentinel-2B L1B and (i) validates the reconstructed
-  L0 against the real ESA L0 `img` (10/20 m bands ≤ ~4 DN) — the primary criterion; (ii) verifies the
+- **REQ-FUNC-093 — S2 L1B reconstruction & validation driver.** *The software shall provide a driver
+  that reconstructs **L1A → L0plus → Synthetic L0** from S2B L1B and (i) validates the reconstructed
+  L0 against the reference ESA L0 `img` (10/20 m bands ≤ ~4 DN) — the primary criterion; (ii) verifies the
   L0plus codec round-trip `decode(L0plus) == L1A` bit-exact; (iii) reports line-loss accounting and
-  CCSDS-122 compression ratios; (iv) performs a structural comparison against a real PSD L0 product.*
+  CCSDS-122 compression ratios; (iv) performs a structural comparison against a ESA PSD Synthetic L0 product.*
   **V: T** (driver fixture tests), **V: I** (SDE full-frame run, `scripts/run_pipeline.py`). realized
 
-- **REQ-FUNC-048 — Calibration-campaign L0 products.** *The software shall synthesize the
+- **REQ-FUNC-048 — Calibration-campaign Synthetic L0 products.** *The software shall synthesize the
   calibration-campaign acquisitions — dark (CSM closed / deep space) and Lambertian
-  sun-diffuser — and package each as a real downlink L0 product: CCSDS-122-compressed ISPs,
+  sun-diffuser — and package each as a downlink Synthetic L0 product: CCSDS-122-compressed ISPs,
   PSFD §3 calibration type codes (`S02MSIDCA` / `S02MSISCA`) and operation-mode metadata
   (`DASC` / `ABSR`, ICD-IF-L0-CAL), with the Option-Y cal-DB derived from the same frames.*
   **V: T** (`test_cal_mode`). realized
@@ -190,18 +190,18 @@ focal-plane DN. With MTF-deconvolution off, the S6 PSF re-blur (REQ-FUNC-014) an
 - **REQ-FUNC-090 — L1C entry + geometry reverse.** **Cancelled** (not applicable to an L1A/L1B entry).
 
 ## 4. Performance requirements (REQ-PERF)
-- **REQ-PERF-001 — Noise model accuracy.** **Cancelled** (noise is not re-applied in the reverse ladder —
+- **REQ-PERF-001 — Noise model accuracy.** **Cancelled** (noise is not re-applied in the reverse chain —
   MTF-deconvolution off; nothing to bound). *Retired requirement.*
-- **REQ-PERF-002 — SNR@Lref fidelity.** **Cancelled** (the ladder preserves the real L1B noise rather than
+- **REQ-PERF-002 — SNR@Lref fidelity.** **Cancelled** (the reverse chain preserves the S2 L1B noise rather than
   reproducing a spec SNR; MTF-deconvolution off). *Retired requirement.*
 - **REQ-PERF-003 — Radiometric round-trip exactness.** **Cancelled** (the L1A forward∘reverse round-trip is
-  no longer a headline capability; the ladder is validated against the real ESA L0, not by a synthetic
+  no longer a headline capability; the reverse chain is validated against the reference ESA L0, not by a synthetic
   round-trip). *Retired requirement.*
 - **REQ-PERF-004 — Calibration recovery.** *Derived dark shall recover truth ($\le 0.5$ DN bound; ~0.05 DN
   typical); relative-response correlation $\ge 0.9$ (>0.99 typical); $A \approx$ `cal_gain` (±5 %).* **V: T**
   (`test_calibration`). realized
-- **REQ-PERF-005 — Reconstructed L0 vs real ESA L0.** *The reconstructed L0 DN shall agree with the real
-  ESA L0 `img` within ≤ ~4 DN on the 10 m and 20 m bands.* **V: T/A** (`test_real_data`, SDE full-frame
+- **REQ-PERF-005 — Synthetic L0 vs reference ESA L0.** *The Synthetic L0 DN shall agree with the reference
+  ESA reference ESA L0 `img` within ≤ ~4 DN on the 10 m and 20 m bands.* **V: T/A** (`test_esa_adf_data`, SDE full-frame
   run). realized
 
 ## 5. Interface requirements (REQ-IF)
@@ -209,9 +209,9 @@ The REQ-IF set is single-sourced here; the standalone [IRD](ird.md) collects and
 (interface inventory + design-control anchors) without duplicating the normative text.
 - **REQ-IF-001 — Input interface.** EOPF L1A/L1B Zarr (`measurements/d{DD}/b{xx}/img`;
   `…/DD{nn}/B{xx}/l1a_raw_image`). **V: I/T** (ICD §Interfaces). realized
-- **REQ-IF-002 — L0 output interface (ICD-IF-L0).** EOPF L0 Zarr v2 (156 arrays + masks + ISP +
+- **REQ-IF-002 — L0 output interface (ICD-IF-Synthetic L0).** EOPF L0 Zarr v2 (156 arrays + masks + ISP +
   STAC/sensor-config/provenance). **V: I/T** (ICD). realized
-- **REQ-IF-003 — GIPP interface.** Real S2A GIPP XML (`S2A_OPER_GIP_*`). **V: I** (ICD). realized
+- **REQ-IF-003 — GIPP interface.** Operational GIPP JSON (`aux/gipp-json/{Bxx}/S2B_ADF_*.json`). **V: I** (ICD). realized
 
 ## 6. Quality / non-functional requirements (REQ-QUAL)
 - **REQ-QUAL-001 — Minimal dependencies.** Runtime deps = `numpy` (+ `zarr` for I/O); no EOPF CPM required.

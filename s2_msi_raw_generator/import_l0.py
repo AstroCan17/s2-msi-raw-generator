@@ -222,10 +222,10 @@ def write_l1a_product(
     source_l1b: str | None = None,
     provenance: dict | None = None,
 ) -> dict:
-    """Write reconstructed raw-DN frames as an EOPF **L1A** product (multi-detector).
+    """Write reconstructed raw-DN frames as EOPF **L1A** product (multi-detector).
 
-    This is the reverse chain's materialised intermediate (``reverse-l1b`` phase): the real L1B → L0
-    reconstruction stops at the raw-count L1A domain and persists it before the separate L1A→L0
+    This is the reverse chain's materialised intermediate (``reverse-l1b`` phase): the S2 L1B → Synthetic L0
+    reconstruction stops at the raw-count L1A domain and persists it before the separate L1A→Synthetic L0
     packaging (CCSDS/ISP) step. ``frames`` maps ``(detector 1–12, band "B03")`` to a ``uint16``
     ``(line, column)`` raw-DN array; each is written to
     ``measurements/DD{dd}/{BAND}/l1a_raw_image`` (the layout :func:`~s2_msi_raw_generator.io.read_l1a_raw`
@@ -304,7 +304,7 @@ def write_l1a_product(
                 },
                 "reverse_provenance": {
                     "source_l1b": source_l1b,
-                    "materialised_from": "reverse-l1b (real L1B → L1A raw counts)",
+                    "materialised_from": "reverse-l1b (S2 L1B → L1A raw counts)",
                     **(provenance or {}),
                 },
             },

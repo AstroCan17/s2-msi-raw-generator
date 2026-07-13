@@ -1,7 +1,7 @@
 """Shared STAC / acquisition-identity metadata helpers.
 
 Structure- and value-level parsing that ``io``, ``naming``, ``inventory`` and ``import_l0`` all need
-for the same real-product quirks (the doubled ``stac_discovery`` nesting, ``"null"`` datetimes,
+for the same ESA-product quirks (the doubled ``stac_discovery`` nesting, ``"null"`` datetimes,
 unfilled orbit XPaths, and the data-take id orbit fallback). The helpers only normalise structure and
 coerce values; the *field-preference order* (``datetime`` vs ``start_datetime`` first, etc.) is left to
 each caller because those orders are intentionally different.
@@ -15,7 +15,7 @@ import re
 from datetime import datetime, timezone
 from typing import Any
 
-#: Recovers the 6-digit absolute orbit embedded in an EOPF data-take / datastrip id
+#: Recovers the 6-digit absolute orbit embedded in EOPF data-take / datastrip id
 #: (``GS2A_..._<orbit>_N...``).
 DATATAKE_RE = re.compile(r"GS2[ABC]_[A-Z0-9_]+?_(?P<orbit>\d{6})_N")
 
@@ -23,7 +23,7 @@ DATATAKE_RE = re.compile(r"GS2[ABC]_[A-Z0-9_]+?_(?P<orbit>\d{6})_N")
 def normalise_stac(attrs: dict) -> tuple[dict, dict, list[str]]:
     """Flatten root attributes to ``(stac, properties, flags)``.
 
-    Handles the doubled ``stac_discovery.stac_discovery`` nesting seen in some real products,
+    Handles the doubled ``stac_discovery.stac_discovery`` nesting seen in some ESA products,
     recording ``"double_stac_discovery"`` in ``flags`` when it is collapsed. Always returns plain
     dicts, even when the metadata is missing or malformed.
     """
@@ -61,7 +61,7 @@ def coerce_int(value: Any) -> tuple[int | None, bool]:
 
 
 def absolute_orbit_from_datatake_id(dtid: Any) -> int | None:
-    """Recover the absolute orbit from an EOPF data-take / datastrip id, or ``None``."""
+    """Recover the absolute orbit from EOPF data-take / datastrip id, or ``None``."""
     if not dtid:
         return None
     m = DATATAKE_RE.search(str(dtid))

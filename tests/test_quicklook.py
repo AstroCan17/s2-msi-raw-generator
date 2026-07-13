@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Quicklook PNG writer tests — both product flavours it renders (uint16 DN L0, float reflectance L1B)."""
+"""Quicklook PNG writer tests — both product flavours it renders (uint16 DN Synthetic L0, float reflectance L1B)."""
 
 from __future__ import annotations
 

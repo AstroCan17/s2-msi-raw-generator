@@ -17,28 +17,28 @@
 # Software design
 
 ## General
-The design realizes the **reverse ladder**: it inverts the operational L0→L1B radiometric chain from real
+The design realizes the **reverse chain**: it inverts the operational L0→L1B radiometric chain from
 Sentinel-2B **L1B** DN (offset → relative-response/PRNU → dark → un-bin → SWIR re-stage → defective →
 crosstalk → on-board-eq) via `forward_radiometric_atbd.reverse_l1b_to_l0`, reconstructing L1A → L0plus
-(CCSDS-122 ISP) → L0. The inversion is orchestrated by the `run_pipeline` phases **`reverse-l1b` →
+(CCSDS-122 ISP) → Synthetic L0. The inversion is orchestrated by the `run_pipeline` phases **`reverse-l1b` →
 `package-l0` → `validate-reverse`**, with MTF-deconvolution OFF so PSF and noise are **not** re-applied, and
-validated against the real ESA L0 `img` (10/20 m bands ≤~4 DN). The package is layered: a constants/sensor
+validated against the reference ESA L0 `img` (10/20 m bands ≤~4 DN). The package is layered: a constants/sensor
 leaf, an ADF/GIPP layer, the chain, and a product-assembly integrator. Every algorithm is implemented from
 the public L1 ATBD and the GIPP data format.
 
 ## Overall architecture
 
 ### Key design decisions
-- **Official ATBD radiometric model $X = A \cdot G \cdot L + D$.** The ladder takes the operational
+- **Official ATBD radiometric model $X = A \cdot G \cdot L + D$.** The reverse chain takes the operational
   relation — relative response `G`, dark `D`, on-board equalization and offset — **only as the model it
-  inverts** in the downlink DN domain from real L1B. It is the exact conjugate inversion of that chain, not
+  inverts** in the downlink DN domain from S2 L1B. It is the exact conjugate inversion of that chain, not
   a forward generator, and it does not apply the forward radiance→DN absolute multiply.
 - **Real per-pixel dark + relative response from the operational GIPP** (R2EQOG `COEFF_D` / cubic
-  (A,B,C) / bilinear (A1,A2,Zs)); no fitted or seeded values in the realized path — these are the
-  coefficients the ladder inverts.
+  (A,B,C) / bilinear (A1,A2,Zs)); no fitted or seeded values in the referenceized path — these are the
+  coefficients the reverse chain inverts.
 - **Calibration sub-set (inverse-crime cure).** The downstream calibration coefficients are *derived*
   independently from synthetic CSM sun-diffuser + dark acquisitions, rather than reusing the exact ADF
-  values the ladder consumed for its inversion.
+  values the reverse chain consumed for its inversion.
 - **Original, self-contained.** No external processor is installed, imported, or named; the forward model
   comes from the public L1 ATBD and the calibration coefficients from the GIPP data files only.
 
@@ -62,10 +62,10 @@ Original `xml.etree` parser → per-pixel arrays. API: `DetectorEq` (`.rel_gain`
 
 ### adf.py — ADF assembly (REQ-FUNC-044, -046; REQ-IF-003)
 `BandADF` frozen dataclass with `from_gipp()` (per-pixel dark + PRNU, blind-column width alignment),
-`from_product()` (L1B-derived), `synthesize()` (fallback) — the ladder's ADF inputs.
+`from_product()` (L1B-derived), `synthesize()` (fallback) — the reverse chain's ADF inputs.
 
-### forward_radiometric_atbd.py — reverse ladder + operational-eq inversion (REQ-FUNC-010, -011, -013, -015, -016, -020, -022)
-**Full real-L1B→L0 reverse (the ladder):** `reverse_l1b_to_l0()` inverts the full radiometric chain in the
+### forward_radiometric_atbd.py — reverse chain + operational-eq inversion (REQ-FUNC-010, -011, -013, -015, -016, -020, -022)
+**Full S2 L1B→Synthetic L0 reverse (the reverse chain):** `reverse_l1b_to_l0()` inverts the full radiometric chain in the
 downlink DN domain (offset → `G⁻¹` (relative-response/PRNU) → on-board eq → dark → un-bin → SWIR re-stage →
 defective), with `inverse_equalize()` / `forward_equalize()` (on-board-eq inversion — cubic via Newton,
 bilinear closed-form) and helpers `reapply_onboard_eq()` (REOB2 bilinear non-linearity) and
@@ -76,7 +76,7 @@ Restoration/deconvolution (fwd step 8) is off, so PSF re-blur / noise are **not*
 ### reverse.py — exact-inverse bridge (retained module)
 Thin module retained and imported at package load. It exposes the exact-inverse bridge
 `reverse_radiometric()` / `forward_radiometric()` between the DN and L1B domains. The operational
-radiometric inversion of real L1B is performed by `forward_radiometric_atbd.reverse_l1b_to_l0` and `gipp`
+radiometric inversion of S2 L1B is performed by `forward_radiometric_atbd.reverse_l1b_to_l0` and `gipp`
 (see above), not by a per-step forward-impress chain.
 
 ### calibration.py — calibration sub-set (REQ-FUNC-047; REQ-PERF-004)
@@ -102,29 +102,29 @@ SEQ_FIRST/CONT/LAST grammar), `build_sad_packets()`; `frame_isp_headers()` is le
 ### io.py — product reader (REQ-IF-001, REQ-FUNC-001)
 `read_l1b_band()`, `read_l1a_raw()`.
 
-### l0product.py — L0 RAW assembly (REQ-FUNC-030..-034, -045; REQ-IF-002)
+### l0product.py — Synthetic L0 RAW assembly (REQ-FUNC-030..-034, -045; REQ-IF-002)
 `reverse_to_l0_frames()`, `build_root_metadata()`, `write_l0_product()` (L0plus — CCSDS ISP + ancillary,
-`eopf_type` selectable), **`write_l0_decoded_product()`** (decompressed-`img` L0 mirroring the original S2B
-`S02MSIL0__` layout — `measurements/d{DD}/b{BB}/img` + decode-quality attrs, for a direct real-L0 compare),
+`eopf_type` selectable), **`write_l0_decoded_product()`** (decompressed-`img` L0 mirroring the reference S2B
+`S02MSIL0__` layout — `measurements/d{DD}/b{BB}/img` + decode-quality attrs, for a direct ESA-L0 compare),
 `read_l0_isp_dn()`.
 
 ### import_l0.py — L1A materialisation + public-L0 import (REQ-FUNC-001, -045)
-`read_public_l0_identity()`, `convert()` (public L0 → PDI-style L1A), **`write_l1a_product()`** — the
-reverse ladder's materialised L1A writer: multi-detector raw counts → `measurements/DD{dd}/{BAND}/l1a_raw_image`
+`read_public_l0_identity()`, `convert()` (public Synthetic L0 → PDI-style L1A), **`write_l1a_product()`** — the
+reverse chain's materialised L1A writer: multi-detector raw counts → `measurements/DD{dd}/{BAND}/l1a_raw_image`
 + L1A STAC, serial (NFS-safe) with a bit-identical re-read assert. Consumed back by `io.read_l1a_raw()`.
 
-The reverse ladder (`run_pipeline` phases) is **`reverse-l1b` → `package-l0` → `validate-reverse`**:
-reconstruct real L1B → materialise L1A, then L1A → L0plus (ISP) → L0 (decoded img), then compare the
-synthetic L1A against the original S2B L0 `img` (framing-aligned; no decoding — the archived EOPF L0 already
+The reverse chain (`run_pipeline` phases) is **`reverse-l1b` → `package-l0` → `validate-reverse`**:
+reconstruct S2 L1B → materialise L1A, then L1A → L0plus (ISP) → Synthetic L0 (decoded img), then compare the
+Synthetic L1A against the reference S2B reference ESA L0 `img` (framing-aligned; no decoding — the archived EOPF L0 already
 stores decompressed `img`, verified on the 2024-04-08 TC7D granule).
 
 ## Software components design — Aspects of each component
 All components are stateless functions or frozen dataclasses operating on NumPy arrays; the only I/O is in
 `io.py` (read) and `l0product.py` (write). Coefficient provenance is carried on `BandADF.source` and in
-the L0 `adf_provenance` metadata (REQ-FUNC-045).
+the Synthetic L0 `adf_provenance` metadata (REQ-FUNC-045).
 
 ## Internal interface design
 Arrays are 2-D `(lines, detector_columns)`; per-pixel coefficients are `(act,)` broadcast over lines.
-`BandADF` is the contract object between `adf`/`gipp` and the ladder (`forward_radiometric_atbd`);
+`BandADF` is the contract object between `adf`/`gipp` and the reverse chain (`forward_radiometric_atbd`);
 `DetectorEq` between `gipp` and `forward_radiometric_atbd`; `FrameKey = tuple[int, str]` (detector, band) keys the L0 frame dict in
 `l0product`. See the ICD (`docs/icd.md`) for the external product interfaces.

@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Real-L1A E2E driver tests on a tiny synthetic PDI-style fixture (REQ-FUNC-093)."""
+"""S2 L1B E2E driver tests on a tiny synthetic PDI-style fixture (REQ-FUNC-093)."""
 
 from __future__ import annotations
 
@@ -52,16 +52,19 @@ def pdi_l1a(tmp_path):
     return str(path)
 
 
+from tests.conftest import patch_pipeline_env
+
+
 def _run(monkeypatch, store, pdi_l1a, phases, lines=None):
-    monkeypatch.setenv("S2_DATA_STORE", str(store))
-    monkeypatch.setenv("S2_E2ES_PHASES", phases)
-    monkeypatch.setenv("S2_E2ES_L1A", pdi_l1a)
-    monkeypatch.setenv("S2_E2ES_BANDS", ",".join(BANDS))
+    patch_pipeline_env(monkeypatch, store, l1a=pdi_l1a)
+    monkeypatch.setenv("S2_L1A_INPUT", pdi_l1a)
+    monkeypatch.setenv("S2_PHASES", phases)
+    monkeypatch.setenv("S2_BANDS", ",".join(BANDS))
     if lines is None:
-        monkeypatch.delenv("S2_E2ES_LINES", raising=False)  # hermetic vs dev shells
+        monkeypatch.delenv("S2_LINES", raising=False)
     else:
-        monkeypatch.setenv("S2_E2ES_LINES", str(lines))
-    assert drv.main([]) == 0
+        monkeypatch.setenv("S2_LINES", str(lines))
+    assert drv.main([], load_env=False) == 0
 
 
 def test_preflight_package_ground_decode(tmp_path, pdi_l1a, monkeypatch):

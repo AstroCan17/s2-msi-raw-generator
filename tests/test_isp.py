@@ -34,7 +34,7 @@ def test_cuc_time_encodes_coarse_and_fine():
 
 
 def test_parse_cuc_time_roundtrips():
-    for t in (0.0, 5.5, 1.39e9 + 0.25):  # incl. a real 2024 GPS second-of-epoch
+    for t in (0.0, 5.5, 1.39e9 + 0.25):  # incl. an 2024 GPS second-of-epoch
         assert isp.parse_cuc_time(isp.cuc_time(t)) == pytest.approx(t, abs=1.0 / 65536)
 
 
@@ -113,7 +113,7 @@ def test_l0_with_isp_writes_compressed_stream_and_telemetry(tmp_path):
 
 
 def test_l0_isp_only_product_omits_decoded_bands(tmp_path):
-    """store_decoded=False mirrors the real S2 L0: ISPs only, DN restored by ground decode."""
+    """store_decoded=False mirrors the ESA S2 Synthetic L0: ISPs only, DN restored by ground decode."""
     zarr = pytest.importorskip("zarr")
     from s2_msi_raw_generator import l0product
     frames = {(4, "B03"): np.full((16, 8), 100.0)}
@@ -128,7 +128,7 @@ def test_l0_isp_only_product_omits_decoded_bands(tmp_path):
 
 
 def test_l0_isp_timestamps_use_real_gps_epoch(tmp_path):
-    """REQ-FUNC-035: the CUC time in the written ISP packets is the real GPS OBT, not t0=0."""
+    """REQ-FUNC-035: the CUC time in the written ISP packets is the GPS OBT, not t0=0."""
     zarr = pytest.importorskip("zarr")
     from s2_msi_raw_generator import datation, l0product
     frames = {(4, "B03"): np.full((16, 8), 100.0)}
@@ -140,4 +140,4 @@ def test_l0_isp_timestamps_use_real_gps_epoch(tmp_path):
     stream = np.asarray(zarr.open_group(out, mode="r")["measurements/d04/b03/isp"])
     _hdr, t0, _body = next(isp.iter_packets(stream))     # first packet CUC = first segment epoch
     assert t0 == pytest.approx(d.line_time_gps(0, "B03"), abs=1.0 / 65536)
-    assert t0 > 1.30e9                                    # real GPS second-of-epoch, not zero
+    assert t0 > 1.30e9                                    # GPS second-of-epoch, not zero

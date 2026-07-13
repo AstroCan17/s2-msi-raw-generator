@@ -25,20 +25,20 @@ environment, pass/fail criteria and execution control. Results: [SUITR](suitr.md
 
 The CSCI `s2_msi_raw_generator` (all modules) plus its driver scripts, at the `main` baseline. Items
 under test are the public functions of each module; the integration level exercises module chains up to
-the full reverse pipeline and the L0 product contract.
+the full reverse pipeline and the Synthetic L0 product contract.
 
 ## 2. Test organisation & environment
 
 - **Framework:** `pytest`; configuration in `pyproject.toml` (`testpaths = ["tests"]`).
 - **Environment:** Python ≥ 3.11, `numpy` + `zarr` + `pytest` only; CI image `python:3.12-slim`
   (no credentials, no EOPF CPM). Locally reproducible with the same three installs.
-- **Fixtures:** synthetic-only by default — tiny inline GIPP XML fixtures, packaged PSF CSVs
+- **Fixtures:** synthetic-only by default — tiny inline GIPP XML/JSON fixtures, packaged PSF CSVs
   (`s2_msi_raw_generator/data/psf/`), generated frames. No network access in any non-gated test.
-- **Environment-gated real-data tests:** skip unless `S2_E2ES_GIPP_DIR` (operational GIPP folder) and/or
-  `S2_E2ES_L1A` (a real L1A `.zarr`) are set; exercised on the SDE.
+- **Environment-gated S2 L1B tests:** skip unless `S2_GIPP_DIR` (operational GIPP folder) and/or
+  `S2_L1A_INPUT` (a S2 L1A `.zarr`) are set; exercised on the SDE.
 - **Execution control:** the CI `unit-tests` job runs the full suite on every MR and on `main`
   (`pytest tests/ -q --junitxml=report.xml`, JUnit artifact); a red job blocks merge. The manual
-  `e2e-l1b` / `e2e-real-l1a` jobs add the processor-coupled integration level in the eopf environment.
+  `e2e-l1b` / `e2e-s2-l1b` jobs add the processor-coupled integration level in the eopf environment.
 
 ## 3. Test inventory
 
@@ -48,13 +48,13 @@ the full reverse pipeline and the L0 product contract.
 
 | File | Funcs | Items under test |
 |---|---|---|
-| `test_reverse.py` | 11 | sensor model; S1 radiance→DN (apply absolute gain A); bit-exact invertibility of the ladder steps (offset S4, relative-response/PRNU S7, dark S11, un-bin S5, SWIR re-stage S8, crosstalk S9, on-board-eq S12, defective S10); 12-bit quantize/clip to L0 DN (S14) |
-| `test_real_data.py` | 11 | real SRF load & normalisation (sensor/spectral model); per-unit calibration parameters (dark, PRNU/relative-response, offset, gain) parsed from the operational GIPP |
+| `test_reverse.py` | 11 | sensor model; S1 radiance→DN (apply absolute gain A); bit-exact invertibility of the reverse chain steps (offset S4, relative-response/PRNU S7, dark S11, un-bin S5, SWIR re-stage S8, crosstalk S9, on-board-eq S12, defective S10); 12-bit quantize/clip to Synthetic L0 DN (S14) |
+| `test_esa_adf_data.py` | 11 | ESA SRF load & normalisation (sensor/spectral model); per-unit calibration parameters (dark, PRNU/relative-response, offset, gain) parsed from the operational GIPP |
 | `test_calibration.py` | 4 | calibration sub-set recovery (dark, relative response, absolute coefficient) |
-| `test_roundtrip_atbd.py` | 5 | bit-exact invertibility of each reversible ladder step (offset/PRNU/dark/un-bin/SWIR/crosstalk/on-board-eq), FPN flattening (relative-response/PRNU inversion); headline validation is now the reconstructed L0 vs the real ESA L0 `img` (10/20 m bands ≤ ~4 DN) |
-| `test_gipp.py` | 5 | GIPP XML parsers (R2EQOG/R2DEPI/BLINDP/R2PARA/R2CRCO), ADF assembly |
+| `test_roundtrip_atbd.py` | 5 | bit-exact invertibility of each reversible reverse-chain step (offset/PRNU/dark/un-bin/SWIR/crosstalk/on-board-eq), FPN flattening (relative-response/PRNU inversion); headline validation is now the Synthetic L0 vs the reference ESA L0 `img` (10/20 m bands ≤ ~4 DN) |
+| `test_gipp.py` | 8 | GIPP JSON/XML parsers (REQOG/RDEPI/BLIND/RPARA/RCRCO), ADF assembly |
 | `test_inc3_steps.py` | 6 | S4/S5/S8/S9/S10 steps individually |
-| `test_ccsds122.py` | 9 | DWT 9/7-M reversibility (edge cases), block/scan round-trip, Rice coding, segment-header parse, compress∘decompress bit-exact; env-gated real window |
+| `test_ccsds122.py` | 9 | DWT 9/7-M reversibility (edge cases), block/scan round-trip, Rice coding, segment-header parse, compress∘decompress bit-exact; env-gated S2 L1A window |
 | `test_isp.py` | 11 | CCSDS primary header, CUC time, APID rules, frame ISP contract, SAD packets |
 | `test_isp_packetize.py` | 7 | `SEQ_FIRST/CONT/LAST` grammar, 14-bit counter continuity, `reassemble∘packetize = id`, offsets tiling |
 | `test_naming.py` | 12 | PSFD §3 grammar, `parse_psfd_name` round-trip, metadata-derived fields + flagged defaults |
@@ -69,16 +69,16 @@ the full reverse pipeline and the L0 product contract.
 
 | File | Funcs | Chain under test |
 |---|---|---|
-| `test_integration.py` | 1 | real/synthetic L1B → `reverse_full` (S1–S14, with PSF re-blur S6 and noise S13 DISABLED — MTF-deconvolution off, noise not re-applied): offset/PRNU/dark/un-bin/SWIR-restage/crosstalk/on-board-eq inversion (+ defective S10) → L0plus → L0, then S15 ISP → full L0 product, 2 det × 6 bands incl. SWIR + defects |
+| `test_integration.py` | 1 | S2/synthetic L1B → `reverse_full` (S1–S14, with PSF re-blur S6 and noise S13 DISABLED — MTF-deconvolution off, noise not re-applied): offset/PRNU/dark/un-bin/SWIR-restage/crosstalk/on-board-eq inversion (+ defective S10) → L0plus → Synthetic L0, then S15 ISP → full Synthetic L0 product, 2 det × 6 bands incl. SWIR + defects |
 | `test_l0product.py` | 5 | L0 write + reopen: 156-array contract, STAC/sensor-config/provenance metadata, compressed-ISP branch |
-| `test_e2e_l1b.py` | 3 | open-container L0 → processor-schema handshake (CI-side schema checks; full chain in the manual `e2e-l1b` job) |
-| `test_real_e2e_driver.py` | 3 | driver phases preflight → package → ground-decode on a synthetic PDI fixture; SDE-gated decode/validate phases |
+| `test_e2e_l1b.py` | 3 | open-container Synthetic L0 → processor-schema handshake (CI-side schema checks; full chain in the manual `e2e-l1b` job) |
+| `test_s2_l1b_e2e_driver.py` | 3 | driver phases preflight → package → ground-decode on a synthetic PDI fixture; SDE-gated decode/validate phases |
 
 ## 4. Features not tested at this level
 
 - Absolute radiometry against a physically-calibrated product (no such public product; see RSK-04).
-- Real image-ISP payload decode (proprietary MRCPB; real `.bin` objects GET-403 — RSK-01). The
-  structural scan of real streams is part of the E2E validation, not the unit/integration level.
+- Real image-ISP payload decode (proprietary MRCPB; `.bin` objects GET-403 — RSK-01). The
+  structural scan of reference streams is part of the E2E validation, not the unit/integration level.
 - Interoperability with external CCSDS-122 reference decoders (documented divergence DEC-05).
 
 ## 5. Pass/fail criteria

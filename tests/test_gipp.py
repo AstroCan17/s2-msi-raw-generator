@@ -1,7 +1,7 @@
-"""Tests for the original GIPP parser (``s2_msi_raw_generator.gipp``) and ``BandADF.from_gipp``.
+"""Tests for the GIPP parser (``s2_msi_raw_generator.gipp``) and ``BandADF.from_gipp``.
 
-Structurally-faithful but tiny GIPP XML fixtures are generated inline (no large vendored files). An
-optional test runs against the operational GIPP when ``S2_E2ES_GIPP_DIR`` points at it.
+Structurally-faithful but tiny GIPP XML/JSON fixtures are generated inline (no large vendored files). An
+optional test runs against the operational GIPP when ``S2_GIPP_DIR`` points at it.
 """
 
 from __future__ import annotations
@@ -105,6 +105,137 @@ def tiny_gipp(tmp_path):
     return str(d)
 
 
+def _json_eqog_cubic(npix=8, ndet=2, dark=440.0, c=0.99):
+    coeffs = []
+    for d in range(1, ndet + 1):
+        lines = {f"LINE{k}": _vals(dark + d + 0.1 * k, npix) for k in range(1, 7)}
+        coeffs.append({
+            "@detector_id": f"{d:02d}",
+            "NB_OF_PIXELS": str(npix),
+            "GROUND_EQUALIZATION": {
+                "CUBIC": {
+                    "COEFF_A": _vals(0.0, npix),
+                    "COEFF_B": _vals(0.0, npix),
+                    "COEFF_C": _vals(c, npix),
+                    "COEFF_D": {"A_10M_BAND": lines},
+                }
+            },
+        })
+    return {
+        "GS2_RADIOS2_EQUALIZATION_ONGROUND": {
+            "DATA": {
+                "BAND_ID": "2",
+                "COEFFICIENTS_LIST": {"@tdi_config": "APPLIED", "COEFFICIENTS": coeffs},
+            }
+        }
+    }
+
+
+def _json_eqog_bilinear(npix=4, ndet=2, dark=495.0, a1=0.95, a2=0.96, zs=600.0):
+    coeffs = []
+    for d in range(1, ndet + 1):
+        lines = {f"LINE{k}": _vals(dark + d, npix) for k in range(1, 4)}
+        coeffs.append({
+            "@detector_id": f"{d:02d}",
+            "NB_OF_PIXELS": str(npix),
+            "GROUND_EQUALIZATION": {
+                "BI-LINEAR": {
+                    "COEFF_A1": _vals(a1, npix),
+                    "COEFF_A2": _vals(a2, npix),
+                    "COEFF_Zs": _vals(zs, npix),
+                    "COEFF_D": {"A_20M_BAND": lines},
+                }
+            },
+        })
+    return {
+        "GS2_RADIOS2_EQUALIZATION_ONGROUND": {
+            "DATA": {
+                "BAND_ID": "11",
+                "COEFFICIENTS_LIST": {"@tdi_config": "APPLIED", "COEFFICIENTS": coeffs},
+            }
+        }
+    }
+
+
+def _json_rdepi():
+    bands = []
+    for bid in range(13):
+        cols = "2 5" if bid == 11 else ""
+        bands.append({
+            "@band_id": str(bid),
+            "SINGULARITY_LIST": {
+                "SINGULARITY": {
+                    "@type": "SATURATED_RESPONSE",
+                    "POSITION": {"@detector_id": "01", "COLUMNS": cols},
+                }
+            },
+        })
+    return {"GS2_RADIOS2_DEFECTIVE_PIXELS": {"DATA": {"BAND": bands}}}
+
+
+def _json_blindp():
+    bands = []
+    for bid in range(13):
+        bands.append({
+            "@band_id": str(bid),
+            "DETECTOR": {
+                "@detector_id": "01",
+                "SIDE": {
+                    "@side_id": "LEFT",
+                    "VALID_BLIND_PIXELS": "0 1",
+                    "NON_VALID_BLIND_PIXELS": "2 3",
+                },
+            },
+        })
+    return {"GS2_BLIND_PIXELS": {"DATA": {"BAND": bands}}}
+
+
+def _json_r2para():
+    l1b = [{"@band_id": str(i), "#text": "-100"} for i in range(13)]
+    l1c = [{"@band_id": str(i), "#text": "-1000"} for i in range(13)]
+    eqs = [{
+        "@band_id": str(i),
+        "EQUALIZATION_FLAG": "true",
+        "OFFSET": "true",
+        "DARK_SIGNAL_NON_UNIFORMITY": "true",
+    } for i in range(13)]
+    return {
+        "GS2_RADIOS2_PARAMETERS": {
+            "DATA": {
+                "NOMINAL_SCENARIO": {"EQUALIZATION": {"BAND_EQUALIZATION": eqs}},
+                "RADIOMETRIC_SHIFT": {
+                    "RADIANCE_OFFSET_L1B": {"RADIO_ADD_OFFSET": l1b},
+                    "REFLECTANCE_OFFSET_L1C": {"RADIO_ADD_OFFSET": l1c},
+                },
+            }
+        }
+    }
+
+
+def _json_r2crco():
+    rows = [{
+        "@band_id_k": str(i),
+        "OPTICAL": _vals(0.0, 13),
+        "ELECTRICAL": _vals(0.0, 13),
+    } for i in range(13)]
+    return {"GS2_RADIOS2_CROSSTALK_CORRECTION": {"DATA": {"CROSSTALK_COEFF_LIST": {"CROSSTALK_COEFF": rows}}}}
+
+
+@pytest.fixture
+def tiny_gipp_json(tmp_path):
+    root = tmp_path / "gipp-json"
+    (root / "B03").mkdir(parents=True)
+    (root / "B11").mkdir(parents=True)
+    (root / "B00").mkdir(parents=True)
+    (root / "B03" / "S2B_ADF_REQOG_test.json").write_text(json.dumps(_json_eqog_cubic()))
+    (root / "B11" / "S2B_ADF_REQOG_test.json").write_text(json.dumps(_json_eqog_bilinear()))
+    (root / "B00" / "S2B_ADF_RDEPI_test.json").write_text(json.dumps(_json_rdepi()))
+    (root / "B00" / "S2B_ADF_BLIND_test.json").write_text(json.dumps(_json_blindp()))
+    (root / "B00" / "S2B_ADF_RPARA_test.json").write_text(json.dumps(_json_r2para()))
+    (root / "B00" / "S2B_ADF_RCRCO_test.json").write_text(json.dumps(_json_r2crco()))
+    return str(root)
+
+
 # --- parser tests ------------------------------------------------------------
 
 def test_r2eqog_cubic_band(tiny_gipp):
@@ -140,8 +271,32 @@ def test_r2depi_blindp_para_crco(tiny_gipp):
 def test_from_gipp_builds_real_adf(tiny_gipp):
     gs = gipp.load_gipp_set(tiny_gipp, bands=("B03", "B11"))
     a = adf.BandADF.from_gipp(sensor.band("B03"), 2, gs)
-    assert a.prnu_is_real and a.source == "GIPP R2EQOG"
+    assert a.prnu_is_real and a.source in ("GIPP R2EQOG", "GIPP JSON REQOG")
     assert a.dark_dn.shape == (8,) and a.prnu_gain.shape == (8,)
+    assert np.allclose(a.prnu_gain, 0.99)
+
+
+def test_r2eqog_json_band(tiny_gipp_json):
+    be = gipp.read_r2eqog_band(tiny_gipp_json, "B03")
+    assert be.tdi is True and be.npix == 8
+    assert be.source == "GIPP JSON REQOG"
+    d1 = be.detectors[1]
+    assert d1.model == "CUBIC"
+    assert np.allclose(d1.rel_gain, 0.99)
+    assert d1.dark.mean() == pytest.approx(441.35, abs=0.5)
+
+
+def test_r2depi_blindp_json(tiny_gipp_json):
+    gs = gipp.load_gipp_set(tiny_gipp_json, bands=("B03", "B11"))
+    assert list(gs.defective["B11"][1]) == [2, 5]
+    assert list(gs.blind["B03"][1]) == [0, 1, 2, 3]
+    assert gs.params.radiance_offset_l1b["B12"] == -100
+
+
+def test_load_gipp_set_json_layout(tiny_gipp_json):
+    gs = gipp.load_gipp_set(tiny_gipp_json, bands=("B03", "B11"))
+    a = adf.BandADF.from_gipp(sensor.band("B03"), 2, gs)
+    assert a.source == "GIPP JSON REQOG"
     assert np.allclose(a.prnu_gain, 0.99)
 
 
@@ -241,10 +396,10 @@ def test_temporal_validity_compact_date():
 
 # --- optional: operational GIPP -----------------------------------------
 
-def test_real_gipp_dark_matches_dqr_range():
-    gipp_dir = os.environ.get("S2_E2ES_GIPP_DIR")
+def test_gipp_dark_matches_dqr_range():
+    gipp_dir = os.environ.get("S2_GIPP_DIR")
     if not gipp_dir or not os.path.isdir(gipp_dir):
-        pytest.skip("set S2_E2ES_GIPP_DIR to the GIPP folder to run")
+        pytest.skip("set S2_GIPP_DIR to the gipp-json folder to run")
     gs = gipp.load_gipp_set(gipp_dir)
     assert len(gs.equalization) == 13
     for b in sensor.BANDS:

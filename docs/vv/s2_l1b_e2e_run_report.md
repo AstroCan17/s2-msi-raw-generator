@@ -1,27 +1,27 @@
-# Reverse-ladder E2E run report — real S2B L1B → L1A → L0plus → L0
+# Reverse-chain E2E run report — S2B L1B → L1A → L0plus → Synthetic L0
 
-This run drives a real Sentinel-2B **L1B** backwards through the exact inverse of the operational
-L0→L1B radiometric chain to reconstruct **L1A → L0plus (CCSDS-122 ISP) → L0**, then validates the
-reconstructed L0 against the real ESA L0 `img`. MTF-deconvolution is off, so PSF and noise are not
+This run drives a Sentinel-2B **L1B** backwards through the exact inverse of the operational
+L0→L1B radiometric chain to reconstruct **L1A → L0plus (CCSDS-122 ISP) → Synthetic L0**, then validates the
+Synthetic L0 against the reference ESA L0 `img`. MTF-deconvolution is off, so PSF and noise are not
 re-applied.
 
-- Input: real **S2B L1B** for the 2024-04-08 PPB datatake (detector d05, all 13 bands) — ESA/Copernicus asset in `ipf/data-store`
-- Reconstructed ladder outputs (L1A → L0plus → L0): `S02MSIL0__20240403T102415_0033_A045_TC42.zarr` / `S02MSIL0__20240403T102415_0033_A045_TC42_OC.zarr` / `S02MSIL1A_20240403T102415_0033_A045_T6DE.zarr`
+- Input: **S2B L1B** for the 2024-04-08 PPB datatake (detector d05, all 13 bands) — ESA/Copernicus asset in `ipf/data-store`
+- Reconstructed reverse chain outputs (L1A → L0plus → Synthetic L0): `S02MSIL0__20240403T102415_0033_A045_TC42.zarr` / `S02MSIL0__20240403T102415_0033_A045_TC42_OC.zarr` / `S02MSIL1A_20240403T102415_0033_A045_T6DE.zarr`
 - Naming fallbacks (PSFD): ['datetime', 'sat:relative_orbit', 'platform']
 
-## Reverse L1B → L1A → L0plus → L0 (full ladder) — 2024-04-08 S2B PPB
+## Reverse L1B → L1A → L0plus → Synthetic L0 (full reverse chain) — 2024-04-08 S2B PPB
 
 The exact inverse of the *full* operational L0→L1B radiometric chain
-(`forward_radiometric_atbd.reverse_l1b_to_l0`), materialised as the full EOPF product ladder
+(`forward_radiometric_atbd.reverse_l1b_to_l0`), materialised as the full EOPF EOPF product chain
 (`reverse-l1b` → **L1A** raw counts; `package-l0` → **L0plus** CCSDS ISP + ancillary → **L0** decoded
-`img`), validated against the **real S2B L0/L1B pair** for the 2024-04-08 PPB datatake (detector d05, all
-13 bands). The synthetic **L1A** is compared to the **original S2B L0 `img`** directly — the archived EOPF L0
+`img`), validated against the **S2B Synthetic L0/L1B pair** for the 2024-04-08 PPB datatake (detector d05, all
+13 bands). The Synthetic **L1A** is compared to the **reference S2B L0 `img`** directly — the archived EOPF Synthetic L0
 stores decompressed `img` (verified on the TC7D granule), so no decoding is needed on the reference side;
-our own codec is only round-tripped on the synthetic L0plus (asserted bit-exact). Alignment uses the exact
+our own codec is only round-tripped on the L0plus (asserted bit-exact). Alignment uses the exact
 ADF_PRDLO `begin_nb_lines_to_cut` per band/detector (from the L1B metadata) + a small cross-correlation
 refinement for the ~28-line legacy datation drift.
 
-**Synthetic L1A vs original ESA L0 `img` — RMSE (DN), framing offset, line drift (drift 0 throughout):**
+**Synthetic L1A vs reference ESA L0 `img` — RMSE (DN), framing offset, line drift (drift 0 throughout):**
 
 | band | B01 | B02 | B03 | B04 | B05 | B06 | B07 | B08 | B8A | B09 | B10 | B11 | B12 |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|
@@ -35,12 +35,12 @@ un-bin is a ×3 line replication — the sub-pixel detail the forward 60 m binni
 **irrecoverable** (their median offsets stay small: 0.7–5.9 %). Regenerate with
 `scripts/reverse_compare_figure.py`.
 
-![Full-chain reverse — synthetic L1A vs original ESA L0, all 13 bands (synthetic | real | diff); diff panels flat to a few DN for 10/20 m, textured for the three 60 m bands](../_static/showcase/reverse_l1b_allbands.png)
+![Full-chain reverse — Synthetic L1A vs reference ESA L0, all 13 bands (Synthetic L0 | ESA L0 | diff); diff panels flat to a few DN for 10/20 m, textured for the three 60 m bands](../_static/showcase/reverse_l1b_allbands.png)
 
 ```{note}
-The "original S2B L0" panels contain **modified Copernicus Sentinel data 2024** (Sentinel-2B, 2024-04-08
+The "reference S2B L0" panels contain **modified Copernicus Sentinel data 2024** (Sentinel-2B, 2024-04-08
 datatake), shown as low-resolution demo previews for validation only. No raw product data is
-redistributed here — input L0/L1B products and operational GIPP/ADF are ESA/Copernicus assets kept in
+redistributed here — input Synthetic L0/L1B products and operational GIPP/ADF are ESA/Copernicus assets kept in
 the `ipf/data-store`, not in the repository.
 ```
 
@@ -61,7 +61,7 @@ dark → un-bin → **SWIR re-arrangement (RSWIR)** → defective (R2DEPI); cros
 phase-level (≈0 for S2A/B). **MTF restoration/deconvolution is off in the forward chain** (L1B keeps
 the instrument PSF), so PSF re-blur (S6) and noise (S13) are **not** re-applied — see
 [DPM parameters-data-list](../dpm/parameters-data-list.md). Reproduce:
-`S2_E2ES_PHASES=reverse-l1b S2_E2ES_L1B=<L1B.zarr> python scripts/run_pipeline.py`; visual notebook
+`S2_PHASES=reverse-l1b S2_L1B_INPUT=<L1B.zarr> python scripts/run_pipeline.py`; visual notebook
 `notebooks/reverse_l1b_compare.ipynb`.
 
 ## Compression + ground decode (bit-exact)
@@ -84,7 +84,7 @@ the instrument PSF), so PSF re-blur (S6) and noise (S13) are **not** re-applied 
 
 ## L0plus codec round-trip (decode(L0plus)==L1A)
 
-Supporting check: decoding the reconstructed L0plus CCSDS-122 stream returns the ladder L1A raw
+Supporting check: decoding the L0plus CCSDS-122 stream returns the reverse chain L1A raw
 counts bit-for-bit (0 lines lost, RMSE 0.0), all 13 bands.
 
 | band | bit-identical (kept) | lines lost | rmse |
@@ -105,7 +105,7 @@ counts bit-for-bit (0 lines lost, RMSE 0.0), all 13 bands.
 
 ## Real-L0 ISP structural scan
 
-- PSD L0 SAFE image-ISP .bin objects are HTTP 403 on GET (bucket policy) — image-packet accounting not possible; structural ISP validation done on real SADATA packet streams
+- PSD L0 SAFE image-ISP .bin objects are HTTP 403 on GET (bucket policy) — image-packet accounting not possible; structural ISP validation done on SADATA packet streams
 - Real SADATA members tiling exactly: 2/68
 
 | member | packets | tiles | seq continuous | data-len min..max |
@@ -183,6 +183,6 @@ counts bit-for-bit (0 lines lost, RMSE 0.0), all 13 bands.
 
 - ours (PSFD file): `S02MSIL0__20240403T102415_0033_A045_TC42.zarr`
 - ours (PSD datastrip id in metadata): `S2A_OPER_MSI_L0__DS_20240403T102415_A034803` (pattern match: True)
-- real (PSD DS tar): `S2A_OPER_MSI_L0__DS_ATOS_20221111T083024_S20221111T082158_N04.00.tar`
-- real datastrip ids: []
+- (PSD DS tar): `S2A_OPER_MSI_L0__DS_ATOS_20221111T083024_S20221111T082158_N04.00.tar`
+- reference datastrip ids: []
 
