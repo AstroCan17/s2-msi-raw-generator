@@ -1,0 +1,17 @@
+{
+  "name": "s2-msi-raw-generator",
+  "image": "mcr.microsoft.com/devcontainers/python:1-3.11-bullseye",
+  "secrets": {
+    "RCLONE_CONF_B64": {
+      "description": "Full rclone.conf file contents (copy-paste as-is). Settings → Secrets → Codespaces."
+    }
+  },
+  "containerEnv": {
+    "S2_DATA_STORE": "${containerWorkspaceFolder}/data"
+  },
+  "remoteEnv": {
+    "S2_DATA_STORE": "${containerWorkspaceFolder}/data"
+  },
+  "onCreateCommand": "bash .devcontainer/scripts/install-rclone.sh",
+  "postCreateCommand": "bash .devcontainer/scripts/setup.sh"
+}
